@@ -1,0 +1,80 @@
+name: Web Smartphone Android 14 Persistent Relay
+
+on:
+  workflow_dispatch:
+    inputs:
+      relay_cycle:
+        description: 'Numéro du cycle de relais Android'
+        required: false
+        default: '1'
+      session_id:
+        description: 'Identifiant de session Android unique'
+        required: false
+        default: 'session-android'
+      sync_interval_mins:
+        description: 'Intervalle de sauvegarde (minutes)'
+        required: false
+        default: '10'
+      relay_trigger_mins:
+        description: 'Temps avant lancement du runner suivant (minutes)'
+        required: false
+        default: '315'
+      relay_shutdown_mins:
+        description: 'Temps avant arrêt du runner actuel (minutes)'
+        required: false
+        default: '345'
+
+concurrency:
+  group: vm-android-group
+  cancel-in-progress: false
+
+jobs:
+  run-android-vm:
+    name: 'Android 14 Relay Cycle ${{ github.event.inputs.relay_cycle || 1 }}'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          fetch-depth: 0
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Restore Persistent Android Data
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          ./scripts/backup-sync-android.sh restore
+
+      - name: Start Web Smartphone Android 14 (API 34)
+        run: |
+          ./scripts/setup-android.sh
+
+      - name: Auto-Configure & Start Cloudflare Tunnel for Android
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CLOUDFLARE_ID: ${{ secrets.CLOUDFLARE_ID }}
+        run: |
+          ./scripts/start-tunnel-android.sh
+
+      - name: Run Android Relay Orchestrator
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CLOUDFLARE_ID: ${{ secrets.CLOUDFLARE_ID }}
+          RELAY_CYCLE: ${{ github.event.inputs.relay_cycle || 1 }}
+          SESSION_ID: ${{ github.event.inputs.session_id || 'session-android' }}
+          SYNC_INTERVAL_MINS: ${{ github.event.inputs.sync_interval_mins || 10 }}
+          RELAY_TRIGGER_MINS: ${{ github.event.inputs.relay_trigger_mins || 315 }}
+          RELAY_SHUTDOWN_MINS: ${{ github.event.inputs.relay_shutdown_mins || 345 }}
+        run: |
+          ./scripts/relay-orchestrator-android.sh

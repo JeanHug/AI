@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Smartphone Android 8.1 Oreo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📱</text></svg>">
+  <style>
+    :root {
+      --bg: #09090b;
+      --phone-border: #27272a;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* CONTENEUR PRINCIPAL DU SMARTPHONE - EXACT RATIO 9:16 DU TÉLÉPHONE */
+    #phoneWrapper {
+      position: relative;
+      width: min(390px, 90vh * (9 / 16));
+      aspect-ratio: 9 / 16;
+      max-height: 92vh;
+      background: #000000;
+      border-radius: 44px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 10px #18181b, 0 0 0 12px #27272a;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* MODE PLEIN ÉCRAN TOTAL SANS CADRE */
+    body.fullscreen-detected #phoneWrapper {
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      aspect-ratio: auto !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+
+    /* ENCOCHE DU SMARTPHONE */
+    #phoneNotch {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 140px;
+      height: 22px;
+      background: #18181b;
+      border-bottom-left-radius: 14px;
+      border-bottom-right-radius: 14px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .speaker {
+      width: 44px;
+      height: 3px;
+      background: #3f3f46;
+      border-radius: 2px;
+    }
+    .camera {
+      width: 8px;
+      height: 8px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 50%;
+    }
+    body.fullscreen-detected #phoneNotch {
+      display: none !important;
+    }
+
+    /* FLUX VIDÉO DIRECT NOVNC */
+    #streamFrame {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #000000;
+      display: block;
+    }
+
+    /* BOUTON FLOTTANT PLEIN ÉCRAN */
+    #toggleModeBtn {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 10002;
+      background: rgba(16, 185, 129, 0.95);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 30px;
+      padding: 9px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+    }
+    #toggleModeBtn:hover {
+      background: rgba(5, 150, 105, 1);
+      transform: scale(1.04);
+    }
+    body.fullscreen-detected #toggleModeBtn {
+      display: none !important;
+    }
+
+    /* BARRE DE NAVIGATION ANDROID TACTILE (RETOUR, ACCUEIL, RÉCENTS, CLAVIER) */
+    #androidNavBar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 48px;
+      background: rgba(10, 10, 12, 0.94);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      z-index: 999;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      transition: transform 0.3s ease;
+    }
+    .nav-icon-btn {
+      background: none;
+      border: none;
+      color: #e4e4e7;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .nav-icon-btn:active {
+      background: rgba(255, 255, 255, 0.18);
+      transform: scale(0.9);
+    }
+    .nav-icon-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    /* INPUT INVISIBLE POUR CLAVIER VIRTUEL DU TÉLÉPHONE */
+    #hiddenKeyboardInput {
+      position: fixed;
+      top: -100px;
+      left: -100px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ÉCRAN DE CHARGEMENT INTELLIGENT */
+    #loadingScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #09090b;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      transition: opacity 0.4s ease;
+      padding: 24px;
+      text-align: center;
+    }
+    .loader-spin {
+      width: 44px;
+      height: 44px;
+      border: 3.5px solid rgba(255, 255, 255, 0.12);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .phone-icon-pulse {
+      font-size: 36px;
+      margin-bottom: 12px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Input invisible pour saisie au clavier -->
+  <input type="text" id="hiddenKeyboardInput" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+  <!-- Bouton Plein Écran -->
+  <button id="toggleModeBtn" onclick="enableFullscreenMode()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+    </svg>
+    <span>🔍 Auto-Détection / Plein Écran</span>
+  </button>
+
+  <!-- Cadre Téléphone Smartphone -->
+  <div id="phoneWrapper">
+    <!-- Encoche Haut -->
+    <div id="phoneNotch">
+      <div class="speaker"></div>
+      <div class="camera"></div>
+    </div>
+
+    <!-- Écran de Chargement Initial -->
+    <div id="loadingScreen">
+      <div class="phone-icon-pulse">📱</div>
+      <div class="loader-spin"></div>
+      <div style="font-weight: 700; color: #fff; font-size: 16px; margin-bottom: 6px;">Android Smartphone</div>
+      <div id="loadingStatusText" style="color: #a1a1aa; font-size: 13px; max-width: 260px;">Initialisation de l'affichage Android...</div>
+      <button onclick="hideLoadingOverlay()" style="margin-top: 14px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e4e4e7; border-radius: 20px; padding: 6px 14px; font-size: 11px; cursor: pointer;">Afficher l'écran en direct</button>
+    </div>
+
+    <!-- Flux Direct noVNC -->
+    <iframe id="streamFrame" allow="autoplay; fullscreen; clipboard-read; clipboard-write;"></iframe>
+
+    <!-- Barre de Navigation Android Tactile -->
+    <div id="androidNavBar">
+      <!-- Retour -->
+      <button class="nav-icon-btn" onclick="sendAndroidKey('back')" title="Retour">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <!-- Accueil -->
+      <button class="nav-icon-btn" onclick="sendAndroidKey('home')" title="Accueil">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      </button>
+      <!-- Récents -->
+      <button class="nav-icon-btn" onclick="sendAndroidKey('appswitch')" title="Récents">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></svg>
+      </button>
+      <!-- Bouton Clavier Direct -->
+      <button class="nav-icon-btn" style="color:#10b981;" onclick="openVirtualKeyboard()" title="Clavier">
+        <svg viewBox="0 0 24 24"><path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/></svg>
+      </button>
+      <!-- Bouton Déverrouiller / Réveiller -->
+      <button class="nav-icon-btn" style="color:#f59e0b;" onclick="wakePhone()" title="Déverrouiller l'écran">
+        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h2c0-1.66 1.34-3 3-3s3 1.34 3 3v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const streamFrame = document.getElementById('streamFrame');
+    const loadingScreen = document.getElementById('loadingScreen');
+    const loadingStatusText = document.getElementById('loadingStatusText');
+    const hiddenInput = document.getElementById('hiddenKeyboardInput');
+
+    // Chargement du flux noVNC dans le cadre
+    streamFrame.src = '/vnc.html?autoconnect=true&resize=scale&quality=9&compression=0&show_dot=false';
+
+    // Injection CSS stricte dans noVNC pour supprimer la languette latérale
+    function injectNoVncOverrides() {
+      try {
+        const doc = streamFrame.contentDocument || (streamFrame.contentWindow && streamFrame.contentWindow.document);
+        if (doc && doc.head) {
+          const styleId = 'novnc-clean-style';
+          if (!doc.getElementById(styleId)) {
+            const st = doc.createElement('style');
+            st.id = styleId;
+            st.textContent = `
+              #noVNC_control_bar_anchor, #noVNC_control_bar, #noVNC_status, #noVNC_hint {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+              }
+              html, body, #noVNC_container {
+                overflow: hidden !important;
+                background-color: #000000 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+            `;
+            doc.head.appendChild(st);
+          }
+        }
+      } catch (e) {}
+    }
+
+    streamFrame.addEventListener('load', () => {
+      injectNoVncOverrides();
+      setInterval(injectNoVncOverrides, 1000);
+    });
+
+    let hasBootCompleted = false;
+
+    // Masquage fluide du chargement une fois le boot validé
+    function hideLoadingOverlay() {
+      if (hasBootCompleted) return;
+      hasBootCompleted = true;
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => {
+        loadingScreen.style.display = 'none';
+      }, 400);
+    }
+
+    // Vérification active du statut Android via l'API du bridge
+    async function checkBootStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.bootCompleted) {
+            hideLoadingOverlay();
+            return;
+          } else {
+            loadingStatusText.textContent = "Démarrage du système Android en cours...";
+          }
+        }
+      } catch (e) {
+        // En attente
+      }
+    }
+
+    // Polling du statut toutes les 1.5s
+    const statusInterval = setInterval(checkBootStatus, 1500);
+    checkBootStatus();
+
+    // Réveil & Déverrouillage manuel ou automatique
+    async function wakePhone() {
+      try {
+        await fetch('/api/wake');
+        await sendAndroidKey('menu');
+        await sendAndroidKey('home');
+      } catch (e) {}
+    }
+
+    // Sécurité : masquer le loader après 5 secondes pour permettre de voir l'amorçage Android
+    streamFrame.onload = () => {
+      setTimeout(() => {
+        hideLoadingOverlay();
+      }, 5000);
+    };
+
+    // Mode Plein Écran
+    function enableFullscreenMode() {
+      document.body.classList.add('fullscreen-detected');
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        document.body.classList.remove('fullscreen-detected');
+      }
+    });
+
+    // Gestion du clavier direct
+    function openVirtualKeyboard() {
+      hiddenInput.focus();
+    }
+
+    hiddenInput.addEventListener('input', (e) => {
+      const val = hiddenInput.value;
+      if (val.length > 0) {
+        fetch('/api/type', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: val, enter: false })
+        }).catch(() => {});
+        hiddenInput.value = '';
+      }
+    });
+
+    hiddenInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace') {
+        sendAndroidKey('backspace');
+      } else if (e.key === 'Enter') {
+        sendAndroidKey('enter');
+      } else if (e.key === 'Tab') {
+        sendAndroidKey('tab');
+      }
+    });
+
+    // Envoi des touches Android directes via ADB
+    async function sendAndroidKey(key) {
+      try {
+        await fetch(`/api/key?k=${encodeURIComponent(key)}`);
+      } catch (e) {}
+    }
+  </script>
+</body>
+</html>

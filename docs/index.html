@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portail Virtuel Cloud • Ubuntu & Android 14 (API 34)</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z'/></svg>">
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --android-green: #10b981;
+      --android-hover: #059669;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.06);
+      width: 100%;
+      max-width: 680px;
+      padding: 36px;
+      transition: all 0.3s ease;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .logo-icons {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .logo-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .logo-ubuntu {
+      background: #eff6ff;
+      color: var(--primary);
+    }
+
+    .logo-android {
+      background: #ecfdf5;
+      color: var(--android-green);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .input-wrapper input {
+      width: 100%;
+      padding: 13px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .input-wrapper input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+
+    .btn-android {
+      background-color: var(--android-green);
+      color: white;
+    }
+
+    .btn-android:hover {
+      background-color: var(--android-hover);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    }
+
+    .btn-secondary {
+      background-color: #f8fafc;
+      color: var(--text);
+      border: 1px solid var(--border);
+      margin-top: 10px;
+    }
+
+    .btn-secondary:hover {
+      background-color: #f1f5f9;
+    }
+
+    .alert {
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .alert-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: var(--danger);
+    }
+
+    .status-panel {
+      display: none;
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+
+    .badge-online {
+      background: #ecfdf5;
+      color: var(--success);
+      border: 1px solid #a7f3d0;
+    }
+
+    .badge-loading {
+      background: #fff7ed;
+      color: var(--warning);
+      border: 1px solid #fed7aa;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .vm-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 580px) {
+      .vm-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .vm-card {
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 18px;
+      text-align: center;
+      background: #ffffff;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .vm-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    .vm-card.android:hover {
+      border-color: var(--android-green);
+    }
+
+    .vm-card-icon {
+      font-size: 34px;
+      margin-bottom: 8px;
+    }
+
+    .vm-card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .vm-card-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+
+    .url-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      word-break: break-all;
+      margin-bottom: 12px;
+      color: #334155;
+      text-align: center;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sync-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .footer-note {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .pulse {
+      animation: pulse-animation 1.5s infinite;
+    }
+
+    @keyframes pulse-animation {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container" id="mainContainer">
+    <div class="header">
+      <div class="logo-icons">
+        <div class="logo-icon logo-ubuntu">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+        </div>
+        <div class="logo-icon logo-android">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+          </svg>
+        </div>
+      </div>
+      <h1>Portail Virtuel Cloud</h1>
+      <p class="subtitle">Accès direct temps réel aux tunnels Cloudflare (Ubuntu & Android 14 API 34)</p>
+    </div>
+
+    <!-- Écran de connexion -->
+    <div id="authSection">
+      <form id="authForm" onsubmit="handleAuth(event)">
+        <div class="form-group">
+          <label for="passwordInput">Mot de passe d'accès</label>
+          <div class="input-wrapper">
+            <input type="password" id="passwordInput" placeholder="Entrez le mot de passe d'accès" autocomplete="current-password" required autofocus>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          Déverrouiller l'accès
+        </button>
+      </form>
+      <div class="alert alert-error" id="errorAlert"></div>
+    </div>
+
+    <!-- Écran de sélection des 2 VMs distinctes -->
+    <div id="statusSection" class="status-panel">
+      
+      <div class="sync-indicator">
+        <span class="dot" style="background: #10b981;"></span>
+        <span id="syncText">Synchronisation temps réel active</span>
+      </div>
+
+      <div class="vm-grid">
+        <!-- VM 1 : Linux Ubuntu Desktop -->
+        <div class="vm-card">
+          <div>
+            <div class="vm-card-icon">🖥️</div>
+            <div class="vm-card-title">Linux Ubuntu</div>
+            <div class="vm-card-desc">Google Chrome, Google Docs, Suite complète XFCE</div>
+            <div id="badgeLinuxContainer">
+              <span class="badge badge-loading pulse" id="badgeLinux">
+                <span class="dot"></span> En attente du tunnel...
+              </span>
+            </div>
+            <div class="url-box" id="urlBoxLinux">Connexion au tunnel...</div>
+          </div>
+          <a id="btnLaunchLinux" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="pointer-events: none; opacity: 0.6;">
+            🚀 Ouvrir Ubuntu
+          </a>
+        </div>
+
+        <!-- VM 2 : Smartphone Android 13 -->
+        <div class="vm-card android">
+          <div>
+            <div class="vm-card-icon">📱</div>
+            <div class="vm-card-title">Android 14 (API 34)</div>
+            <div class="vm-card-desc">Smartphone tactile H.264, persistance complète</div>
+            <div id="badgeAndroidContainer">
+              <span class="badge badge-loading pulse" id="badgeAndroid">
+                <span class="dot"></span> En attente du tunnel...
+              </span>
+            </div>
+            <div class="url-box" id="urlBoxAndroid">Connexion au tunnel...</div>
+          </div>
+          <a id="btnLaunchAndroid" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-android" style="pointer-events: none; opacity: 0.6;">
+            📱 Ouvrir Android
+          </a>
+        </div>
+      </div>
+      
+      <button type="button" class="btn btn-secondary" onclick="fetchBothTunnels(true)">
+        🔄 Forcer l'actualisation temps réel
+      </button>
+    </div>
+
+    <div class="footer-note">
+      Passerelle Sécurisée Cloudflare Worker • Données synchronisées sans cache
+    </div>
+  </div>
+
+  <script>
+    const WORKER_GATEWAY = "https://vmai.hugdu77777.workers.dev";
+    let pollInterval = null;
+
+    async function handleAuth(e) {
+      if (e) e.preventDefault();
+      const pwdInput = document.getElementById("passwordInput");
+      const pwd = pwdInput ? pwdInput.value.trim() : "";
+      const err = document.getElementById("errorAlert");
+      const btn = document.getElementById("submitBtn");
+      
+      if (!pwd) return;
+
+      err.style.display = "none";
+      btn.textContent = "Vérification en cours...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(WORKER_GATEWAY, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pwd })
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data && data.authenticated) {
+          sessionStorage.setItem("vm_pwd", pwd);
+          sessionStorage.setItem("vm_auth", "true");
+          showDashboard(data);
+        } else {
+          err.textContent = (data && data.error) ? data.error : "Mot de passe incorrect.";
+          err.style.display = "block";
+          btn.textContent = "Déverrouiller l'accès";
+          btn.disabled = false;
+        }
+      } catch (networkErr) {
+        err.textContent = "Impossible de joindre le relais Cloudflare Worker. Vérifiez votre connexion.";
+        err.style.display = "block";
+        btn.textContent = "Déverrouiller l'accès";
+        btn.disabled = false;
+      }
+    }
+
+    function showDashboard(initialData = null) {
+      document.getElementById("authSection").style.display = "none";
+      document.getElementById("statusSection").style.display = "block";
+      if (initialData) {
+        applyTunnelData(initialData);
+      } else {
+        fetchBothTunnels();
+      }
+      if (!pollInterval) {
+        pollInterval = setInterval(() => fetchBothTunnels(false), 4000);
+      }
+    }
+
+    function applyTunnelData(data) {
+      const syncText = document.getElementById("syncText");
+
+      // 1. Linux VM
+      const badgeLinux = document.getElementById("badgeLinux");
+      const urlBoxLinux = document.getElementById("urlBoxLinux");
+      const btnLinux = document.getElementById("btnLaunchLinux");
+
+      const linux = data?.linux;
+      if (linux) {
+        const cfUrl = linux.cloudflare || linux.primary || linux.lhrLife || "";
+        if (cfUrl) {
+          urlBoxLinux.textContent = cfUrl;
+          btnLinux.href = cfUrl;
+          btnLinux.style.pointerEvents = "auto";
+          btnLinux.style.opacity = "1";
+          badgeLinux.className = "badge badge-online";
+          badgeLinux.innerHTML = '<span class="dot"></span> En ligne (Cloudflare)';
+        }
+      }
+
+      // 2. Android VM
+      const badgeAndroid = document.getElementById("badgeAndroid");
+      const urlBoxAndroid = document.getElementById("urlBoxAndroid");
+      const btnAndroid = document.getElementById("btnLaunchAndroid");
+
+      const android = data?.android;
+      if (android) {
+        const cfUrl = android.cloudflare || android.primary || android.lhrLife || "";
+        if (cfUrl) {
+          const directStreamUrl = cfUrl.replace(/\/+$/, "") + "/#!action=stream&udid=127.0.0.1:5555&player=mse";
+          urlBoxAndroid.textContent = directStreamUrl;
+          btnAndroid.href = directStreamUrl;
+          btnAndroid.style.pointerEvents = "auto";
+          btnAndroid.style.opacity = "1";
+          badgeAndroid.className = "badge badge-online";
+          badgeAndroid.innerHTML = '<span class="dot"></span> En ligne (Cloudflare)';
+        }
+      }
+
+      if (syncText) {
+        const now = new Date();
+        syncText.textContent = `Dernière vérification relais : ${now.toLocaleTimeString()}`;
+      }
+    }
+
+    async function fetchBothTunnels(manual = false) {
+      const syncText = document.getElementById("syncText");
+      if (manual && syncText) syncText.textContent = "Actualisation en cours...";
+
+      const pwd = sessionStorage.getItem("vm_pwd");
+      if (!pwd) return;
+
+      try {
+        const res = await fetch(WORKER_GATEWAY, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pwd })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.authenticated) {
+            applyTunnelData(data);
+          }
+        } else if (res.status === 401) {
+          sessionStorage.removeItem("vm_auth");
+          sessionStorage.removeItem("vm_pwd");
+          location.reload();
+        }
+      } catch (e) {
+        console.warn("Erreur actualisation relais:", e);
+      }
+    }
+
+    if (sessionStorage.getItem("vm_auth") === "true" && sessionStorage.getItem("vm_pwd")) {
+      showDashboard();
+    }
+  </script>
+</body>
+</html>
