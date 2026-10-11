@@ -30,6 +30,16 @@ docker run -d \
   -v "$DATA_DIR":/home/kasm-user \
   kasmweb/ubuntu-jammy-desktop:1.16.0
 
+# 1b. Sudo sans mot de passe pour kasm-user (l'agent IA peut apt-get install, etc.)
+echo "=== Sudo NOPASSWD pour kasm-user ==="
+for i in $(seq 1 30); do
+  docker exec -u root kasm_desktop true 2>/dev/null && break
+  sleep 2
+done
+docker exec -u root kasm_desktop bash -c \
+  'echo "kasm-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/kasm-user && chmod 440 /etc/sudoers.d/kasm-user' \
+  && echo "sudoers OK" || echo "sudoers : échec (non bloquant)"
+
 # 2. Configuration du reverse-proxy NGINX ultra-rapide
 echo "=== Configuration du reverse-proxy NGINX (Zéro latence) ==="
 sudo apt-get update -qq && sudo apt-get install -y -qq nginx > /dev/null 2>&1
