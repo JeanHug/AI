@@ -40,6 +40,44 @@ docker exec -u root kasm_desktop bash -c \
   'echo "kasm-user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/kasm-user && chmod 440 /etc/sudoers.d/kasm-user' \
   && echo "sudoers OK" || echo "sudoers : échec (non bloquant)"
 
+# 1c. Garde-fou agent.md / infos.md : recréation automatique si supprimés.
+# Les fichiers canoniques vivent dans le dépôt (scripts/agent-docs/) et sont
+# recopiés dans le dossier partagé. Le watchdog tourne sur le RUNNER (hors du
+# conteneur) : l'agent ne peut ni le voir ni l'arrêter.
+echo "=== Garde-fou agent.md / infos.md ==="
+SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+sudo mkdir -p "$DATA_DIR/user"
+sudo chown 1000:1000 "$DATA_DIR/user"
+for f in agent.md infos.md; do
+  if [ -f "$SCRIPT_DIR_EARLY/agent-docs/$f" ]; then
+    sudo cp -f "$SCRIPT_DIR_EARLY/agent-docs/$f" "$DATA_DIR/user/$f"
+    sudo chown 1000:1000 "$DATA_DIR/user/$f"
+    sudo chmod 644 "$DATA_DIR/user/$f"
+  fi
+done
+cat << WATCHDOG_EOF | sudo tee /usr/local/bin/agent-docs-watchdog.sh > /dev/null
+#!/usr/bin/env bash
+# Recrée agent.md et infos.md dans le dossier partagé dès qu'ils manquent.
+SRC="\$1"; DST="\$2"
+while true; do
+  for f in agent.md infos.md; do
+    if [ ! -s "\$DST/\$f" ] && [ -s "\$SRC/\$f" ]; then
+      cp -f "\$SRC/\$f" "\$DST/\$f" 2>/dev/null || sudo cp -f "\$SRC/\$f" "\$DST/\$f"
+      chown 1000:1000 "\$DST/\$f" 2>/dev/null || sudo chown 1000:1000 "\$DST/\$f" 2>/dev/null
+      chmod 644 "\$DST/\$f" 2>/dev/null || true
+      echo "[\$(date +'%T')] Restauré : \$f"
+    fi
+  done
+  sleep 30
+done
+WATCHDOG_EOF
+sudo chmod +x /usr/local/bin/agent-docs-watchdog.sh
+sudo pkill -f agent-docs-watchdog 2>/dev/null || true
+sudo nohup /usr/local/bin/agent-docs-watchdog.sh "$SCRIPT_DIR_EARLY/agent-docs" "$DATA_DIR/user" \
+  > /tmp/agent-docs-watchdog.log 2>&1 &
+echo "watchdog agent-docs démarré (vérification toutes les 30 s)"
+
+
 # 2. Configuration du reverse-proxy NGINX ultra-rapide
 echo "=== Configuration du reverse-proxy NGINX (Zéro latence) ==="
 sudo apt-get update -qq && sudo apt-get install -y -qq nginx > /dev/null 2>&1
