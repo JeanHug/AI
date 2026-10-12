@@ -166,6 +166,13 @@ docker exec -u 0 kasm_desktop bash -c '
   # Visionneuse & exécution : conversion Office (pptx→pdf), figures matplotlib
   apt-get install -y -qq --no-install-recommends libreoffice-core ure libreoffice-impress libreoffice-writer fonts-liberation python3-matplotlib > /dev/null 2>&1 || true
 
+  # Playwright + Chromium pour tests réels (bugs de rendu, etc.)
+  # Le dépôt hashicorp expiré casse apt update : supprimé.
+  rm -f /etc/apt/sources.list.d/hashicorp.list
+  su - kasm-user -c "python3 -m playwright --version >/dev/null 2>&1 || pip3 install --quiet playwright" || true
+  su - kasm-user -c "python3 -m playwright install-deps chromium >/dev/null 2>&1" || true
+  su - kasm-user -c "python3 -m playwright install chromium >/dev/null 2>&1" || true
+
   # Synchronisation du presse-papier X11
   su - kasm-user -c "autocutsel -fork >/dev/null 2>&1 || true"
   su - kasm-user -c "autocutsel -selection PRIMARY -fork >/dev/null 2>&1 || true"
