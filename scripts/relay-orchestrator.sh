@@ -42,7 +42,12 @@ while true; do
   # 2. Vérification de santé du tunnel direct .lhr.life
   LHR_URL=$(grep -o 'https://[-a-zA-Z0-9_.]*\.lhr\.life' /tmp/localhost_run.log 2>/dev/null | head -n1 || true)
   if [ -n "$LHR_URL" ]; then
+    LHR_BODY=$(curl -s -k --max-time 8 -H "Bypass-Tunnel-Reminder: 1" "$LHR_URL" 2>/dev/null | head -c 200 || true)
     HTTP_CODE=$(curl -s -k -o /dev/null -w "%{http_code}" --max-time 8 "$LHR_URL" || echo "000")
+    # "no tunnel" (réponse 200 de localhost.run) = tunnel MORT malgré le code 200
+    if echo "$LHR_BODY" | grep -qi "no tunnel"; then
+      HTTP_CODE="000"
+    fi
     if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ] || [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
       CONSECUTIVE_TUNNEL_FAILS=0
     else
