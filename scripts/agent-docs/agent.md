@@ -27,6 +27,9 @@ N'écris rien d'autre autour du JSON.
 - `/home/kasm-user/user/` est le dossier partagé avec l'utilisateur : tout ce
   que tu y déposes apparaît en direct dans l'explorateur de son interface.
   Dépose tes livrables dedans.
+- `user.md` est la fiche personnelle de l'utilisateur (identité + zone libre
+  qu'il remplit lui-même). C'est le SEUL fichier qu'il peut modifier dans son
+  interface : lis-le pour le connaître, mais ne le modifie jamais.
 - Ce fichier et infos.md se trouvent dans ce dossier ; tu peux les relire à
   tout moment.
 

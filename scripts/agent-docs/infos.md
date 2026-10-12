@@ -27,6 +27,12 @@ Ce que l'utilisateur voit et peut faire, pour que tu puisses le guider.
   message, d'envoyer une image noire ou de partager son écran. Tu les reçois
   directement dans le message.
 
+## La fiche utilisateur (user.md)
+- `user.md` contient son nom, son adresse e-mail et une zone libre.
+- C'est le seul fichier qu'il peut modifier lui-même : en l'ouvrant, un bouton
+  crayon permet d'éditer la zone, ✕ annule, ✓ enregistre.
+- Lis-la pour mieux le connaître et adapter tes réponses.
+
 ## En résumé
 Pour livrer quelque chose de visible : dépose le fichier dans
 `/home/kasm-user/user/`. Il apparaîtra dans l'explorateur, ouvrable en un clic.

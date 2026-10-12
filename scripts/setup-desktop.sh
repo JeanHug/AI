@@ -55,10 +55,22 @@ for f in agent.md infos.md; do
     sudo chmod 644 "$DATA_DIR/user/$f"
   fi
 done
+# user.md : fiche de l'utilisateur — JAMAIS écrasée si elle existe ;
+# restaurée depuis sa sauvegarde (.user.md.bak) si supprimée.
+if [ ! -s "$DATA_DIR/user/user.md" ]; then
+  if [ -s "$DATA_DIR/.user.md.bak" ]; then
+    sudo cp -f "$DATA_DIR/.user.md.bak" "$DATA_DIR/user/user.md"
+  elif [ -f "$SCRIPT_DIR_EARLY/agent-docs/user.md" ]; then
+    sudo cp -f "$SCRIPT_DIR_EARLY/agent-docs/user.md" "$DATA_DIR/user/user.md"
+  fi
+  sudo chown 1000:1000 "$DATA_DIR/user/user.md" 2>/dev/null || true
+  sudo chmod 644 "$DATA_DIR/user/user.md" 2>/dev/null || true
+fi
 cat << WATCHDOG_EOF | sudo tee /usr/local/bin/agent-docs-watchdog.sh > /dev/null
 #!/usr/bin/env bash
-# Recrée agent.md et infos.md dans le dossier partagé dès qu'ils manquent.
-SRC="\$1"; DST="\$2"
+# Recrée agent.md, infos.md et user.md dans le dossier partagé dès qu'ils manquent.
+# user.md (fiche utilisateur) est restauré en priorité depuis sa sauvegarde.
+SRC="\$1"; DST="\$2"; BK="\$3"
 while true; do
   for f in agent.md infos.md; do
     if [ ! -s "\$DST/\$f" ] && [ -s "\$SRC/\$f" ]; then
@@ -68,12 +80,22 @@ while true; do
       echo "[\$(date +'%T')] Restauré : \$f"
     fi
   done
+  if [ ! -s "\$DST/user.md" ]; then
+    if [ -s "\$BK" ]; then
+      cp -f "\$BK" "\$DST/user.md" 2>/dev/null || sudo cp -f "\$BK" "\$DST/user.md"
+    elif [ -s "\$SRC/user.md" ]; then
+      cp -f "\$SRC/user.md" "\$DST/user.md" 2>/dev/null || sudo cp -f "\$SRC/user.md" "\$DST/user.md"
+    fi
+    chown 1000:1000 "\$DST/user.md" 2>/dev/null || sudo chown 1000:1000 "\$DST/user.md" 2>/dev/null
+    chmod 644 "\$DST/user.md" 2>/dev/null || true
+    echo "[\$(date +'%T')] Restauré : user.md"
+  fi
   sleep 30
 done
 WATCHDOG_EOF
 sudo chmod +x /usr/local/bin/agent-docs-watchdog.sh
 sudo pkill -f agent-docs-watchdog 2>/dev/null || true
-sudo nohup /usr/local/bin/agent-docs-watchdog.sh "$SCRIPT_DIR_EARLY/agent-docs" "$DATA_DIR/user" \
+sudo nohup /usr/local/bin/agent-docs-watchdog.sh "$SCRIPT_DIR_EARLY/agent-docs" "$DATA_DIR/user" "$DATA_DIR/.user.md.bak" \
   > /tmp/agent-docs-watchdog.log 2>&1 &
 echo "watchdog agent-docs démarré (vérification toutes les 30 s)"
 
