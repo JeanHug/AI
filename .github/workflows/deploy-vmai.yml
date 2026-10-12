@@ -1,0 +1,36 @@
+name: Deploy worker VMAI (VM de l'agent)
+
+# Redéploie le worker Cloudflare "vmai" — portail + API de la VM DE L'AGENT (dépôt JeanHug/AI).
+# Le worker "vm" (VM personnelle) n'est JAMAIS touché par ce workflow.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloudflare-worker/worker.js'
+      - 'scripts/deploy-cloudflare-worker.cjs'
+      - '.github/workflows/deploy-vmai.yml'
+
+concurrency:
+  group: deploy-vmai
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Mise à jour du worker vmai
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Déployer le worker vmai
+        env:
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CLOUDFLARE_ID: ${{ secrets.CLOUDFLARE_ID }}
+          WORKER_NAME: vmai
+        run: node scripts/deploy-cloudflare-worker.cjs
