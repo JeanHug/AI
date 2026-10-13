@@ -7,7 +7,9 @@ Usage : python3 scripts/embed-app-docs.py
 import base64, io, json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # .ai/
-WF   = os.path.join(ROOT, "api-ai", "worker.js")
+# Worker canonique (workspace) + copie du dépôt : les deux sont écrites.
+WF   = "/home/user/worker.js"
+WF_REPO = os.path.join(ROOT, "api-ai", "worker.js")
 APPS = [
     '/home/user/index.html',                      # source de travail
     os.path.join(ROOT, 'index.html'),             # copie du dépôt
@@ -37,6 +39,9 @@ for const, name in DOCS.items():
     s = s[:a] + "const %s = \"%s" % (const, b64) + s[b:]
 
 io.open(WF, "w", encoding="utf-8").write(s)
+io.open(WF_REPO, "w", encoding="utf-8").write(s)
+io.open(os.path.join(ROOT, "index.html"), "w", encoding="utf-8").write(html)
+io.open(os.path.join(ROOT, "api-ai", "index.html"), "w", encoding="utf-8").write(html)
 
 # contrôles
 s2 = io.open(WF, encoding="utf-8").read()
