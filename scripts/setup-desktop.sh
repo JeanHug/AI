@@ -352,4 +352,12 @@ sudo pkill -f vm-fetch-watchdog 2>/dev/null || true
 sudo nohup /usr/local/bin/vm-fetch-watchdog.sh > /tmp/vm-fetch-watchdog.log 2>&1 &
 echo "watchdog vm-fetch démarré (vérification toutes les 30 s)"
 
+# Ceinture et bretelles : le même watchdog existe AUSSI côté conteneur, pour
+# continuer à surveiller le service quand l'agent travaille sans passer par
+# l'hôte (fichier PID /tmp/vm-fetch-watchdog.pid pour éviter les doublons).
+docker cp "$SCRIPT_DIR/vm-fetch-watchdog.sh" kasm_desktop:/home/kasm-user/bin/vm-fetch-watchdog.sh 2>/dev/null || true
+docker cp "$SCRIPT_DIR/vm-fetch-watch-start.sh" kasm_desktop:/home/kasm-user/bin/vm-fetch-watch-start.sh 2>/dev/null || true
+docker exec -u root kasm_desktop bash -c 'chown 1000:1000 /home/kasm-user/bin/vm-fetch-watchdog.sh /home/kasm-user/bin/vm-fetch-watch-start.sh && chmod +x /home/kasm-user/bin/vm-fetch-watchdog.sh /home/kasm-user/bin/vm-fetch-watch-start.sh' 2>/dev/null || true
+docker exec -u kasm-user kasm_desktop bash -lc '/home/kasm-user/bin/vm-fetch-watch-start.sh' 2>/dev/null || true
+
 echo " Bureau Ubuntu configuré avec succès : Google Chrome, Google Docs et API REST 100% opérationnels !"
