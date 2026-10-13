@@ -150,17 +150,9 @@ const MODELS = {
   "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite" },
   "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview" },
   /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie.
-     Le bloc dédié google_gemini ne le liste pas encore : on essaie la chaîne
-     de blocs (dédié le plus récent → générique managé OpenRouter). */
-  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v5", family: "gemini", task: null, vv: "gemini-4-argon",
-    chain: [
-      { block: "roboflow_core/google_gemini@v5", family: "gemini", task: null, vv: "gemini-4-argon" },
-      { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon" },
-      { block: "roboflow_core/google_gemini@v4", family: "gemini", task: null, vv: "gemini-4-argon" },
-      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-4-argon" },
-      { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-4-argon", pf: "gemini" },
-      { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-4-argon" },
-    ] },
+     Bloc dédié google_gemini v6 (v3/v4 rejettent le modèle : leur liste de
+     model_version s'arrête à gemini-3.7-flash, v5 n'existe pas). */
+  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon" },
   "gemini-2-5-pro":          { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-pro" },
   /* ---- Meta (bloc générique managé Roboflow) ----------------------- */
   "muse-spark-1-3": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-spark-1.3" },
@@ -1103,7 +1095,7 @@ export default {
     }
 
     const outputs = data.outputs && data.outputs[0] ? data.outputs[0] : {};
-    return json({ output: outputs.output ?? "", via: used.block, applied: Object.keys(sanitize(body.params, used.pf || used.family)) });
+    return json({ output: outputs.output ?? "", applied: Object.keys(sanitize(body.params, used.pf || used.family)) });
   },
 
   /* ---- Cron : recrée agent.md / infos.md dans la VM s'ils ont été supprimés. ---- */
