@@ -123,23 +123,39 @@ function get(url, headers) {
   console.log(`🔎 /api/models → HTTP ${models.status}`);
   if (models.status !== 200) { console.error('❌ /api/models en échec.'); process.exit(1); }
 
-  const app = await get(`https://${host}/app`);
   const md5 = (b) => crypto.createHash('md5').update(b).digest('hex');
-  let refOk = null;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /* Vérification du /app : la propagation de la nouvelle version peut prendre
+     quelques secondes — on réessaie au lieu d'échouer au premier essai. */
   if (fs.existsSync(indexRef)) {
     const ref = fs.readFileSync(indexRef);
-    refOk = md5(app.buf) === md5(ref);
-    console.log(`🔎 /app → HTTP ${app.status} · ${app.buf.length} octets · md5 ${md5(app.buf)}`);
-    console.log(`   référence api-ai/index.html : md5 ${md5(ref)} → ${refOk ? 'IDENTIQUE ✅' : 'DIFFÉRENT ❌'}`);
-    if (!refOk) { console.error('❌ /app ne correspond pas à api-ai/index.html.'); process.exit(1); }
+    let seen = '';
+    let ok = false;
+    for (let i = 1; i <= 10; i++) {
+      const app = await get(`https://${host}/app`);
+      seen = md5(app.buf);
+      ok = app.status === 200 && seen === md5(ref);
+      console.log(`🔎 /app essai ${i}/10 → HTTP ${app.status} · ${app.buf.length} octets · md5 ${seen}` +
+        ` ${ok ? '= référence ✅' : '(référence ' + md5(ref) + ')'}`);
+      if (ok) break;
+      await sleep(6000);
+    }
+    if (!ok) {
+      console.error('❌ /app ne correspond toujours pas après 10 essais.');
+      process.exit(1);
+    }
   }
 
   if (accessCode) {
-    const r = await get(`https://${host}/api/agent/file?path=user/agent.md`,
-      { 'X-Access-Code': accessCode });
     let ok = false;
-    try { ok = JSON.parse(r.buf.toString()).ok === true; } catch (e) {}
-    console.log(`🔎 /api/agent/file (agent.md) → HTTP ${r.status} · ok=${ok}`);
+    for (let i = 1; i <= 3 && !ok; i++) {
+      const r = await get(`https://${host}/api/agent/file?path=user/agent.md`,
+        { 'X-Access-Code': accessCode });
+      try { ok = JSON.parse(r.buf.toString()).ok === true; } catch (e) {}
+      console.log(`🔎 /api/agent/file (agent.md) essai ${i}/3 → HTTP ${r.status} · ok=${ok}`);
+      if (!ok) await sleep(4000);
+    }
     if (!ok) { console.error("❌ Relais agent/VM en échec (liaison VMAI ?)."); process.exit(1); }
   } else {
     console.log('ℹ️  ACCESS_CODE non fourni : vérification agent ignorée.');
