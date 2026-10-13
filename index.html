@@ -2799,15 +2799,13 @@ const CFG_FIELDS = {
     /* Paramètres Mistral (API compatible OpenAI), relayés par le bloc Roboflow. */
     {k:"temperature", label:"Température (0 à 1,5)", type:"num", min:0, max:1.5, step:0.05, ph:"défaut modèle"},
     {k:"top_p", label:"Échantillonnage top-p", type:"num", min:0, max:1, step:0.05, ph:"défaut modèle"},
-    {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:1, max:128000, ph:"défaut modèle"},
+    {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:1, max:209715, ph:"défaut modèle"},
     {k:"presence_penalty", label:"Pénalité de présence (-2 à 2)", type:"num", min:-2, max:2, step:0.1, ph:"0",
      note:"Positif : pousse le modèle à aborder de nouveaux sujets."},
     {k:"frequency_penalty", label:"Pénalité de fréquence (-2 à 2)", type:"num", min:-2, max:2, step:0.1, ph:"0",
      note:"Positif : réduit les répétitions."},
-    {k:"random_seed", label:"Graine aléatoire", type:"int", min:0, max:2147483647, ph:"aléatoire",
+    {k:"seed", label:"Graine aléatoire", type:"int", min:0, max:2147483647, ph:"aléatoire",
      note:"Même graine + mêmes réglages = réponse reproductible (utile pour comparer)."},
-    {k:"safe_prompt", label:"Filtre de sécurité Mistral", type:"check",
-     note:"Ajoute la consigne de modération de Mistral en tête du prompt système."},
   ],
   router: [
     {k:"temperature", label:"Température (0 à 2)", type:"num", min:0, max:2, step:0.05, ph:"défaut modèle"},
