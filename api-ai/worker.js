@@ -365,6 +365,28 @@ function oneOf(v, list) {
    injection de commande, et le fournisseur répond 403 « Attention Required! »
    au lieu de traiter le message. On rejoue alors la requête une fois avec ces
    accents graves remplacés par des apostrophes (le texte reste lisible). */
+/* Roboflow renvoie tantôt du texte, tantôt une image (objet base64, URI de
+   données, URL d'image). On sait le reconnaître pour rejouer la demande par
+   la voie OpenRouter quand le modèle choisi doit rendre du texte. */
+function looksLikeImage(v, certainOnly) {
+  if (v == null) return false;
+  if (typeof v === "object") {
+    if (Array.isArray(v)) return v.length > 0 && v.every((x) => looksLikeImage(x, certainOnly));
+    if (v.type === "base64" && typeof v.value === "string") return true;
+    return looksLikeImage(v.value != null ? v.value : (v.url != null ? v.url : v.image), certainOnly);
+  }
+  const s = String(v).trim();
+  if (!s) return false;
+  if (/^data:image\//i.test(s)) return true;                       /* data URI */
+  /* Un simple lien vers une image peut être une réponse légitime : ce cas
+     n'est « certain » que si l'autre voie ne répond pas la même chose. */
+  if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|bmp|avif|tiff?|svg)(\?\S*)?$/i.test(s)) return !certainOnly;
+  /* Base64 brut : très long, sans espaces, et l'en-tête est celui d'une image. */
+  if (s.length > 240 && !/\s/.test(s) && /^[A-Za-z0-9+/=]+$/.test(s)) {
+    return /^(iVBORw0KGgo|\/9j\/|R0lGOD|UklGR|Qk|SUkq|AAAAIGZ0eXB)/.test(s.slice(0, 20));
+  }
+  return false;
+}
 function defuseWaf(s) {
   /* Mesure du 13/10 : le pare-feu de Roboflow refuse une commande de téléchargement
      placée entre apostrophes ou accents graves ('curl -s http://…' / `wget http://…`).
@@ -1246,96 +1268,132 @@ async function fetchHandler(request, env, ctx) {
     const forceOr = !!(body.params && body.params._fallback === "or");
     const cands = forceOr && spec.or ? [orCand]
       : (spec.chain || (spec.or ? [spec, orCand] : [spec]));
-    let upstream = null, used = cands[cands.length - 1], safeTried = false;
-    for (const c of cands) {
-      const step = {
-        type: c.block,
-        name: "m",
-        images: "$inputs.image",
-        prompt,
-        [c.vf || "model_version"]: c.vv || model,
-        ...sanitize(body.params, c.pf || c.family),
-      };
-      if (!c.nokey) step.api_key = "rf_key:account";
-      if (c.task !== null) step.task_type = c.task || "unconstrained";
-      if (c.backend) step.backend = c.backend;
 
-      const payload = {
-        api_key: env.ROBOFLOW_API_KEY,
-        inputs: { image: { type: "base64", value: image } },
-        specification: {
-          version: "1.0",
-          inputs: [{ type: "WorkflowImage", name: "image" }],
-          steps: [step],
-          outputs: [{ type: "JsonField", name: "output", selector: `$steps.m.${c.out || spec.out || "output"}` }],
-        },
-      };
+    /* Une tentative : liste de blocs essayés dans l'ordre, avec le filet
+       anti-pare-feu et le repli OpenRouter sur erreur. Renvoie soit le
+       résultat, soit le message d'erreur déjà rédigé. */
+    const attempt = async (list) => {
+      let safeTried = false;
+      for (let i = 0; i < list.length; i++) {
+        const c = list[i];
+        const step = {
+          type: c.block,
+          name: "m",
+          images: "$inputs.image",
+          prompt,
+          [c.vf || "model_version"]: c.vv || model,
+          ...sanitize(body.params, c.pf || c.family),
+        };
+        if (!c.nokey) step.api_key = "rf_key:account";
+        if (c.task !== null) step.task_type = c.task || "unconstrained";
+        if (c.backend) step.backend = c.backend;
 
-      let r;
-      try {
-        r = await fetch(ROBOFLOW_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } catch (err) {
-        return json({ error: `Roboflow injoignable : ${err.message}` }, 502);
-      }
-      if (r.ok) { upstream = r; used = c; break; }
+        const payload = {
+          api_key: env.ROBOFLOW_API_KEY,
+          inputs: { image: { type: "base64", value: image } },
+          specification: {
+            version: "1.0",
+            inputs: [{ type: "WorkflowImage", name: "image" }],
+            steps: [step],
+            outputs: [{ type: "JsonField", name: "output", selector: `$steps.m.${c.out || spec.out || "output"}` }],
+          },
+        };
 
-      let t = await r.text();
-      /* 403 du pare-feu Roboflow : on rejoue une fois sans les accents graves
-         « dangereux » (voir defuseWaf). */
-      if (r.status === 403 && /Attention Required|Cloudflare/i.test(t) && !safeTried) {
-        safeTried = true;
-        const safeStep = Object.assign({}, step, { prompt: defuseWaf(prompt) });
-        const safePayload = Object.assign({}, payload, {
-          specification: Object.assign({}, payload.specification, { steps: [safeStep] }),
-        });
-        let r2 = null;
+        let r;
         try {
-          r2 = await fetch(ROBOFLOW_URL, {
+          r = await fetch(ROBOFLOW_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(safePayload),
+            body: JSON.stringify(payload),
           });
-        } catch (err) { /* on retombe sur l'erreur d'origine */ }
-        if (r2 && r2.ok) { upstream = r2; used = c; break; }
-        if (r2) { r = r2; t = await r2.text(); }
-      }
-      const last = c === cands[cands.length - 1];
-      /* Repli OpenRouter : on retente quoi qu'il arrive (500 « stopped
-         generation », 429, 400…) puisque c'est un autre fournisseur.
-         Repli de bloc (chaîne) : seulement sur les erreurs de définition. */
-      const retry = c.orFallback === true ? !last
-        : ((r.status === 400 || r.status === 404)
-           && /validation error|string_pattern_mismatch|literal\[|unknown|not found|does not exist|unsupported/i.test(t));
-      if (!retry || last) {
+        } catch (err) {
+          return { ok: false, error: `Roboflow injoignable : ${err.message}` };
+        }
+
+        let good = r.ok ? r : null;
+        let t = good ? "" : await r.text();
+        /* 403 du pare-feu Roboflow : on rejoue une fois sans les passages
+           « dangereux » (voir defuseWaf). */
+        if (!good && r.status === 403 && /Attention Required|Cloudflare/i.test(t) && !safeTried) {
+          safeTried = true;
+          const safeStep = Object.assign({}, step, { prompt: defuseWaf(prompt) });
+          const safePayload = Object.assign({}, payload, {
+            specification: Object.assign({}, payload.specification, { steps: [safeStep] }),
+          });
+          let r2 = null;
+          try {
+            r2 = await fetch(ROBOFLOW_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(safePayload),
+            });
+          } catch (err) { /* on retombe sur l'erreur d'origine */ }
+          if (r2 && r2.ok) good = r2;
+          else if (r2) t = await r2.text();
+        }
+
+        if (good) {
+          const body = await good.text();
+          let data = null;
+          try { data = JSON.parse(body); } catch { data = null; }
+          if (!data) return { ok: false, error: `Roboflow HTTP ${good.status} — ${body.slice(0, 400)}` };
+          return { ok: true, used: c, data };
+        }
+
         let detail = t.slice(0, 400);
         try { const j = JSON.parse(t); detail = j.inner_error_message || j.message || detail; } catch { /* texte brut */ }
-        const waf = r.status === 403 && /Attention Required|Cloudflare/i.test(t);
-        if (waf) detail = "pare-feu de Roboflow (WAF) : la requête a été refusée avant traitement — retire les commandes de téléchargement entre accents graves du message, ou réessaie";
-        const suffix = c.orFallback ? " (les deux voies Roboflow et OpenRouter ont échoué)" : "";
-        return json({ error: `Roboflow HTTP ${r.status} — ${detail}${suffix}` }, 502);
+        if (r.status === 403 && /Attention Required|Cloudflare/i.test(t)) {
+          detail = "pare-feu de Roboflow (WAF) : la requête a été refusée avant traitement — retire les commandes de téléchargement entre accents graves du message, ou réessaie";
+        }
+        const isLast = i === list.length - 1;
+        /* Repli OpenRouter : on retente quoi qu'il arrive (500 « stopped
+           generation », 429, 400, panne passagère…) puisque la voie suivante
+           est un autre fournisseur. Repli de bloc à bloc (chaîne Roboflow) :
+           seulement sur les erreurs de définition du workflow. */
+        const hasOrNext = list.slice(i + 1).some((x) => x.orFallback === true);
+        const retry = c.orFallback === true ? !isLast
+          : (hasOrNext || ((r.status === 400 || r.status === 404)
+             && /validation error|string_pattern_mismatch|literal\[|unknown|not found|does not exist|unsupported/i.test(t)));
+        if (!retry || isLast) {
+          const suffix = c.orFallback ? " (les deux voies Roboflow et OpenRouter ont échoué)" : "";
+          return { ok: false, error: `Roboflow HTTP ${r.status} — ${detail}${suffix}` };
+        }
+        await new Promise((res) => setTimeout(res, 120));
       }
-      await new Promise(res => setTimeout(res, 120));
+      return { ok: false, error: "Roboflow : aucune voie disponible" };
+    };
+
+    const pick = (r) => (r.data && r.data.outputs && r.data.outputs[0]) ? r.data.outputs[0] : {};
+    const appliedOf = (r) => Object.keys(sanitize(body.params, r.used.pf || r.used.family));
+
+    let res = await attempt(cands);
+    if (!res.ok) return json({ error: res.error }, 502);
+
+    let output = pick(res).output ?? "";
+    let via = res.used && res.used.orFallback ? "openrouter" : "";
+
+    /* Le bloc dédié d'un modèle de texte (Claude, Gemini, GPT…) peut renvoyer
+       une IMAGE : dans ce cas la même demande est rejouée par la voie
+       OpenRouter, qui rend le texte attendu. */
+    if (spec.or && !forceOr && !(res.used && res.used.orFallback) && looksLikeImage(output)) {
+      const res2 = await attempt([orCand]);
+      const out2 = res2.ok ? (pick(res2).output ?? "") : "";
+      /* Si la seconde voie rend exactement la même chose, ce n'était pas une
+         image mais un texte qui ressemblait à un lien d'image : on le garde. */
+      const meme = out2.trim() === String(output).trim();
+      const certain = looksLikeImage(output, true);
+      if (res2.ok && out2 && (!looksLikeImage(out2) || (meme && !certain))) {
+        res = res2; output = out2; via = "openrouter";
+      } else {
+        const why = res2.ok ? "la reprise par OpenRouter a renvoyé une image à son tour"
+          : "la reprise par OpenRouter a échoué (" + res2.error + ")";
+        return json({ error: `Roboflow a renvoyé une image au lieu d'un texte pour « ${model} » — ${why}` }, 502);
+      }
     }
 
-    const text = await upstream.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return json({ error: `Roboflow HTTP ${upstream.status} — ${text.slice(0, 400)}` }, 502);
-    }
-
-    if (!upstream.ok) {
-      const detail = data.inner_error_message || data.message || text.slice(0, 400);
-      return json({ error: `Roboflow HTTP ${upstream.status} — ${detail}` }, 502);
-    }
-
-    const outputs = data.outputs && data.outputs[0] ? data.outputs[0] : {};
-    return json({ output: outputs.output ?? "", applied: Object.keys(sanitize(body.params, used.pf || used.family)) });
+    const finalOut = { output, applied: appliedOf(res) };
+    if (via) finalOut.via = via;
+    return json(finalOut);
 }
 
 export default {
