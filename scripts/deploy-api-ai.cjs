@@ -92,34 +92,73 @@ function get(url, headers) {
   }
 
   // 2) PUT : metadata avec la liaison de service VMAI re-déclarée, la liaison
-  //    du Durable Object des missions, et sa migration SQLite (obligatoire en
-  //    offre gratuite : « new_classes » y est refusé, code 10097).
-  const metadata = {
-    main_module: 'worker.js',
-    bindings: [
-      { type: 'service', name: 'VMAI', service: 'vmai' },
-      { type: 'durable_object_namespace', name: 'MISSION', class_name: 'MissionJob' },
-    ],
-    migrations: [{ tag: 'v1', new_sqlite_classes: ['MissionJob'] }],
-    compatibility_date: '2024-11-12',
-    keep_bindings: ['secret_text', 'plain_text'],
+  //    du Durable Object des missions, et sa migration.
+  //
+  //    Détail de l'API (erreur 10021 si on se trompe) : `migrations` est un
+  //    OBJET à un pas — { new_tag, new_sqlite_classes } — et non le tableau de
+  //    wrangler.toml. Le pas est aussi soumis à une précondition de tag : une
+  //    fois « v1 » appliqué, le renvoyer tel quel est refusé. D'où :
+  //      • marqueur .do-migration.json (committé) → on ne renvoie le pas
+  //        qu'une seule fois ;
+  //      • en cas de refus, on réessaie automatiquement de part et d'autre.
+  const doClass = 'MissionJob';
+  const doTag = 'v1';
+  const marker = path.join(__dirname, '.do-migration.json');
+  let appliedTag = null;
+  try { appliedTag = JSON.parse(fs.readFileSync(marker, 'utf8')).tag || null; } catch (e) {}
+
+  const baseBindings = [
+    { type: 'service', name: 'VMAI', service: 'vmai' },
+    { type: 'durable_object_namespace', name: 'MISSION', class_name: doClass },
+  ];
+  const upload = async (withMigration, oldTag) => {
+    const metadata = {
+      main_module: 'worker.js',
+      bindings: baseBindings,
+      compatibility_date: '2024-11-12',
+      keep_bindings: ['secret_text', 'plain_text'],
+    };
+    if (withMigration) {
+      metadata.migrations = { new_tag: doTag, new_sqlite_classes: [doClass] };
+      if (oldTag) metadata.migrations.old_tag = oldTag;
+    }
+    const boundary = '----CFWorkerBoundary' + Date.now();
+    const body = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="metadata"; filename="metadata.json"\r\n` +
+        `Content-Type: application/json\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+        `--${boundary}\r\nContent-Disposition: form-data; name="worker.js"; filename="worker.js"\r\n` +
+        `Content-Type: application/javascript+module\r\n\r\n${src}\r\n` +
+        `--${boundary}--\r\n`
+    );
+    const r = await api('PUT', `/client/v4/accounts/${accountId}/workers/scripts/${exact}`, body,
+      'multipart/form-data; boundary=' + boundary);
+    return { r, txt: JSON.stringify(r.json || r.raw || {}) };
   };
-  const boundary = '----CFWorkerBoundary' + Date.now();
-  const body = Buffer.from(
-    `--${boundary}\r\nContent-Disposition: form-data; name="metadata"; filename="metadata.json"\r\n` +
-      `Content-Type: application/json\r\n\r\n${JSON.stringify(metadata)}\r\n` +
-      `--${boundary}\r\nContent-Disposition: form-data; name="worker.js"; filename="worker.js"\r\n` +
-      `Content-Type: application/javascript+module\r\n\r\n${src}\r\n` +
-      `--${boundary}--\r\n`
-  );
-  console.log(`🚀 Déploiement du worker "${exact}"…`);
-  const put = await api('PUT', `/client/v4/accounts/${accountId}/workers/scripts/${exact}`, body,
-    'multipart/form-data; boundary=' + boundary);
-  if (put.status !== 200 || !put.json || !put.json.success) {
-    console.error('❌ Échec :', String(JSON.stringify(put.json || put.raw)).slice(0, 600));
+
+  let put;
+  if (appliedTag) {
+    /* Le pas a déjà été appliqué (marqueur présent) : on n'en parle plus. */
+    console.log(`ℹ️  Migration du Durable Object déjà appliquée (tag ${appliedTag}) — pas renvoyée.`);
+    put = await upload(false);
+    if ((put.r.status !== 200 || !put.r.json || !put.r.json.success) && /10061|not currently configured to implement Durable Objects/i.test(put.txt)) {
+      console.log('↻ La classe n\'est pas encore configurée : on renvoie le pas de migration.');
+      put = await upload(true);
+    }
+  } else {
+    console.log(`🚀 Déploiement du worker "${exact}" (migration du Durable Object, tag ${doTag})…`);
+    put = await upload(true);
+    const prem = /precondition|already|tag/i.test(put.txt) && put.r.status !== 200;
+    if (prem) {
+      console.log('↻ Pas de migration refusé (tag déjà appliqué ?) : on réessaie sans.');
+      put = await upload(false);
+    }
+  }
+  if (put.r.status !== 200 || !put.r.json || !put.r.json.success) {
+    console.error('❌ Échec :', String(put.txt).slice(0, 600));
     process.exit(1);
   }
-  console.log(`✅ Worker "${exact}" mis à jour (HTTP ${put.status}), liaison VMAI re-déclarée.`);
+  try { fs.writeFileSync(marker, JSON.stringify({ tag: doTag, class: doClass }, null, 2) + '\n'); } catch (e) {}
+  console.log(`✅ Worker "${exact}" mis à jour (HTTP ${put.r.status}), liaisons VMAI et MISSION re-déclarées.`);
 
   await api('POST', `/client/v4/accounts/${accountId}/workers/scripts/${exact}/subdomain`,
     JSON.stringify({ enabled: true }), 'application/json');
