@@ -5271,7 +5271,12 @@ async function agentRun(text){
       /* La discussion est créée tout de suite : la mission lui est rattachée,
          et son résultat ira chez elle même si l'on change de discussion. */
       if(typeof FB!=="undefined"&&FB_OK&&fbUser&&!jobChat&&typeof ensureChat==="function"){
-        try{ jobChat=await ensureChat(text); }catch(e){ jobChat=null; }
+        try{
+          /* Au plus 4 s : une sauvegarde lente ne doit jamais retarder la
+             mission (elle est confiée à la passerelle juste après). */
+          jobChat=await Promise.race([ensureChat(text),
+            new Promise(r=>setTimeout(()=>r(null),4000))]);
+        }catch(e){ jobChat=null; }
       }
       const sr=await fetch(API_BASE+"/api/agent/job/start",{
         method:"POST",
