@@ -3358,6 +3358,9 @@ async function loadChat(id){
     if(lastA) msgActions(lastA,{getMd:()=>lastAMd, regen:()=>rerunLastLoaded()});
     if(!snap.size) emptyState();
     renderChatList(); closeSide(); scrollDown();
+    /* Une mission tourne peut-être encore pour cette discussion : on l'affiche
+       en direct au lieu de laisser croire qu'elle a disparu. */
+    if(typeof agtMissionBanner==="function") agtMissionBanner(id);
   }catch(e){ console.warn("loadChat :", e); alert("Impossible de charger cette discussion."); }
 }
 
@@ -3506,7 +3509,18 @@ async function afterImage(x){
    identique au rechargement, sur n'importe quel appareil. */
 async function afterAgent(x){
   if(!FB_OK||!fbUser) return;
+  /* Une mission est rattachée à la discussion où elle a été lancée : si
+     l'utilisateur a changé de discussion entre-temps, le résultat va quand
+     même dans la bonne — c'est ce qui faisait « disparaître » la mission. */
+  const back=(x.chatId && x.chatId!==chatId)?{id:chatId, seq:msgSeq}:null;
   try{
+    if(back){
+      chatId=x.chatId;
+      try{
+        const last=await chatsRef().doc(chatId).collection("messages").orderBy("order","desc").limit(1).get();
+        msgSeq=last.empty?0:(last.docs[0].data().order||0);
+      }catch(e){ msgSeq=0; }
+    }
     await ensureChat(x.userText);
     const uDoc={role:"user", text:x.userText||"", kind:"none", modelName:current.id,
       order:++msgSeq, createdAt:Date.now(), images:[]};
@@ -3514,6 +3528,7 @@ async function afterAgent(x){
       order:++msgSeq, createdAt:Date.now(), steps:(x.steps||[]).slice(0,400), agent:true};
     await commitPair(uDoc, aDoc);
   }catch(e){ console.warn("sauvegarde agent :", e); fbSaveWarn(e); }
+  finally{ if(back){ chatId=back.id; msgSeq=back.seq; } }
 }
 /* Une sauvegarde qui échoue ne doit pas passer inaperçue (c'est ce qui
    faisait disparaître des messages en silence). */
@@ -4051,32 +4066,42 @@ async function agtJobFollow(id, ui, initial){
 }
 /* Reprise au rechargement : une mission lancée juste avant la fermeture de
    l'app a continué sur la passerelle ; on la réaffiche et on l'enregistre. */
-async function agtResumeJob(){
-  const info=agtJobStored();
-  if(!info||!info.id||!agtLogged()) return;
-  /* Une mission tourne ou est déjà affichée dans cette page : on n'y touche pas. */
-  if(typeof AGENT_BUSY!=="undefined"&&AGENT_BUSY) return;
-  if(AGT_JOB_OWN&&info.id===AGT_JOB_OWN) return;
-  const first=await agtJobState(info.id);
-  if(!first){ agtJobKeep(null); return; }
-  AGT_JOB_OWN=info.id;
+/* Affiche une mission (reprise au chargement ou retour dans sa discussion) et
+   suit son avancée. `save` : cette page enregistre-t-elle la mission ?
+   Une seule page enregistre — les autres ne font qu'afficher, pour ne jamais
+   écrire deux fois le même échange. */
+async function agtShowMission(info, opt){
+  opt=opt||{};
+  const save=opt.save!==false;
+  const silent=!!opt.silent;      /* mission d'une autre discussion : on ne fait que suivre */
+  let first=opt.state||null;
+  if(!first){ first=await agtJobState(info.id); if(!first) return false; }
+  if(save) AGT_SAVER=info.id;
+  if(!save) AGT_JOB_OWN=info.id;
   /* C'est une mission d'agent : on remet ce mode pour un affichage correct. */
   if(typeof AGENT_ON!=="undefined"&&!AGENT_ON){
     AGENT_ON=true; try{ agtBtn.classList.add("on"); }catch(e){} agtSyncUI();
   }
-  agtToast("Mission récupérée : elle tournait pendant que l'app était fermée.");
-  addUser(info.mission||"(mission)", "none", null, null);
-  const bubble=addAssistant();
-  const finalEl=document.createElement("div");
-  finalEl.className="agent-final";
-  bubble.appendChild(finalEl);
-  let term=null, logEl=null;
+  let term=null, logEl=null, bubble=null, finalEl=null;
   const ensureTerm=()=>{
     if(!term){ const built=agtTermEl(bubble, finalEl, false); term=built.term; logEl=built.log; }
     return logEl;
   };
+  if(!silent){
+    addUser(info.mission||"(mission)", "none", null, null);
+    bubble=addAssistant();
+    finalEl=document.createElement("div");
+    finalEl.className="agent-final";
+    bubble.appendChild(finalEl);
+  }
   const stepsArr=[];
-  const r=await agtJobFollow(info.id,{
+  const r=await agtJobFollow(info.id, silent ? {
+    ensureTerm:()=>null,
+    onStep:(st,L)=>{
+      stepsArr.push({kind:(st.kind==="fetch")?"fetch":"bash", cmd:String(st.cmd||""), out:String(st.out||""),
+        err:String(st.err||""), exit:st.exit||0});
+    }
+  } : {
     ensureTerm:ensureTerm,
     onStep:(st,L)=>{
       const kind=(st.kind==="fetch")?"fetch":"bash";
@@ -4087,22 +4112,60 @@ async function agtResumeJob(){
       agtSmart();
     }
   }, first);
-  agtJobKeep(null);
-  AGT_JOB_OWN=null;
-  if(term) term.classList.add("folded");
+  if(save){ agtJobKeep(null); AGT_SAVER=null; }
   let finalText=String(r.final||"");
   if(r.error) finalText=(finalText?finalText+"\n\n":"")+"*("+r.error+")*";
-  finalEl.innerHTML=renderMarkdown(finalText||"(mission sans texte final)");
-  msgActions(bubble,{getMd:()=>agtTraceMd(stepsArr, finalText)});
-  try{
-    conv.push({role:"user",text:info.mission||""});
-    conv.push({role:"assistant",text:finalText});
-  }catch(e){}
-  if(typeof FB!=="undefined"&&FB.afterAgent){
-    try{ FB.afterAgent({userText:info.mission||"", steps:stepsArr, out:finalText}); }catch(e){}
+  if(!silent){
+    if(term) term.classList.add("folded");
+    finalEl.innerHTML=renderMarkdown(finalText||"(mission sans texte final)");
+    msgActions(bubble,{getMd:()=>agtTraceMd(stepsArr, finalText)});
+    try{
+      conv.push({role:"user",text:info.mission||""});
+      conv.push({role:"assistant",text:finalText});
+    }catch(e){}
+    agtSmart();
   }
-  agtSmart();
+  /* C'est la page qui enregistre qui écrit, une seule fois, dans LA discussion
+     d'origine — même si l'utilisateur regarde ailleurs. */
+  if(save&&typeof FB!=="undefined"&&FB.afterAgent){
+    try{ FB.afterAgent({userText:info.mission||"", steps:stepsArr, out:finalText, chatId:info.chat||null}); }catch(e){}
+  }
+  if(AGT_MISSION_VIEW===info.id) AGT_MISSION_VIEW=null;
+  return true;
 }
+let AGT_MISSION_VIEW=null;   /* mission déjà affichée dans la discussion ouverte */
+let AGT_SAVER=null;         /* mission dont cette page est chargée de l'enregistrement */
+
+/* Reprise au rechargement : une mission lancée juste avant la fermeture de
+   l'app a continué sur la passerelle ; on la réaffiche et on l'enregistre. */
+async function agtResumeJob(){
+  const info=agtJobStored();
+  if(!info||!info.id||!agtLogged()) return;
+  /* Une mission tourne déjà dans cette page (ou est déjà en train d'être
+     enregistrée par elle) : on n'y touche pas. */
+  if(typeof AGENT_BUSY!=="undefined"&&AGENT_BUSY) return;
+  if((AGT_JOB_OWN&&info.id===AGT_JOB_OWN)||(AGT_SAVER&&info.id===AGT_SAVER)) return;
+  /* La discussion ouverte n'est pas celle de la mission : on la laisse finir
+     et s'enregistrer chez elle, sans l'afficher au mauvais endroit. */
+  const ailleurs=!!(info.chat&&typeof chatId!=="undefined"&&chatId&&chatId!==info.chat);
+  agtToast(ailleurs?"Mission récupérée : son résultat ira dans sa discussion."
+    :"Mission récupérée : elle tournait pendant que l'app était fermée.");
+  await agtShowMission(info, {save:true, silent:ailleurs});
+}
+
+/* Retour dans la discussion d'une mission en cours : on la réaffiche en direct
+   (sans réenregistrer : la discussion est écrite par la mission elle-même). */
+function agtMissionBanner(cid){
+  const info=agtJobStored();
+  if(!info||!info.id||!cid||info.chat!==cid) return;
+  if(AGT_MISSION_VIEW===info.id) return;
+  if(AGT_JOB_OWN&&info.id===AGT_JOB_OWN) return;   /* déjà affichée par la page */
+  if(AGT_SAVER&&info.id===AGT_SAVER) return;       /* enregistrée par la page, sans affichage */
+  AGT_MISSION_VIEW=info.id;
+  agtToast("Mission en cours : elle continue sur la passerelle.");
+  agtShowMission(info, {save:false}).catch(()=>{ AGT_MISSION_VIEW=null; });
+}
+
 /* Nouvelle discussion depuis le mode agent : aucune mission ne tourne
    (AGENT_BUSY est vérifié), on remet juste l'interface à plat. */
 function agtNewConversation(){
@@ -5203,7 +5266,13 @@ async function agentRun(text){
     /* --- Voie principale : la mission est exécutée par la passerelle, qui
        continue même si l'app est fermée. L'app ne fait que suivre l'avancée. */
     let job=null;
+    let jobChat=(typeof chatId!=="undefined")?chatId:null;
     try{
+      /* La discussion est créée tout de suite : la mission lui est rattachée,
+         et son résultat ira chez elle même si l'on change de discussion. */
+      if(typeof FB!=="undefined"&&FB_OK&&fbUser&&!jobChat&&typeof ensureChat==="function"){
+        try{ jobChat=await ensureChat(text); }catch(e){ jobChat=null; }
+      }
       const sr=await fetch(API_BASE+"/api/agent/job/start",{
         method:"POST",
         headers:agtHeaders({"Content-Type":"application/json"}),
@@ -5212,8 +5281,8 @@ async function agentRun(text){
           params:{temperature:0.2}})
       });
       const sj=await sr.json();
-      if(sj&&sj.job) job={id:String(sj.job), chat:(typeof chatId!=="undefined"?chatId:null),
-        model:current.id, mission:text, at:Date.now()};
+      if(sj&&sj.job) job={id:String(sj.job), chat:jobChat,
+        model:current.id, mission:text, at:Date.now(), durable:!!sj.durable};
     }catch(e){ /* passerelle sans missions : la boucle locale prend le relais */ }
 
     if(job){
@@ -5359,7 +5428,11 @@ async function agentRun(text){
     conv.push({role:"assistant",text:finalText});
     msgActions(bubble,{getMd:()=>savedText});   /* bouton copier uniquement */
     if(typeof FB!=="undefined"&&FB.afterAgent){
-      try{ FB.afterAgent({userText:text, steps:stepsArr, out:finalText}); }catch(e){}
+      try{ FB.afterAgent({userText:text, steps:stepsArr, out:finalText, chatId:(job&&job.chat)||null}); }catch(e){}
+      if(job&&job.chat&&job.chat!==chatId){
+        const c=(typeof chats!=="undefined")?chats.find(x=>x.id===job.chat):null;
+        agtToast("Mission terminée — le résultat est dans « "+((c&&c.title)||"sa discussion")+" ».");
+      }
     }
   }catch(err){
     const b=bubble||addAssistant();

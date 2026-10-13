@@ -91,10 +91,17 @@ function get(url, headers) {
     process.exit(1);
   }
 
-  // 2) PUT : metadata avec la liaison de service VMAI re-déclarée
+  // 2) PUT : metadata avec la liaison de service VMAI re-déclarée, la liaison
+  //    du Durable Object des missions, et sa migration SQLite (obligatoire en
+  //    offre gratuite : « new_classes » y est refusé, code 10097).
   const metadata = {
     main_module: 'worker.js',
-    bindings: [{ type: 'service', name: 'VMAI', service: 'vmai' }],
+    bindings: [
+      { type: 'service', name: 'VMAI', service: 'vmai' },
+      { type: 'durable_object_namespace', name: 'MISSION', class_name: 'MissionJob' },
+    ],
+    migrations: [{ tag: 'v1', new_sqlite_classes: ['MissionJob'] }],
+    compatibility_date: '2024-11-12',
     keep_bindings: ['secret_text', 'plain_text'],
   };
   const boundary = '----CFWorkerBoundary' + Date.now();
@@ -159,6 +166,40 @@ function get(url, headers) {
     if (!ok) { console.error("❌ Relais agent/VM en échec (liaison VMAI ?)."); process.exit(1); }
   } else {
     console.log('ℹ️  ACCESS_CODE non fourni : vérification agent ignorée.');
+  }
+
+  /* Vérification du moteur de missions durables : on démarre une mission
+     minuscule, on vérifie qu'elle est bien portée par un Durable Object et
+     qu'elle répond, puis on l'arrête (aucune commande réellement exécutée). */
+  if (accessCode) {
+    const H = { 'X-Access-Code': accessCode, 'Content-Type': 'application/json' };
+    const post = (p2, body) => new Promise((resolve, reject) => {
+      const payload = JSON.stringify(body);
+      const rq = https.request({ hostname: host, path: p2, method: 'POST',
+        headers: Object.assign({}, H, { 'Content-Length': Buffer.byteLength(payload) }) }, (res) => {
+        let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => resolve({ status: res.statusCode, body: d }));
+      });
+      rq.on('error', reject); rq.write(payload); rq.end();
+    });
+    let durOk = false;
+    try {
+      const r = await post('/api/agent/job/start', { model: 'gemini-4-argon', mission: 'vérification de déploiement (ne rien exécuter)',
+        intro: 'test', rappel: 'test', hist: '', image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', image_kind: 'none', params: {} });
+      const j = JSON.parse(r.body || '{}');
+      console.log(`🔎 /api/agent/job/start → HTTP ${r.status} · job=${j.job || '?'} · durable=${j.durable === true}`);
+      durOk = r.status === 200 && j.durable === true;
+      if (j.job) {
+        const st = await get(`https://${host}/api/agent/job?id=${encodeURIComponent(j.job)}`, { 'X-Access-Code': accessCode });
+        console.log(`🔎 /api/agent/job?id → HTTP ${st.status} (état de la mission retrouvé)`);
+        durOk = durOk && st.status === 200;
+        await post(`/api/agent/job/stop?id=${encodeURIComponent(j.job)}`, {});
+      }
+    } catch (e) { console.log('🔎 moteur de missions : ' + (e && e.message ? e.message : e)); }
+    if (!durOk) {
+      console.error('❌ Le moteur de missions durables ne répond pas (liaison MISSION / migration v1 ?).');
+      process.exit(1);
+    }
+    console.log('✅ Missions durables : Durable Object « MissionJob » opérationnel.');
   }
 
   console.log(`🎉 Application déployée : https://${host}/app`);
