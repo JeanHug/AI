@@ -1506,6 +1506,9 @@ async function fetchHandler(request, env, ctx) {
       vf: String(raw.vf || "model_version"), vv: String(raw.vv || model),
       out: raw.out ? String(raw.out) : undefined,
       noimg: raw.noimg === true,          /* certains modèles refusent l'image */
+      extraInputs: Array.isArray(raw.inputs) ? raw.inputs : null,
+      inputValues: (raw.values && typeof raw.values === "object") ? raw.values : null,
+      stepExtra: (raw.step && typeof raw.step === "object") ? raw.step : null,
     } : null;
     const cands = rawCand ? [rawCand]
       : (forceOr && spec.or ? [orCand]
@@ -1524,18 +1527,19 @@ async function fetchHandler(request, env, ctx) {
           prompt,
           [c.vf || "model_version"]: c.vv || model,
           ...sanitize(body.params, c.pf || c.family),
+          ...(c.stepExtra || {}),
         };
-        if (!c.noimg) step.images = "$inputs.image";
+        if (!c.noimg && step.images === undefined) step.images = "$inputs.image";
         if (!c.nokey) step.api_key = "rf_key:account";
         if (c.task !== null) step.task_type = c.task || "unconstrained";
         if (c.backend) step.backend = c.backend;
 
         const payload = {
           api_key: env.ROBOFLOW_API_KEY,
-          inputs: c.noimg ? {} : { image: { type: "base64", value: image } },
+          inputs: Object.assign({}, c.noimg ? {} : { image: { type: "base64", value: image } }, c.inputValues || {}),
           specification: {
             version: "1.0",
-            inputs: c.noimg ? [] : [{ type: "WorkflowImage", name: "image" }],
+            inputs: (c.noimg ? [] : [{ type: "WorkflowImage", name: "image" }]).concat(c.extraInputs || []),
             steps: [step],
             outputs: [{ type: "JsonField", name: "output", selector: `$steps.m.${c.out || spec.out || "output"}` }],
           },
