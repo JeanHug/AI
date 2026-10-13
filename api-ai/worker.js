@@ -640,6 +640,29 @@ async function pollToRoboflow(env, body, model) {
   return null;
 }
 
+/* Bascule en mode flux : le texte sauvé part en UN seul bloc SSE, précédé du
+   marqueur « roboflow » — l'app n'a donc rien à faire de particulier. */
+function pollFallbackStream(fb) {
+  const enc = new TextEncoder();
+  const one = new ReadableStream({
+    start(c) {
+      c.enqueue(enc.encode("data: " + JSON.stringify({ fb: "roboflow" }) + "\n\n"));
+      c.enqueue(enc.encode("data: " + JSON.stringify({ t: fb.output }) + "\n\n"));
+      c.enqueue(enc.encode("data: [DONE]\n\n"));
+      c.close();
+    },
+  });
+  return new Response(one, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Access-Code",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 /* ---- Missions durables ------------------------------------------------
    Constat du 13/10 : un moteur qui vit seulement dans la mémoire d'un isolate
    disparaît dès que plus personne n'interroge la passerelle (l'isolate est
@@ -1029,26 +1052,7 @@ async function fetchHandler(request, env, ctx) {
             /* Même bascule qu'en mode normal : le texte entier arrive dans un
                seul bloc, l'app n'a rien à faire de particulier. */
             const fb = await pollToRoboflow(env, body, model);
-            if (fb) {
-              const enc2 = new TextEncoder();
-              const one = new ReadableStream({
-                start(c) {
-                  c.enqueue(enc2.encode("data: " + JSON.stringify({ fb: "roboflow" }) + "\n\n"));
-                  c.enqueue(enc2.encode("data: " + JSON.stringify({ t: fb.output }) + "\n\n"));
-                  c.enqueue(enc2.encode("data: [DONE]\n\n"));
-                  c.close();
-                },
-              });
-              return new Response(one, {
-                headers: {
-                  "Content-Type": "text/event-stream; charset=utf-8",
-                  "Access-Control-Allow-Origin": "*",
-                  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-                  "Access-Control-Allow-Headers": "Content-Type, X-Access-Code",
-                  "Cache-Control": "no-store",
-                },
-              });
-            }
+            if (fb) return pollFallbackStream(fb);
             return json({ error: pollErrorMessage(up.status, te) }, up.status);
           }
         } else {
@@ -1075,7 +1079,11 @@ async function fetchHandler(request, env, ctx) {
       if (!up.ok) {
         const t = await up.text();
         if (isGroq) return json({ error: groqApiError(up.status, t) }, (up.status === 413 || up.status === 429) ? up.status : 502);
-        if (isPoll) return json({ error: pollErrorMessage(up.status, t) }, (up.status === 402 || up.status === 429) ? up.status : 502);
+        if (isPoll) {
+          const fb = await pollToRoboflow(env, body, model);
+          if (fb) return pollFallbackStream(fb);
+          return json({ error: pollErrorMessage(up.status, t) }, (up.status === 402 || up.status === 429) ? up.status : 502);
+        }
         return json({ error: "Google HTTP " + up.status + " — " + t.slice(0, 200) }, 502);
       }
       const enc = new TextEncoder();
@@ -1106,6 +1114,11 @@ async function fetchHandler(request, env, ctx) {
         }
         if (pollCreditText(preText)) {
           try { await reader.cancel(); } catch {}
+          /* Message de crédits dans la tête du flux : même bascule que dans
+             l'autre sens de lecture (c'était le trou : on répondait 402 sans
+             essayer Roboflow, alors que c'est la voie que prend l'app). */
+          const fb = await pollToRoboflow(env, body, model);
+          if (fb) return pollFallbackStream(fb);
           return json({ error: pollErrorMessage(402, preText) }, 402);
         }
       }
