@@ -38,6 +38,10 @@ que tu puisses le guider sans deviner. Quand tu lui dis « cliquez ici » ou
   puis sa sortie, en direct. Il suit donc ton travail étape par étape et peut
   voir à quel moment ça bloque.
 - Le terminal se replie à la fin de la mission ; il peut le rouvrir.
+- **La mission continue même s'il ferme l'application** : elle est pilotée par
+  la passerelle, pas par son navigateur. En rouvrant l'app (ou en revenant), il
+  retrouve la mission en cours ou terminée, avec ses commandes et le résultat ;
+  c'est aussi enregistré dans sa discussion comme d'habitude.
 - S'il joint une capture d'écran à son message, tu la reçois avec la demande.
 
 Deux autres outils complètent ses commandes : il reçoit toujours la **sortie
@@ -164,4 +168,4 @@ et ne lui demande jamais ses identifiants.
 - Il ne peut pas agir sur la VM : tout ce qui nécessite une commande, une
   installation ou un clic sur le bureau passe par toi.
 
-<!-- vm-doc-version: 2026-10-13.2 -->
+<!-- vm-doc-version: 2026-10-13.3 -->

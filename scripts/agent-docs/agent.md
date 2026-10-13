@@ -97,10 +97,12 @@ Aucune saisie de mot de passe ne te sera jamais demandée.
 ## Outils disponibles
 
 - l'outil **fetch** (voir plus haut) : Chrome headless piloté par Playwright,
-  service permanent sur `127.0.0.1:3011` — pas de démarrage à payer à chaque
-  lecture ; tu peux l'appeler aussi directement en bash :
-  `curl -s -X POST http://127.0.0.1:3011/fetch -H 'Content-Type: application/json'
-  -d '{"url":"https://exemple.com","mode":"text"}'` ;
+  service permanent dans la VM (port 3011) — pas de démarrage à payer à chaque
+  lecture. Tu l'appelles **par l'action JSON `fetch`** (c'est la voie prévue) ;
+  le service répond aussi en HTTP local si tu préfères passer par bash, mais
+  évite d'écrire des commandes de téléchargement entre accents graves : le
+  pare-feu de notre fournisseur modèle les prend pour une attaque et refuse la
+  requête entière ;
 - `python3` (matplotlib installé : tes figures peuvent être générées en PNG),
   `pip3` pour compléter au besoin ;
 - Node.js via nvm : `~/.nvm/versions/node/*/bin/node` (prends la version la
@@ -122,4 +124,4 @@ Aucune saisie de mot de passe ne te sera jamais demandée.
 5. Termine par `{"action":"final","message":"..."}` en expliquant ce qui a été
    fait, où se trouvent les livrables et comment les utiliser.
 
-<!-- vm-doc-version: 2026-10-13.2 -->
+<!-- vm-doc-version: 2026-10-13.3 -->

@@ -4014,6 +4014,95 @@ function agtLogged(){
   return (typeof fbUser!=="undefined"&&!!fbUser
     &&String(fbUser.email||"").toLowerCase()===AGENT_EMAIL);
 }
+/* --- missions en arrière-plan : mémoire locale, suivi, reprise ----------
+   La mission est exécutée par la passerelle (worker) et non par le
+   navigateur : elle continue donc même si l'app est fermée. L'app garde son
+   identifiant et s'y raccroche au chargement suivant. */
+let AGT_JOB_OWN=null;   /* mission déjà suivie par cette page (ne pas la reprendre) */
+function agtJobKeep(x){
+  try{ if(x) localStorage.setItem("agt_job", JSON.stringify(x)); else localStorage.removeItem("agt_job"); }catch(e){}
+}
+function agtJobStored(){
+  try{ const s=localStorage.getItem("agt_job"); return s?JSON.parse(s):null; }catch(e){ return null; }
+}
+async function agtJobState(id){
+  try{
+    const r=await fetch(API_BASE+"/api/agent/job?id="+encodeURIComponent(id),{headers:agtHeaders()});
+    const j=await r.json();
+    return (j&&j.ok&&j.job)?j.job:null;
+  }catch(e){ return null; }
+}
+/* Suit une mission jusqu'à la fin : chaque nouvelle étape est confiée à
+   onStep() pour l'affichage, puis on attend la suivante. */
+async function agtJobFollow(id, ui, initial){
+  ui=ui||{};
+  let seen=0, first=(initial||null);
+  for(;;){
+    const st=first||await agtJobState(id);
+    first=null;
+    if(!st) return {lost:true, seen:seen};
+    const list=st.steps||[];
+    const L=(list.length>seen)?ui.ensureTerm():null;
+    for(;seen<list.length;seen++){ if(ui.onStep) ui.onStep(list[seen]||{}, L); }
+    if(ui.afterPoll) ui.afterPoll();
+    if(st.done) return {done:true, final:String(st.final||""), error:String(st.error||""), seen:seen};
+    await new Promise(r=>setTimeout(r,1500));
+  }
+}
+/* Reprise au rechargement : une mission lancée juste avant la fermeture de
+   l'app a continué sur la passerelle ; on la réaffiche et on l'enregistre. */
+async function agtResumeJob(){
+  const info=agtJobStored();
+  if(!info||!info.id||!agtLogged()) return;
+  /* Une mission tourne ou est déjà affichée dans cette page : on n'y touche pas. */
+  if(typeof AGENT_BUSY!=="undefined"&&AGENT_BUSY) return;
+  if(AGT_JOB_OWN&&info.id===AGT_JOB_OWN) return;
+  const first=await agtJobState(info.id);
+  if(!first){ agtJobKeep(null); return; }
+  AGT_JOB_OWN=info.id;
+  /* C'est une mission d'agent : on remet ce mode pour un affichage correct. */
+  if(typeof AGENT_ON!=="undefined"&&!AGENT_ON){
+    AGENT_ON=true; try{ agtBtn.classList.add("on"); }catch(e){} agtSyncUI();
+  }
+  agtToast("Mission récupérée : elle tournait pendant que l'app était fermée.");
+  addUser(info.mission||"(mission)", "none", null, null);
+  const bubble=addAssistant();
+  const finalEl=document.createElement("div");
+  finalEl.className="agent-final";
+  bubble.appendChild(finalEl);
+  let term=null, logEl=null;
+  const ensureTerm=()=>{
+    if(!term){ const built=agtTermEl(bubble, finalEl, false); term=built.term; logEl=built.log; }
+    return logEl;
+  };
+  const stepsArr=[];
+  const r=await agtJobFollow(info.id,{
+    ensureTerm:ensureTerm,
+    onStep:(st,L)=>{
+      const kind=(st.kind==="fetch")?"fetch":"bash";
+      agtStepEl(L,String(st.cmd||""),kind);
+      agtOutEl(L,String(st.out||""),String(st.err||""),kind==="fetch"?0:(st.exit||0));
+      stepsArr.push({kind:kind, cmd:String(st.cmd||""), out:String(st.out||""),
+        err:String(st.err||""), exit:st.exit||0});
+      agtSmart();
+    }
+  }, first);
+  agtJobKeep(null);
+  AGT_JOB_OWN=null;
+  if(term) term.classList.add("folded");
+  let finalText=String(r.final||"");
+  if(r.error) finalText=(finalText?finalText+"\n\n":"")+"*("+r.error+")*";
+  finalEl.innerHTML=renderMarkdown(finalText||"(mission sans texte final)");
+  msgActions(bubble,{getMd:()=>agtTraceMd(stepsArr, finalText)});
+  try{
+    conv.push({role:"user",text:info.mission||""});
+    conv.push({role:"assistant",text:finalText});
+  }catch(e){}
+  if(typeof FB!=="undefined"&&FB.afterAgent){
+    try{ FB.afterAgent({userText:info.mission||"", steps:stepsArr, out:finalText}); }catch(e){}
+  }
+  agtSmart();
+}
 /* Nouvelle discussion depuis le mode agent : aucune mission ne tourne
    (AGENT_BUSY est vérifié), on remet juste l'interface à plat. */
 function agtNewConversation(){
@@ -5001,6 +5090,20 @@ function agtRenderMission(bubble, steps, finalText, folded){
   return built;
 }
 
+/* Au chargement, si une mission tournait quand l'app a été fermée, on s'y
+   raccroche (quelques essais le temps que la connexion soit établie). */
+(function agtResumeTick(n){
+  setTimeout(()=>{
+    try{
+      if(typeof agtLogged==="function"&&agtLogged()){
+        agtResumeJob();          /* une seule fois : la reprise ne se répète pas */
+        return;
+      }
+    }catch(e){ /* pas encore connecté */ }
+    if(n<7) agtResumeTick(n+1);
+  }, 2000);
+})(0);
+
 /* --- boucle d'agent : JSON ⇄ bash --- */
 function agtParseCall(s){
   s=String(s||"");
@@ -5096,6 +5199,60 @@ async function agentRun(text){
 
     let tr="", steps=0, done=false, lastRaw="", traceMd="", finalMd="";
     const stepsArr=[];                    /* étapes structurées (Firestore) */
+
+    /* --- Voie principale : la mission est exécutée par la passerelle, qui
+       continue même si l'app est fermée. L'app ne fait que suivre l'avancée. */
+    let job=null;
+    try{
+      const sr=await fetch(API_BASE+"/api/agent/job/start",{
+        method:"POST",
+        headers:agtHeaders({"Content-Type":"application/json"}),
+        body:JSON.stringify({model:current.id, mission:text, intro:intro, rappel:rappel, hist:hist,
+          image:shot?(shot.small||shot.b64):WHITE_PX, image_kind:shot?"upload":"none",
+          params:{temperature:0.2}})
+      });
+      const sj=await sr.json();
+      if(sj&&sj.job) job={id:String(sj.job), chat:(typeof chatId!=="undefined"?chatId:null),
+        model:current.id, mission:text, at:Date.now()};
+    }catch(e){ /* passerelle sans missions : la boucle locale prend le relais */ }
+
+    if(job){
+      AGT_JOB_OWN=job.id;
+      agtJobKeep(job);
+      const follow=await agtJobFollow(job.id,{
+        ensureTerm:ensureTerm,
+        onStep:(st,L)=>{
+          const kind=(st.kind==="fetch")?"fetch":"bash";
+          agtStepEl(L,String(st.cmd||""),kind);
+          agtOutEl(L,String(st.out||""),String(st.err||""),kind==="fetch"?0:(st.exit||0));
+          stepsArr.push({kind:kind, cmd:String(st.cmd||""), out:String(st.out||""),
+            err:String(st.err||""), exit:st.exit||0});
+          tr+="\n[commande] "+String(st.cmd||"")
+            +"\n[exit] "+(st.exit==null?"?":st.exit)
+            +"\n[stdout]\n"+String(st.out||"")+(st.err?"\n[stderr]\n"+st.err:"")+"\n";
+          traceMd+=((kind==="fetch")?String(st.cmd||""):"$ "+String(st.cmd||""))+"\n"
+            +(String(st.out||"")||String(st.err||"")||"(aucune sortie)")
+            +(st.exit?"  [exit "+st.exit+"]":"")+"\n\n";
+          agtSmart();
+        },
+        afterPoll:agtSmart
+      });
+      agtJobKeep(null);
+      if(follow.done || follow.lost) AGT_JOB_OWN=null;
+      if(follow.done){
+        killWait();
+        finalMd=String(follow.final||"");
+        if(finalMd) finalEl.innerHTML=renderMarkdown(finalMd);
+        if(follow.error){
+          traceMd+="("+follow.error+")\n";
+          if(!finalMd) finalEl.innerHTML=renderMarkdown("*("+follow.error+")*");
+        }
+        done=true;
+      }
+      /* follow.lost : la passerelle ne connaît plus la mission (isolate
+         recyclé) → la boucle locale ci-dessous reprend la mission. */
+    }
+
     while(steps<1000&&!done){   /* filet de sécurité très large, pas une limite pratique */
       const prompt=steps===0
         ? intro
