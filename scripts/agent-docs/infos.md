@@ -31,6 +31,11 @@ que tu puisses le guider sans deviner. Quand tu lui dis « cliquez ici » ou
 - Le terminal se replie à la fin de la mission ; il peut le rouvrir.
 - S'il joint une capture d'écran à son message, tu la reçois avec la demande.
 
+Deux autres outils complètent ses commandes : il reçoit toujours la **sortie
+complète** de ses commandes (rien n'est coupé), et il peut **lire des pages
+web** lui-même (Chrome headless sur la VM) — ces lectures apparaissent dans la
+zone « Terminal de la VM », sous la forme `fetch [text] https://…`.
+
 ## 3. L'écran de la VM
 
 - L'écran du bureau Ubuntu s'affiche en grand, rafraîchi toutes les 3 secondes.
@@ -91,8 +96,9 @@ changent selon le type, et une croix pour fermer (la touche Échap marche aussi)
 - **Python** : code coloré et bouton **Lancer sur la VM**. Si le script
   dessine avec matplotlib, la figure est renvoyée et affichée en image.
 - **Shell (.sh, .bash)** : code coloré et bouton **Lancer sur la VM**.
-- **Autres fichiers texte** : affichés tels quels, avec **Copier**. Au-delà de
-  200 Ko, l'affichage est tronqué pour ne jamais bloquer l'écran.
+- **Autres fichiers texte** : affichés **intégralement** (aucune troncature),
+  avec **Copier**. Les très gros fichiers défilent simplement dans la
+  visionneuse.
 
 ## 6. « Lancer sur la VM »
 

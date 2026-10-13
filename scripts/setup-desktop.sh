@@ -321,4 +321,35 @@ else
   cat /tmp/linux-api-daemon.log 2>/dev/null || true
 fi
 
+# 6. Outil fetch (lecture web) : Playwright + Chrome headless + service 3011
+echo "=== Outil fetch : Playwright et service de lecture web ==="
+docker exec -u kasm-user kasm_desktop bash -lc 'python3 -m pip install --user -q playwright 2>/dev/null || true' \
+  || echo "⚠️ playwright : installation impossible (l'outil fetch restera indisponible)"
+docker cp "$SCRIPT_DIR/vm-fetch-server.py" kasm_desktop:/home/kasm-user/bin/vm-fetch-server.py 2>/dev/null \
+  || echo "⚠️ vm-fetch-server.py : copie impossible"
+docker cp "$SCRIPT_DIR/vm-fetch-restart.sh" kasm_desktop:/home/kasm-user/bin/vm-fetch-restart.sh 2>/dev/null || true
+docker exec -u root kasm_desktop bash -c 'chown 1000:1000 /home/kasm-user/bin/vm-fetch-server.py /home/kasm-user/bin/vm-fetch-restart.sh && chmod +x /home/kasm-user/bin/vm-fetch-server.py /home/kasm-user/bin/vm-fetch-restart.sh' 2>/dev/null || true
+docker exec -u kasm-user kasm_desktop bash -lc '/home/kasm-user/bin/vm-fetch-restart.sh' >/dev/null 2>&1 || true
+if docker exec kasm_desktop curl -s -m 20 http://127.0.0.1:3011/health 2>/dev/null | grep -q '"ok": *true'; then
+  echo " Service de lecture web opérationnel (port 3011) !"
+else
+  echo "⚠️ Service de lecture web non démarré immédiatement ; le watchdog réessaiera (journal : /tmp/vm-fetch.log)."
+fi
+
+# Watchdog : relance le service de lecture web s'il tombe (vérifié toutes les 30 s).
+cat << 'VMFETCH_WD_EOF' | sudo tee /usr/local/bin/vm-fetch-watchdog.sh > /dev/null
+#!/usr/bin/env bash
+# Relance vm-fetch-server.py dans le conteneur dès qu'il disparaît.
+while true; do
+  if ! docker exec kasm_desktop pgrep -f vm-fetch-server.py >/dev/null 2>&1; then
+    docker exec -u kasm-user kasm_desktop bash -lc '/home/kasm-user/bin/vm-fetch-restart.sh' >/dev/null 2>&1
+  fi
+  sleep 30
+done
+VMFETCH_WD_EOF
+sudo chmod +x /usr/local/bin/vm-fetch-watchdog.sh
+sudo pkill -f vm-fetch-watchdog 2>/dev/null || true
+sudo nohup /usr/local/bin/vm-fetch-watchdog.sh > /tmp/vm-fetch-watchdog.log 2>&1 &
+echo "watchdog vm-fetch démarré (vérification toutes les 30 s)"
+
 echo " Bureau Ubuntu configuré avec succès : Google Chrome, Google Docs et API REST 100% opérationnels !"

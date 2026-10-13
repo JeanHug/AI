@@ -795,6 +795,8 @@ const MODELS = [
    sc:[7,7,8,300], desc:"Multimodal de Google pour workflows agentiques rapides, code et raisonnement complexe ; peu tokenivore."},
   {id:"gemini-3-5-flash-lite", hidden:true, label:"Gemini 3.5 Flash-Lite", vendor:"google", family:"gemini",
    sc:[5,5,5,400], desc:"Modèle haute efficacité de Google, taillé pour les sous-agents qui exécutent des tâches ciblées dans des workflows multi-agents."},
+  {id:"gemini-4-argon", label:"Gemini 4 Argon", vendor:"google", family:"gemini",
+   sc:[9.5,9,9.5,110], desc:"Le frontier de la génération 4 (sorti le 13/10/2026) : tâches longues et multi-étapes, code agentique, finance, juridique, cybersécurité ; entrée et sortie jusqu'à 1 M de tokens."},
   {id:"gemini-3-1-pro", label:"Gemini 3.1 Pro", vendor:"google", family:"gemini",
    sc:[5,5,8,120], desc:"Modèle frontier de raisonnement de Google : ingénierie logicielle renforcée, fiabilité agentique, usage de tokens efficace."},
   /* Google — API officielle Gemini (gratuite) — outils Google activables dans les paramètres */
@@ -4674,9 +4676,6 @@ async function agtOpenFile(path, name){
     mkBtn("Copier",()=>agtCopyText(content));
     return;
   }
-  if(content.length>200000){
-    content=content.slice(0,200000)+"\n\n… [fichier trop volumineux — affichage tronqué]";
-  }
   const pre=document.createElement("pre");
   pre.className="av-pre"; pre.textContent=content;
   body.appendChild(pre);
@@ -4864,9 +4863,11 @@ function agtTermEl(bubble, beforeEl, folded){
   else bubble.appendChild(term);
   return {term:term, log:log};
 }
-function agtStepEl(logEl, cmd){
+function agtStepEl(logEl, cmd, kind){
   const st=document.createElement("div"); st.className="agent-step";
-  st.textContent="$ "+String(cmd==null?"":cmd);
+  /* Les étapes « fetch » s'affichent telles quelles (fetch [html] https://…) ;
+     les commandes shell gardent le préfixe « $ ». */
+  st.textContent=(kind==="fetch"?"":"$ ")+String(cmd==null?"":cmd);
   logEl.appendChild(st);
   return st;
 }
@@ -4879,8 +4880,8 @@ function agtOutEl(logEl, so, se, exit){
 }
 /* Version markdown (bouton Copier) : texte final + trace du terminal. */
 function agtTraceMd(steps, finalText){
-  const tr=(steps||[]).map(s=>"$ "+s.cmd+"\n"+(s.out||s.err||"(aucune sortie)")
-    +(s.exit?"  [exit "+s.exit+"]":"")).join("\n\n");
+  const tr=(steps||[]).map(s=>(s.kind==="fetch"?"":"$ ")+s.cmd+"\n"+(s.out||s.err||"(aucune sortie)")
+    +(s.exit&&s.kind!=="fetch"?"  [exit "+s.exit+"]":"")).join("\n\n");
   return String(finalText||"")+(tr.trim()
     ? ("\n\n---\n\n**Terminal de cette mission :**\n\n```\n"+tr.trim()+"\n```")
     : "");
@@ -4906,7 +4907,8 @@ function agtRenderMission(bubble, steps, finalText, folded){
       const d=document.createElement("div"); d.className="agent-out";
       d.textContent=String(s.raw); built.log.appendChild(d); return;
     }
-    agtStepEl(built.log, s.cmd); agtOutEl(built.log, s.out, s.err, s.exit);
+    agtStepEl(built.log, s.cmd, s.kind);
+    agtOutEl(built.log, s.out, s.err, (s.kind==="fetch"?0:s.exit));
   });
   const finalEl=document.createElement("div");
   finalEl.className="agent-final";
@@ -4935,10 +4937,6 @@ function agtParseCall(s){
     }catch(e){}
   }
   return null;
-}
-function agtTrunc(s,n){
-  s=String(s==null?"":s);
-  return s.length>n ? s.slice(0,n)+"\n… [sortie tronquée]" : s;
 }
 function agtNearBottom(){
   const m=document.querySelector("main");
@@ -5000,16 +4998,18 @@ async function agentRun(text){
       AGENT_INFOS||"(infos.md indisponible)",
       "",
       "Tu peux relire ces fichiers à tout moment (cat /home/kasm-user/user/agent.md, cat /home/kasm-user/user/infos.md) pour aider l'utilisateur ou le comprendre.",
+      "Outre bash, tu disposes de l'outil fetch pour lire une page web (Chrome headless sur la VM) : {\"action\":\"fetch\",\"url\":\"https://…\",\"mode\":\"html|text\"} — voir agent.md.",
       shot?"Une capture d'écran actuelle de la VM est jointe à ce message.":""
     ].join("\n");
 
-    const rappel='Tu es l\'agent VM. Réponds par un seul objet JSON : {"action":"bash","command":...} ou {"action":"final","message":...}.';
+    const rappel='Tu es l\'agent VM. Réponds par un seul objet JSON : {"action":"bash","command":...}, '
+      +'{"action":"fetch","url":"https://…","mode":"html"|"text"} ou {"action":"final","message":...}.';
 
     /* Mémoire de la conversation : les échanges précédents sont transmis
        à l'agent (borné pour rester léger). */
     const hist=(typeof conv!=="undefined"&&conv.length)
       ? conv.slice(-12).map(m=>"["+(m.role==="user"?"utilisateur":"assistant")+"] "
-          +agtTrunc(String(m.text||""),400)).join("\n")
+          +String(m.text||"")).join("\n")
       : "";
 
     let tr="", steps=0, done=false, lastRaw="", traceMd="";
@@ -5039,7 +5039,7 @@ async function agentRun(text){
       if(call.action==="bash"){
         const L=ensureTerm();
         const cmd=String(call.command||"");
-        agtStepEl(L,cmd);
+        agtStepEl(L,cmd,"bash");
         agtSmart();
         let res={};
         try{
@@ -5050,15 +5050,50 @@ async function agentRun(text){
           });
           res=await er.json();
         }catch(e){ res={ok:false,stderr:String(e&&e.message||e)}; }
-        const so=agtTrunc(res.stdout||"",6000);
-        const se=agtTrunc(res.stderr||"",1500);
+        const so=String(res.stdout||"");       /* sortie COMPLÈTE, jamais tronquée */
+        const se=String(res.stderr||"");
         agtOutEl(L,so,se,res.exit_code);
-        stepsArr.push({cmd:cmd, out:so, err:se, exit:res.exit_code||0});
+        stepsArr.push({kind:"bash", cmd:cmd, out:so, err:se, exit:res.exit_code||0});
         tr+="\n[commande] "+cmd
           +"\n[exit] "+(res.exit_code==null?"?":res.exit_code)
           +"\n[stdout]\n"+so+(se?"\n[stderr]\n"+se:"")+"\n";
         traceMd+="$ "+cmd+"\n"+(so||se||"(aucune sortie)")
           +(res.exit_code?"  [exit "+res.exit_code+"]":"")+"\n\n";
+        agtSmart();
+      }else if(call.action==="fetch"){
+        /* Outil 2 : lecture web par Chrome headless sur la VM. */
+        const L=ensureTerm();
+        const url=String(call.url||"").trim();
+        const fmode=(String(call.mode||"text").toLowerCase()==="html")?"html":"text";
+        const label="fetch ["+fmode+"] "+url;
+        agtStepEl(L,label,"fetch");
+        agtSmart();
+        let fj={};
+        try{
+          const fbody={url:url, mode:fmode};
+          if(call.wait_ms!=null) fbody.wait_ms=Number(call.wait_ms)||0;
+          if(call.timeout_ms!=null) fbody.timeout=Math.round((Number(call.timeout_ms)||45000)/1000);
+          if(call.selector) fbody.selector=String(call.selector);
+          const fr=await fetch(API_BASE+"/api/agent/fetch",{
+            method:"POST",
+            headers:agtHeaders({"Content-Type":"application/json"}),
+            body:JSON.stringify(fbody)
+          });
+          fj=await fr.json();
+        }catch(e){ fj={ok:false,error:String(e&&e.message||e)}; }
+        const head=(fj.ok?"HTTP "+(fj.status==null?"?":fj.status):"ÉCHEC")
+          +(fj.title?" · "+fj.title:"")
+          +(fj.chars?" · "+fj.chars+" caractères":"")
+          +(fj.ms?" · "+fj.ms+" ms":"")
+          +(fj.path?"\n(copie enregistrée : "+fj.path+")":"");
+        const full=String(fj.content==null?"":fj.content);
+        const shown=fj.ok?(head+(full?"\n\n"+full:"")):(String(fj.error||head));
+        agtOutEl(L,shown,"",fj.ok?0:1);
+        stepsArr.push({kind:"fetch", cmd:label, out:shown, err:fj.ok?"":String(fj.error||""), exit:fj.ok?0:1});
+        tr+="\n[fetch "+fmode+"] "+url
+          +"\n[statut] "+(fj.status==null?"?":fj.status)+" · "+(fj.title||"")
+          +"\n[contenu complet]\n"+full+"\n";
+        traceMd+=label+"\n"+(full||String(fj.error||""))+"\n\n";
         agtSmart();
       }else{
         killWait(); finalEl.innerHTML=renderMarkdown(out);

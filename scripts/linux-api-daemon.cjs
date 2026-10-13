@@ -432,6 +432,45 @@ print(json.dumps(entries))
     return sendJson(res, 200, { ok: true, message: `Application ${app} lancée avec succès.` });
   }
 
+  // 9b. Outil fetch : lecture d'une page web (Chrome headless, service 3011)
+  if ((pathname === '/api/linux/fetch' || pathname === '/api/fetch' || pathname === '/api/v1/fetch') && req.method === 'POST') {
+    const body = await parseBody(req);
+    const url = String(body.url || '').trim();
+    if (!/^https?:\/\//i.test(url)) {
+      return sendJson(res, 400, { ok: false, error: 'Paramètre "url" (http:// ou https://) manquant.' });
+    }
+    const timeoutS = Math.min(Math.max(5, Number(body.timeout) || 45), 180);
+    const payload = JSON.stringify({
+      url: url,
+      mode: body.mode === 'html' ? 'html' : 'text',
+      wait_ms: body.wait_ms,
+      timeout_ms: timeoutS * 1000,
+      selector: body.selector
+    });
+    const b64 = Buffer.from(payload, 'utf8').toString('base64');
+    const restart = USE_DOCKER ? '/home/kasm-user/bin/vm-fetch-restart.sh' : '$HOME/bin/vm-fetch-restart.sh';
+
+    // Démarre le service s'il ne tourne pas (idempotent, via le script dédié).
+    await execCommand(`pgrep -f "[v]m-fetch-server.py" >/dev/null 2>&1 || ${restart}`, { timeout: 30 });
+
+    const curlCmd = `printf '%s' '${b64}' | base64 -d | curl -s -m ${timeoutS} `
+      + `-X POST http://127.0.0.1:3011/fetch -H 'Content-Type: application/json' --data-binary @-`;
+    const result = await execCommand(curlCmd, { timeout: timeoutS + 25 });
+
+    const out = String(result.stdout || '').trim();
+    let parsed = null;
+    try { parsed = JSON.parse(out); } catch (e) { parsed = null; }
+    if (parsed && typeof parsed === 'object') {
+      return sendJson(res, parsed.ok === false ? 502 : 200, parsed);
+    }
+    return sendJson(res, 502, {
+      ok: false,
+      error: "Le service de lecture web (vm-fetch) n'a pas répondu.",
+      detail: (out || result.stderr || '').slice(0, 400),
+      log_tail: (await execCommand('tail -n 5 /tmp/vm-fetch.log 2>/dev/null', { timeout: 10 })).stdout || ''
+    });
+  }
+
   // 10. Liste des Processus (JSON structuré complet)
   if (pathname === '/api/linux/processes' || pathname === '/api/processes' || pathname === '/api/v1/processes') {
     const listProcCmd = `ps -eo pid,user,pcpu,pmem,stat,time,comm --sort=-pcpu 2>/dev/null | head -n 35`;
