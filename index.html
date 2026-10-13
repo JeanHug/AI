@@ -619,6 +619,10 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .av-imgwrap{padding:16px;background:#f6f6f4;min-height:100%;text-align:center;
   animation:avSwap .2s ease}
 .av-img{display:inline-block;vertical-align:top;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+.av-pdfwrap{padding:14px 10px 22px;text-align:center;background:#f1f1f4}
+.av-pdfpage{display:block;max-width:100%;height:auto;margin:0 auto 14px;
+  background:#fff;border-radius:4px;box-shadow:0 3px 14px rgba(0,0,0,.14)}
+.av-pdfnote{font-size:12px;color:var(--ink-3);margin:2px 0 8px}
 .av-vidwrap{padding:16px;background:#101014;min-height:100%;text-align:center;animation:avSwap .2s ease}
 .av-vid{display:inline-block;vertical-align:top;background:#000;border-radius:8px}
 .av-audwrap{padding:46px 20px;text-align:center}
@@ -655,6 +659,9 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -1537,6 +1544,10 @@ function selectModel(m){
 renderModelBtn();
 
 clearBtn.onclick=()=>{
+  /* Simple « nouvelle discussion » : la discussion en cours est déjà
+     enregistrée au fil de l'eau ; on repart sur une vierge. */
+  if(busy) return;
+  if(typeof AGENT_ON!=="undefined"&&AGENT_ON) return;
   conv=[]; log.innerHTML=""; emptyState(); updateHint();
   if(typeof FB!=="undefined"&&FB.onNewChat) FB.onNewChat();
 };
@@ -1676,7 +1687,7 @@ function addUser(text, kind, snap, asnap){
     for(const f of files){
       if(f.kind==="image"&&f.b64){
         const cid="c"+(++IMG_SEQ);
-        IMG_STORE[cid]={b64:f.b64, mime:"image/png", name:f.name};
+        IMG_STORE[cid]={b64:f.b64, mime:f.mime||"image/png", name:f.name};
         h+='<span class="attach-chip"><img class="gimg" data-iid="'+cid+'" src="data:image/png;base64,'+(f.small||f.b64)
           +'" alt="'+esc(f.name)+'"><span class="nm">'+esc(f.name)+'</span></span>';
       }else{
@@ -1721,7 +1732,7 @@ async function submit(){
   const spec={
     model: current.id,
     prompt: anchorImage(buildPrompt(conv, text), kind, snapshot)+collectFileNotes(),
-    image: kind==="upload" ? snapshot.b64 : (kind==="black" ? blackImageB64() : WHITE_PX),
+    image: kind==="upload" ? (snapshot.small||snapshot.b64) : (kind==="black" ? blackImageB64() : WHITE_PX),
     image_kind: kind==="audio" ? "none" : kind,
     audio: asnapshot ? asnapshot.b64 : undefined,
     audio_mime: asnapshot ? asnapshot.mime : undefined,
@@ -1838,7 +1849,7 @@ async function submitStreaming(text){
   const spec={
     model: current.id,
     prompt: anchorImage(buildPrompt(conv, text), kind, snapshot)+collectFileNotes(),
-    image: kind==="upload" ? snapshot.b64 : (kind==="black" ? blackImageB64() : WHITE_PX),
+    image: kind==="upload" ? (snapshot.small||snapshot.b64) : (kind==="black" ? blackImageB64() : WHITE_PX),
     image_kind: kind==="audio" ? "none" : kind,
     audio: asnapshot ? asnapshot.b64 : undefined,
     audio_mime: asnapshot ? asnapshot.mime : undefined,
@@ -2342,7 +2353,7 @@ document.addEventListener("click", function(e){
   }else if(t.classList.contains("iback")){
     const im=IMG_STORE[t.getAttribute("data-iid")]; if(!im) return;
     pendingAudio=null;
-    pendingImage={name:im.name, b64:im.b64, small:im.small, kb:Math.max(1,Math.round(im.b64.length*0.75/1024))};
+    pendingImage={name:im.name, b64:im.b64, small:im.small, mime:im.mime, kb:Math.max(1,Math.round(im.b64.length*0.75/1024))};
     if(typeof setAttachImage==="function") setAttachImage(pendingImage); else renderPending();
   }else if(t.classList.contains("aback")){
     const a=AUDIO_STORE[t.getAttribute("data-aid")]; if(!a) return;
@@ -2949,34 +2960,45 @@ function renderPending(){
   updateHint();
 }
 
-/* Redimensionne au besoin : le plan Workers Free plafonne à 10 ms de CPU
-   par requête, et JSON.parse d'un gros base64 dépasserait ce budget. */
+/* L'image d'ORIGINE est conservée telle quelle (affichage + sauvegarde) :
+   seule une copie réduite (small) part vers les modèles — avant, tout était
+   ré-encodé en 1280 px, d'où la perte de qualité (et les GIF figés). */
 function fileToImage(file){
   return new Promise((resolve,reject)=>{
-    const url=URL.createObjectURL(file);
-    const img=new Image();
-    img.onload=()=>{
-      URL.revokeObjectURL(url);
-      try{
-        const MAX=1280;
-        let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
-        if(!w||!h) return reject(new Error("dimensions illisibles"));
-        if(Math.max(w,h)>MAX){
-          const r=MAX/Math.max(w,h);
-          w=Math.round(w*r); h=Math.round(h*r);
-        }
-        const c=document.createElement("canvas"); c.width=w; c.height=h;
-        const x=c.getContext("2d");
-        if(!x) return reject(new Error("canvas indisponible"));
-        x.fillStyle="#fff"; x.fillRect(0,0,w,h);
-        x.drawImage(img,0,0,w,h);
-        let b64=c.toDataURL("image/png").split(",")[1];
-        if(b64.length>2000000) b64=c.toDataURL("image/jpeg",0.85).split(",")[1];
-        resolve({name:file.name, b64:b64, kb:Math.round(b64.length*0.75/1024)});
-      }catch(err){ reject(err); }
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const s=String(fr.result||""); const i=s.indexOf(",");
+      if(i<0) return reject(new Error("lecture impossible"));
+      const origB64=s.slice(i+1);
+      const mime=file.type||"image/png";
+      const url=URL.createObjectURL(file);
+      const img=new Image();
+      img.onload=()=>{
+        URL.revokeObjectURL(url);
+        try{
+          const MAX=1280;
+          let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+          if(!w||!h) return reject(new Error("dimensions illisibles"));
+          if(Math.max(w,h)>MAX){
+            const r=MAX/Math.max(w,h);
+            w=Math.round(w*r); h=Math.round(h*r);
+          }
+          const c=document.createElement("canvas"); c.width=w; c.height=h;
+          const x=c.getContext("2d");
+          if(!x) return reject(new Error("canvas indisponible"));
+          x.fillStyle="#fff"; x.fillRect(0,0,w,h);
+          x.drawImage(img,0,0,w,h);
+          let small=c.toDataURL("image/png").split(",")[1];
+          if(small.length>2000000) small=c.toDataURL("image/jpeg",0.9).split(",")[1];
+          resolve({name:file.name, b64:origB64, mime:mime, small:small,
+            kb:Math.round(origB64.length*0.75/1024)});
+        }catch(err){ reject(err); }
+      };
+      img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error("fichier non reconnu comme image")); };
+      img.src=url;
     };
-    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error("fichier non reconnu comme image")); };
-    img.src=url;
+    fr.onerror=()=>reject(new Error("lecture impossible"));
+    fr.readAsDataURL(file);
   });
 }
 
@@ -3256,6 +3278,15 @@ async function loadChat(id){
         conv.push(ent);
       }else{
         const b=addAssistant(m.modelName);   /* renvoie directement la bulle */
+        /* Mission d'agent : zone terminal repliable reconstruite telle
+           quelle, exactement comme avant de quitter la page. */
+        if(m.steps&&m.steps.length){
+          agtRenderMission(b, m.steps, m.text||"", true);
+          msgActions(b,{getMd:()=>agtTraceMd(m.steps, m.text||"")});
+          lastA=b; lastAMd=m.text||"";
+          conv.push({role:"assistant", text:m.text||""});
+          continue;
+        }
         /* le marqueur interne « (image générée : …) » n'est pas un message */
         const isMarker=(m.text||"").indexOf("(image générée")===0;
         let html=((m.images&&m.images.length)&&isMarker)?"":renderMarkdown(m.text||"");
@@ -3309,23 +3340,28 @@ function loadImgEl(src){
   return new Promise((res,rej)=>{ const im=new Image();
     im.onload=()=>res(im); im.onerror=()=>rej(new Error("image illisible")); im.src=src; });
 }
-/* Firestore plafonne chaque document à 1 Mo : on réduit les images. */
+/* Firestore plafonne chaque document à 1 Mo. On garde la meilleure qualité
+   possible : 1600 px JPEG 0,92 (au lieu de 1024 px 0,82), GIF animé et PNG
+   léger conservés tels quels (perte nulle). */
 async function shrinkForStore(b64, mime){
+  mime=mime||"image/png";
   try{
-    const img=await loadImgEl("data:"+(mime||"image/png")+";base64,"+b64);
-    const MAX=1024; let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    if(mime==="image/gif" && b64.length<=900000) return {b64:b64, mime:"image/gif"};
+    if(mime==="image/png" && b64.length<=500000) return {b64:b64, mime:"image/png"};
+    const img=await loadImgEl("data:"+mime+";base64,"+b64);
+    const MAX=1600; let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
     if(!w||!h) throw new Error("dimensions illisibles");
     if(Math.max(w,h)>MAX){ const r=MAX/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
     const c=document.createElement("canvas"); c.width=w; c.height=h;
     const x=c.getContext("2d"); if(!x) throw new Error("canvas indisponible");
     x.fillStyle="#fff"; x.fillRect(0,0,w,h); x.drawImage(img,0,0,w,h);
-    let out=c.toDataURL("image/jpeg",0.82);
-    if(out.length>900000) out=c.toDataURL("image/jpeg",0.6);
-    if(out.length>1100000) out=c.toDataURL("image/jpeg",0.4);
+    let out=c.toDataURL("image/jpeg",0.92);
+    if(out.length>1100000) out=c.toDataURL("image/jpeg",0.78);
+    if(out.length>1100000) out=c.toDataURL("image/jpeg",0.62);
     const i=out.indexOf(",");
     return {b64:out.slice(i+1), mime:"image/jpeg"};
   }catch(e){
-    return b64.length<1100000 ? {b64:b64, mime:mime||"image/png"} : null;
+    return b64.length<1100000 ? {b64:b64, mime:mime} : null;
   }
 }
 function capAudio(a){
@@ -3366,7 +3402,7 @@ async function afterText(x){
     if(x.kind==="upload"&&x.snap) imgs.push({name:x.snap.name, b64:x.snap.b64, mime:"image/png"});
     for(const f of files){ if(f.kind==="image"&&!imgs.some(i=>i.b64===f.b64)) imgs.push({name:f.name, b64:f.b64, mime:"image/png"}); }
     for(const im of imgs.slice(0,4)){
-      const sm=await shrinkForStore(im.b64, im.mime);
+      const sm=await shrinkForStore(im.b64, im.mime||"image/png");
       uDoc.images.push(sm?{name:im.name, b64:sm.b64, mime:sm.mime}:{name:im.name, mime:im.mime||"image/png", tooBig:true});
     }
     if(x.kind==="audio"&&x.asnap) uDoc.audio=capAudio(x.asnap);
@@ -3392,6 +3428,19 @@ async function afterImage(x){
       images:[sm?{name:im.name, b64:sm.b64, mime:sm.mime}:{name:im.name, mime:im.mime, tooBig:true}]};
     await commitPair(uDoc, aDoc);
   }catch(e){ console.warn("sauvegarde image :", e); }
+}
+/* Mission d'agent : étapes structurées (commande → sortie) pour un rendu
+   identique au rechargement, sur n'importe quel appareil. */
+async function afterAgent(x){
+  if(!FB_OK||!fbUser) return;
+  try{
+    await ensureChat(x.userText);
+    const uDoc={role:"user", text:x.userText||"", kind:"none", modelName:current.id,
+      order:++msgSeq, createdAt:Date.now(), images:[]};
+    const aDoc={role:"assistant", text:x.out||"", modelName:current.id,
+      order:++msgSeq, createdAt:Date.now(), steps:(x.steps||[]).slice(0,400), agent:true};
+    await commitPair(uDoc, aDoc);
+  }catch(e){ console.warn("sauvegarde agent :", e); }
 }
 /* profil utilisateur : users/{uid} */
 async function ensureUserDoc(){
@@ -3551,14 +3600,14 @@ async function reauth(pass){
 /* --- pièces jointes multiples -------------------------------------------- */
 function syncMirrors(){
   const im=pendingFiles.find(f=>f.kind==="image");
-  pendingImage=im?{name:im.name, b64:im.b64, small:im.small, kb:im.kb||0}:null;
+  pendingImage=im?{name:im.name, b64:im.b64, small:im.small, mime:im.mime, kb:im.kb||0}:null;
   if(!pendingFiles.some(f=>f.kind==="audio")) pendingAudio=null;
 }
 function setAttachImage(im){
   /* comme un chargement depuis l'appareil : l'image se place à côté */
   if(!pendingFiles.some(f=>f.kind==="image"&&f.b64===im.b64)){
     if(pendingFiles.filter(f=>f.kind==="image").length>=4){ alert("Maximum 4 images par message."); return; }
-    pendingFiles.push({kind:"image", name:im.name, b64:im.b64, small:im.small, kb:im.kb||0});
+    pendingFiles.push({kind:"image", name:im.name, b64:im.b64, small:im.small, mime:im.mime, kb:im.kb||0});
   }
   syncMirrors(); renderPending();
 }
@@ -3838,7 +3887,7 @@ function renderPending(){
 })();
 
 /* Points d'entrée appelés par le bloc principal. */
-const FB={ afterText:afterText, afterImage:afterImage, onNewChat:onNewChat };
+const FB={ afterText:afterText, afterImage:afterImage, onNewChat:onNewChat, afterAgent:afterAgent };
 
 </script>
 
@@ -3896,6 +3945,8 @@ function agtSyncUI(){
   const ok=agtLogged();
   if(AGENT_ON&&!ok){ AGENT_ON=false; agtBtn.classList.remove("on"); }
   agtFilesBtn.hidden=!(AGENT_ON&&ok);
+  /* La corbeille (nouvelle discussion) disparaît en mode agent. */
+  if(typeof clearBtn!=="undefined"&&clearBtn) clearBtn.hidden=!!(AGENT_ON&&ok);
   const ms=document.getElementById("menushare");
   if(ms) ms.hidden=!(AGENT_ON&&ok);
 }
@@ -4242,7 +4293,9 @@ function agtJsRun(code,out){
   };
   window.addEventListener("message",onMsg);
   const to=setTimeout(()=>{ lines.push("⏱ (arrêt après 10 s)"); finish(); },10000);
-  f.src=agtBlobUrl(new Blob([harness],{type:"text/html"}));
+  /* srcdoc et non blob: : une iframe sandboxée (origine opaque) refuse de
+     charger une URL blob créée par la page — le script ne s'exécutait pas. */
+  f.srcdoc=harness;
   (document.getElementById("avBody")||document.body).appendChild(f);
 }
 
@@ -4259,7 +4312,9 @@ async function agtRunOnVm(lang,code,out,btn){
     const ext=lang==="js"?"js":(lang==="py"?"py":"sh");
     const fileAbs="/home/kasm-user/.agtconv/run_"+id+"."+ext;
     if(lang==="py"){
-      src='import matplotlib\nmatplotlib.use("Agg")\n'+src
+      /* matplotlib est OPTIONNEL : sans lui, le script doit quand même
+         s'exécuter (l'import faisait échouer tout le programme). */
+      src='try:\n    import matplotlib\n    matplotlib.use("Agg")\nexcept Exception:\n    pass\n'+src
         +'\ntry:\n'
         +'    import matplotlib.pyplot as _plt, base64 as _b64, io as _io\n'
         +'    _figs=_plt.get_fignums()\n'
@@ -4282,6 +4337,12 @@ async function agtRunOnVm(lang,code,out,btn){
     const j=await r.json();
     let so=String(j.stdout||"");
     const se=String(j.stderr||"");
+    /* Node n'est pas installé sur la VM : on exécute le JS localement. */
+    if(lang==="js" && /Node indisponible/.test(so+se)){
+      out.textContent="";
+      agtJsRun(code,out);
+      return;
+    }
     let img=null;
     const m=so.match(/AGT_IMG:([A-Za-z0-9+/=]+)/);
     if(m){ img=m[1]; so=so.replace(/AGT_IMG:[A-Za-z0-9+/=]+/g,"").trim(); }
@@ -4398,14 +4459,18 @@ async function agtOpenFile(path, name){
     return;
   }
   if(cat==="svg"){
-    /* SVG exécuté (animations incluses) dans une iframe isolée. */
+    /* Le fichier arrive en base64 : il est DÉCODÉ en texte d'abord.
+       (Avant, le base64 brut partait dans l'iframe -> aperçu blanc, et
+       « Voir le code » affichait du base64.) */
+    const text=agtDecodeUtf8(content);
     const f=document.createElement("iframe");
     f.className="av-frame";
     f.setAttribute("sandbox","allow-scripts");
-    f.src=agtBlobUrl(new Blob([content],{type:"image/svg+xml"}));
+    f.srcdoc=svgDoc(text);
     body.appendChild(f);
-    codeToggle(f,content);
-    mkBtn("Copier",()=>agtCopyText(content));
+    codeToggle(f,text);
+    dlBtn(agtBlobUrl(new Blob([text],{type:"image/svg+xml"})),name);
+    mkBtn("Copier",()=>agtCopyText(text));
     return;
   }
   if(cat==="vid"){
@@ -4430,19 +4495,63 @@ async function agtOpenFile(path, name){
     return;
   }
   if(cat==="pdf"){
-    const f=document.createElement("iframe"); f.className="av-frame";
+    /* Rendu CANVAS via pdf.js : une iframe PDF reste blanche sur de
+       nombreux navigateurs (Android, Firefox…), d'où « page blanche ». */
     const u=agtBlobUrl(agtB64Blob(content,"application/pdf"));
-    f.src=u;
-    body.appendChild(f);
     dlBtn(u,name);
+    const wrap=document.createElement("div"); wrap.className="av-pdfwrap";
+    body.appendChild(wrap);
+    if(window.pdfjsLib&&window.pdfjsLib.getDocument){
+      wrap.innerHTML='<div class="at-load">Rendu du PDF…</div>';
+      try{
+        try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js"; }catch(e2){}
+        const data=agtB64Blob(content,"application/pdf").arrayBuffer();
+        const doc=await window.pdfjsLib.getDocument({data:new Uint8Array(data),disableAutoFetch:true}).promise;
+        wrap.innerHTML="";
+        const total=Math.min(doc.numPages,60);
+        for(let n=1;n<=total;n++){
+          const page=await doc.getPage(n);
+          const vp=page.getViewport({scale:1.6});
+          const cv=document.createElement("canvas");
+          cv.className="av-pdfpage";
+          cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
+          const cx=cv.getContext("2d");
+          await page.render({canvasContext:cx,viewport:vp}).promise;
+          wrap.appendChild(cv);
+        }
+        if(doc.numPages>total){
+          const note=document.createElement("p");
+          note.className="av-pdfnote";
+          note.textContent="Affichage limité aux "+total+" premières pages ("+doc.numPages+" au total).";
+          wrap.appendChild(note);
+        }
+      }catch(e){
+        wrap.innerHTML="<p>Aperçu du PDF indisponible ici. "
+          +"Utilisez le bouton Télécharger (le PDF est intact).</p>";
+      }
+    }else{
+      wrap.innerHTML="<p>Aperçu du PDF indisponible (librairie de rendu non chargée). "
+        +"Utilisez le bouton Télécharger pour l’ouvrir sur votre appareil.</p>";
+    }
     return;
   }
   if(cat==="docx"){
     const u=agtBlobUrl(agtB64Blob(content,"application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
     dlBtn(u,name);
-    const div=document.createElement("div"); div.className="av-md";
+    const div=document.createElement("div"); div.className="av-md av-docx";
     body.appendChild(div);
-    if(window.mammoth&&window.mammoth.convertToHtml){
+    /* docx-preview respecte la mise en page ET les couleurs du document Word
+       (mammoth, lui, ne rendait qu'un texte gris, sans styles). */
+    if(window.docx&&window.docx.renderAsync){
+      div.innerHTML='<div class="at-load">Mise en page du document Word…</div>';
+      try{
+        const blob=agtB64Blob(content,"application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        div.innerHTML="";
+        await window.docx.renderAsync(blob, div, null,
+          {className:"docx",inWrapper:true,breakPages:true,ignoreLastRenderedPageBreak:true});
+        div.style.background="#fff";
+      }catch(e){ div.innerHTML="<p>Document Word illisible.</p>"; }
+    }else if(window.mammoth&&window.mammoth.convertToHtml){
       div.innerHTML='<div class="at-load">Conversion du document Word…</div>';
       try{
         const ab=await agtB64Blob(content,"").arrayBuffer();
@@ -4488,7 +4597,9 @@ async function agtOpenFile(path, name){
     const f=document.createElement("iframe");
     f.className="av-frame";
     f.setAttribute("sandbox","allow-scripts allow-forms allow-modals allow-popups");
-    f.src=agtBlobUrl(new Blob([full],{type:"text/html"}));
+    /* srcdoc : les blob: ne se chargent pas dans une iframe sandboxée
+       (origine opaque) — l'aperçu restait donc vide. */
+    f.srcdoc=full;
     body.appendChild(f);
     codeToggle(f,content);
     mkBtn("Copier le code",()=>agtCopyText(content));
@@ -4588,6 +4699,22 @@ function agtB64Utf8(s){
     else{ bin+=String.fromCharCode(0xe0|(c>>12),0x80|((c>>6)&63),0x80|(c&63)); }
   }
   return btoa(bin);
+}
+function agtDecodeUtf8(b64){
+  /* base64 -> texte UTF-8, sans TextDecoder (compatible jsdom). */
+  let bin="";
+  try{ bin=atob(String(b64||"").replace(/[^A-Za-z0-9+/=]/g,"")); }catch(e){ return ""; }
+  let out="", i=0;
+  while(i<bin.length){
+    const c=bin.charCodeAt(i++);
+    if(c<0x80){ out+=String.fromCharCode(c); continue; }
+    if(c<0xe0){ out+=String.fromCharCode(((c&31)<<6)|(bin.charCodeAt(i++)&63)); continue; }
+    if(c<0xf0){ out+=String.fromCharCode(((c&15)<<12)|((bin.charCodeAt(i++)&63)<<6)|(bin.charCodeAt(i++)&63)); continue; }
+    const cp=((c&7)<<18)|((bin.charCodeAt(i++)&63)<<12)|((bin.charCodeAt(i++)&63)<<6)|(bin.charCodeAt(i++)&63);
+    const v=cp-0x10000;
+    out+=String.fromCharCode(0xd800+(v>>10),0xdc00+(v&1023));
+  }
+  return out;
 }
 const AGT_UM_HINT_INFOS="(Écrivez ici ce que vous voulez que l'agent sache sur vous : préférences, habitudes, projets en cours.)";
 const AGT_UM_HINT_INSTR="(Vos instructions personnelles pour l'agent : ton, format, ce qu'il doit toujours faire ou ne jamais faire.)";
@@ -4718,6 +4845,56 @@ document.addEventListener("keydown",e=>{
   if(!agtPanel.hidden){ agtClosePanel(); }
 });
 
+/* --- rendu des missions : UN SEUL chemin de construction du DOM -------
+   Les mêmes fonctions servent PENDANT la mission et au RECHARGEMENT :
+   l'affichage d'une discussion est donc rigoureusement identique dans les
+   deux cas (zone terminal repliable comprise). */
+function agtTermEl(bubble, beforeEl, folded){
+  const term=document.createElement("div"); term.className="agent-term";
+  const head=document.createElement("div"); head.className="agent-loghead";
+  head.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><span>Terminal de la VM</span>';
+  head.addEventListener("click",()=>term.classList.toggle("folded"));
+  const log=document.createElement("div"); log.className="agent-log";
+  term.appendChild(head); term.appendChild(log);
+  if(folded) term.classList.add("folded");
+  if(beforeEl && beforeEl.parentNode===bubble) bubble.insertBefore(term, beforeEl);
+  else bubble.appendChild(term);
+  return {term:term, log:log};
+}
+function agtStepEl(logEl, cmd){
+  const st=document.createElement("div"); st.className="agent-step";
+  st.textContent="$ "+String(cmd==null?"":cmd);
+  logEl.appendChild(st);
+  return st;
+}
+function agtOutEl(logEl, so, se, exit){
+  const ol=document.createElement("div"); ol.className="agent-out";
+  ol.textContent=(so||se||"(aucune sortie)")+(exit?"  [exit "+exit+"]":"");
+  logEl.appendChild(ol);
+  logEl.scrollTop=logEl.scrollHeight;
+  return ol;
+}
+/* Version markdown (bouton Copier) : texte final + trace du terminal. */
+function agtTraceMd(steps, finalText){
+  const tr=(steps||[]).map(s=>"$ "+s.cmd+"\n"+(s.out||s.err||"(aucune sortie)")
+    +(s.exit?"  [exit "+s.exit+"]":"")).join("\n\n");
+  return String(finalText||"")+(tr.trim()
+    ? ("\n\n---\n\n**Terminal de cette mission :**\n\n```\n"+tr.trim()+"\n```")
+    : "");
+}
+/* Mission rechargée depuis Firestore : même bulle, même zone repliable. */
+function agtRenderMission(bubble, steps, finalText, folded){
+  const built=agtTermEl(bubble, null, folded!==false);
+  (steps||[]).forEach(s=>{ agtStepEl(built.log, s.cmd); agtOutEl(built.log, s.out, s.err, s.exit); });
+  const finalEl=document.createElement("div");
+  finalEl.className="agent-final";
+  finalEl.innerHTML=(finalText&&String(finalText).trim())
+    ? renderMarkdown(String(finalText))
+    : '<p style="color:var(--ink-3)"><em>(mission sans texte final)</em></p>';
+  bubble.appendChild(finalEl);
+  return built;
+}
+
 /* --- boucle d'agent : JSON ⇄ bash --- */
 function agtParseCall(s){
   s=String(s||"");
@@ -4768,13 +4945,8 @@ async function agentRun(text){
     const ensureTerm=()=>{
       if(!term){
         killWait();
-        term=document.createElement("div"); term.className="agent-term";
-        const head=document.createElement("div"); head.className="agent-loghead";
-        head.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg><span>Terminal de la VM</span>';
-        head.addEventListener("click",()=>term.classList.toggle("folded"));
-        logEl=document.createElement("div"); logEl.className="agent-log";
-        term.appendChild(head); term.appendChild(logEl);
-        bubble.insertBefore(term, finalEl);
+        const built=agtTermEl(bubble, finalEl, false);
+        term=built.term; logEl=built.log;
       }
       return logEl;
     };
@@ -4819,6 +4991,7 @@ async function agentRun(text){
       : "";
 
     let tr="", steps=0, done=false, lastRaw="", traceMd="";
+    const stepsArr=[];                    /* étapes structurées (Firestore) */
     while(steps<1000&&!done){   /* filet de sécurité très large, pas une limite pratique */
       const prompt=steps===0
         ? intro
@@ -4832,7 +5005,7 @@ async function agentRun(text){
       const r=await fetch(API_BASE+"/api/chat",{
         method:"POST",
         headers:agtHeaders({"Content-Type":"application/json"}),
-        body:JSON.stringify({model:current.id,prompt,image:shot?shot.b64:WHITE_PX,image_kind:shot?"upload":"none",params:{temperature:0.2}})
+        body:JSON.stringify({model:current.id,prompt,image:shot?(shot.small||shot.b64):WHITE_PX,image_kind:shot?"upload":"none",params:{temperature:0.2}})
       });
       let j={}; try{ j=await r.json(); }catch(e){}
       if(!r.ok) throw new Error(j.error||("HTTP "+r.status));
@@ -4844,10 +5017,7 @@ async function agentRun(text){
       if(call.action==="bash"){
         const L=ensureTerm();
         const cmd=String(call.command||"");
-        const st=document.createElement("div");
-        st.className="agent-step";
-        st.textContent="$ "+cmd;
-        L.appendChild(st);
+        agtStepEl(L,cmd);
         agtSmart();
         let res={};
         try{
@@ -4860,11 +5030,8 @@ async function agentRun(text){
         }catch(e){ res={ok:false,stderr:String(e&&e.message||e)}; }
         const so=agtTrunc(res.stdout||"",6000);
         const se=agtTrunc(res.stderr||"",1500);
-        const ol=document.createElement("div");
-        ol.className="agent-out";
-        ol.textContent=(so||se||"(aucune sortie)")+(res.exit_code?"  [exit "+res.exit_code+"]":"");
-        L.appendChild(ol);
-        L.scrollTop=L.scrollHeight;
+        agtOutEl(L,so,se,res.exit_code);
+        stepsArr.push({cmd:cmd, out:so, err:se, exit:res.exit_code||0});
         tr+="\n[commande] "+cmd
           +"\n[exit] "+(res.exit_code==null?"?":res.exit_code)
           +"\n[stdout]\n"+so+(se?"\n[stderr]\n"+se:"")+"\n";
@@ -4884,16 +5051,15 @@ async function agentRun(text){
     if(term) term.classList.add("folded");      /* zone terminal repliée en fin de mission */
     killWait();
     const finalText=String(finalEl.textContent||"(mission agent)");
-    /* Les commandes du terminal font partie du message enregistré :
-       en rouvrant la conversation, l'utilisateur les retrouve. */
-    const savedText=finalText+(traceMd.trim()
-      ? ("\n\n---\n\n**Terminal de cette mission :**\n\n```\n"+traceMd.trim()+"\n```")
-      : "");
+    /* Les étapes sont enregistrées EN CLAIR dans Firestore : en rouvrant la
+       discussion (3 h plus tard, sur un autre appareil) la zone terminal
+       repliable est reconstruite à l'identique. */
+    const savedText=agtTraceMd(stepsArr, finalText);
     conv.push({role:"user",text});
-    conv.push({role:"assistant",text:savedText});
+    conv.push({role:"assistant",text:finalText});
     msgActions(bubble,{getMd:()=>savedText});   /* bouton copier uniquement */
-    if(typeof FB!=="undefined"&&FB.afterText){
-      try{ FB.afterText({userText:text,kind:"none",snap:null,asnap:null,out:savedText}); }catch(e){}
+    if(typeof FB!=="undefined"&&FB.afterAgent){
+      try{ FB.afterAgent({userText:text, steps:stepsArr, out:finalText}); }catch(e){}
     }
   }catch(err){
     const b=bubble||addAssistant();

@@ -1,0 +1,40 @@
+name: Deploy worker api-ai (application)
+
+# Déploie le worker "api-ai" : l'application (/app) et ses API (/api/chat,
+# /api/image, /api/agent/* en relais vers la VM de l'agent).
+# La liaison de service VMAI est re-déclarée à chaque déploiement (sans quoi
+# les routes /api/agent/* tombent en erreur Cloudflare 1042).
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'api-ai/worker.js'
+      - 'api-ai/index.html'
+      - 'scripts/deploy-api-ai.cjs'
+      - '.github/workflows/deploy-api-ai.yml'
+
+concurrency:
+  group: deploy-api-ai
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Mise à jour de api-ai
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Déployer le worker api-ai
+        env:
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CLOUDFLARE_ID: ${{ secrets.CLOUDFLARE_ID }}
+          ACCESS_CODE: ${{ secrets.ACCESS_CODE }}
+          WORKER_NAME: api-ai
+        run: node scripts/deploy-api-ai.cjs
