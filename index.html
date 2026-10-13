@@ -3280,11 +3280,14 @@ async function loadChat(id){
         const b=addAssistant(m.modelName);   /* renvoie directement la bulle */
         /* Mission d'agent : zone terminal repliable reconstruite telle
            quelle, exactement comme avant de quitter la page. */
-        if(m.steps&&m.steps.length){
-          agtRenderMission(b, m.steps, m.text||"", true);
-          msgActions(b,{getMd:()=>agtTraceMd(m.steps, m.text||"")});
-          lastA=b; lastAMd=m.text||"";
-          conv.push({role:"assistant", text:m.text||""});
+        const legacy=(m.steps&&m.steps.length)?null:agtSplitLegacyMission(m.text||"");
+        if((m.steps&&m.steps.length)||legacy){
+          const stp=(m.steps&&m.steps.length)?m.steps:[{raw:legacy.trace}];
+          const fin=(m.steps&&m.steps.length)?(m.text||""):legacy.finalText;
+          agtRenderMission(b, stp, fin, true);
+          msgActions(b,{getMd:()=>agtTraceMd(stp, fin)});
+          lastA=b; lastAMd=fin;
+          conv.push({role:"assistant", text:fin});
           continue;
         }
         /* le marqueur interne « (image générée : …) » n'est pas un message */
@@ -4882,10 +4885,29 @@ function agtTraceMd(steps, finalText){
     ? ("\n\n---\n\n**Terminal de cette mission :**\n\n```\n"+tr.trim()+"\n```")
     : "");
 }
+/* Missions enregistrées AVANT la phase 50 : la trace du terminal était
+   stockée en markdown dans le texte. On la ressort pour retrouver la même
+   zone repliable, au lieu du gros bloc de code. */
+function agtSplitLegacyMission(text){
+  const t=String(text||"");
+  const mk="\n\n---\n\n**Terminal de cette mission :**\n\n```";
+  const i=t.indexOf(mk);
+  if(i<0) return null;
+  let tr=t.slice(i+mk.length);
+  const j=tr.lastIndexOf("\n```");
+  if(j>=0) tr=tr.slice(0,j);
+  return {finalText:t.slice(0,i), trace:tr};
+}
 /* Mission rechargée depuis Firestore : même bulle, même zone repliable. */
 function agtRenderMission(bubble, steps, finalText, folded){
   const built=agtTermEl(bubble, null, folded!==false);
-  (steps||[]).forEach(s=>{ agtStepEl(built.log, s.cmd); agtOutEl(built.log, s.out, s.err, s.exit); });
+  (steps||[]).forEach(s=>{
+    if(s&&s.raw){                       /* ancienne trace, d'un seul bloc */
+      const d=document.createElement("div"); d.className="agent-out";
+      d.textContent=String(s.raw); built.log.appendChild(d); return;
+    }
+    agtStepEl(built.log, s.cmd); agtOutEl(built.log, s.out, s.err, s.exit);
+  });
   const finalEl=document.createElement("div");
   finalEl.className="agent-final";
   finalEl.innerHTML=(finalText&&String(finalText).trim())
