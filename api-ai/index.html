@@ -628,15 +628,26 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .pwpeek:hover{color:var(--ink)}
 .pwpeek:active{transform:scale(.88)}
 #gpasswrap{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;animation:fadein .25s ease}
-.av-imgwrap{padding:16px;background:#f6f6f4;min-height:100%;text-align:center;
+/* Images, GIF et vidéos s'affichent AJUSTÉS à l'écran : on voit l'ensemble
+   d'un coup d'œil (comme les SVG). Le bouton « Plein format » rend la taille
+   réelle, avec défilement, pour inspecter un détail. */
+.av-imgwrap{padding:12px;background:#f6f6f4;height:100%;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;overflow:auto;
   animation:avSwap .2s ease}
-.av-img{display:inline-block;vertical-align:top;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+.av-img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;
+  object-fit:contain;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+.av-imgwrap.full{display:block;overflow:auto;text-align:center}
+.av-imgwrap.full .av-img{max-width:none;max-height:none;margin:0 auto}
 .av-pdfwrap{padding:14px 10px 22px;text-align:center;background:#f1f1f4}
 .av-pdfpage{display:block;max-width:100%;height:auto;margin:0 auto 14px;
   background:#fff;border-radius:4px;box-shadow:0 3px 14px rgba(0,0,0,.14)}
 .av-pdfnote{font-size:12px;color:var(--ink-3);margin:2px 0 8px}
-.av-vidwrap{padding:16px;background:#101014;min-height:100%;text-align:center;animation:avSwap .2s ease}
-.av-vid{display:inline-block;vertical-align:top;background:#000;border-radius:8px}
+.av-vidwrap{padding:12px;background:#101014;height:100%;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;overflow:auto;animation:avSwap .2s ease}
+.av-vid{display:block;max-width:100%;max-height:100%;width:auto;height:auto;
+  background:#000;border-radius:8px}
+.av-vidwrap.full{display:block;overflow:auto;text-align:center}
+.av-vidwrap.full .av-vid{max-width:none;max-height:none;margin:0 auto}
 .av-audwrap{padding:46px 20px;text-align:center}
 .av-audname{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-bottom:14px}
 .av-aud{width:min(560px,92%)}
@@ -794,6 +805,8 @@ const MODELS = [
    sc:[9.5,8,8,120], desc:"Classe Sonnet d'Anthropic pour le travail quotidien bien cadré : bâtir des fonctionnalités, corriger des bugs, produire du code propre."},
   {id:"claude-fable-5-1", label:"Claude Fable 5.1", vendor:"anthropic", family:"claude",
    sc:[9,7,8,60], desc:"Progrès sur toute la ligne vs Fable 5, surtout en codage agentique, workflows longs et travail de connaissance."},
+  {id:"claude-haiku-5-5", label:"Claude Haiku 5.5", vendor:"anthropic", family:"claude", via:"Roboflow",
+   sc:[8,6.5,8,200], desc:"Le plus rapide de la famille Claude 5.5 : environ 200 tokens par seconde, taillé pour les gros volumes (classification, extraction, résumés courts, pré-filtrage d'agent) et les réponses quasi instantanées."},
   /* OpenAI */
   {id:"gpt-6-astra", hidden:true, label:"GPT-6 Astra", vendor:"openai", family:"openai",
    sc:[9,9,6,40], desc:"Modèle phare d'OpenAI pour le travail exigeant de bout en bout : analyse avancée, génie logiciel, recherche approfondie."},
@@ -875,6 +888,15 @@ const MODELS = [
   /* Meta */
   {id:"muse-spark-1-3", label:"Muse Spark 1.3", vendor:"meta", family:"router",
    sc:[7,7,8.5,140], desc:"Modèle de raisonnement multimodal de Meta pour les workflows agentiques, multi-agents et de codage de longue durée."},
+  {id:"muse-wonder", label:"Muse Wonder", vendor:"meta", family:"router", via:"Roboflow",
+   sc:[8.5,8,8,150], desc:"Muse Wonder : la variante créative de la famille Muse (Meta) — écriture longue, reformulation, brainstorming et rendus visuels (texte + image en entrée, sortie texte)."},
+  /* Mistral */
+  {id:"mistral-large-4", label:"Mistral Large 4", vendor:"mistral", family:"mistral", via:"Roboflow",
+   sc:[9,8,8,90], desc:"Mistral Large 4 : le modèle amiral de Mistral AI — raisonnement, code, appel d'outils et multilingue (dont le français, langue d'origine de Mistral), avec la fenêtre de contexte la plus large de la famille."},
+  {id:"mistral-medium-3-5", label:"Mistral Medium 3.5", vendor:"mistral", family:"mistral", via:"Roboflow",
+   sc:[8,7,8,130], desc:"Mistral Medium 3.5 : le compromis qualité/prix de la famille — bon raisonnement et bon code pour un coût nettement inférieur à Large, utile pour les charges soutenues."},
+  {id:"mistral-small-4", label:"Mistral Small 4", vendor:"mistral", family:"mistral", via:"Roboflow",
+   sc:[6.5,5.5,7,220], desc:"Mistral Small 4 : le petit modèle rapide et économique — tâches simples, extraction, reformulation et pré-traitement, avec appel d'outils."},
   /* Alibaba / Qwen */
   {id:"qwen-3-8-max", label:"Qwen 3.8 Max", vendor:"qwen", family:"qwen",
    sc:[7,6,5,60], desc:"MoE de 2,4 trillions de paramètres d'Alibaba ; accepte texte, image et vidéo, destiné aux tâches structurées exigeantes."},
@@ -936,6 +958,7 @@ const MARKS = {
   deepseek: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4D6BFE"  d="M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45"/></svg>',
   meta: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#0866FF"  d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></svg>',
   xiaomi: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#FF6900"  d="M12 0C8.016 0 4.756.255 2.493 2.516.23 4.776 0 8.033 0 12.012c0 3.98.23 7.235 2.494 9.497C4.757 23.77 8.017 24 12 24c3.983 0 7.243-.23 9.506-2.491C23.77 19.247 24 15.99 24 12.012c0-3.984-.233-7.243-2.502-9.504C19.234.252 15.978 0 12 0zM4.906 7.405h5.624c1.47 0 3.007.068 3.764.827.746.746.827 2.233.83 3.676v4.54a.15.15 0 0 1-.152.147h-1.947a.15.15 0 0 1-.152-.148V11.83c-.002-.806-.048-1.634-.464-2.051-.358-.36-1.026-.441-1.72-.458H7.158a.15.15 0 0 0-.151.147v6.98a.15.15 0 0 1-.152.148H4.906a.15.15 0 0 1-.15-.148V7.554a.15.15 0 0 1 .15-.149zm12.131 0h1.949a.15.15 0 0 1 .15.15v8.892a.15.15 0 0 1-.15.148h-1.949a.15.15 0 0 1-.151-.148V7.554a.15.15 0 0 1 .151-.149zM8.92 10.948h2.046c.083 0 .15.066.15.147v5.352a.15.15 0 0 1-.15.148H8.92a.15.15 0 0 1-.152-.148v-5.352a.15.15 0 0 1 .152-.147Z"/></svg>',
+  mistral: '<svg width="13" height="13" viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="14" fill="#0F0F0F"/><rect x="14" y="18" width="14.4" height="64" fill="#FFD800"/><rect x="28.4" y="18" width="14.4" height="64" fill="#FFAF00"/><rect x="42.8" y="18" width="14.4" height="64" fill="#FF8205"/><rect x="57.2" y="18" width="14.4" height="64" fill="#FA500F"/><rect x="71.6" y="18" width="14.4" height="64" fill="#E10500"/></svg>',
   bfl: '<svg width="13" height="13" viewBox="32 60 196.407 140.291" aria-hidden="true"><path fill="#07130E" d="M172.047 119.966H172.045V149.393L148.793 182.239V199.317H94.7969L94.7959 199.318H73.9072L73.9082 199.317H32L130.27 60.9777L172.047 119.966ZM228.407 199.316H195.431V182.303L172.047 149.393V119.965L228.407 199.316ZM65.1064 182.238H86.0381L130.268 119.966H151.156L106.927 182.238H127.917L172.044 119.966H151.158L130.27 90.5373L65.1064 182.238Z"/></svg>'
 };
 </script>
@@ -1794,8 +1817,12 @@ async function submit(){
         +j.embedding.head.join(", ")+", …]</pre>";
       msgActions(bubble,{regen:(b)=>regenREST(spec,b)});
     }else{
+      /* La passerelle a pu basculer d'elle-même sur la voie Roboflow
+         (crédits Pollinations épuisés) : on le signale discrètement. */
+      const note=j.via==="roboflow" ? "roboflow" : "";
       conv.push({role:"assistant",text:out});
-      bubble.innerHTML = out.trim() ? renderMarkdown(out) : '<p style="color:var(--ink-3)"><em>(réponse vide)</em></p>';
+      bubble.innerHTML = (note?'<p class="viafb"><em>'+esc(note)+'</em></p>':"")
+        + (out.trim() ? renderMarkdown(out) : '<p style="color:var(--ink-3)"><em>(réponse vide)</em></p>');
       msgActions(bubble,{getMd:()=>out, regen:(b)=>regenREST(spec,b)});
     }
   }catch(err){
@@ -1993,7 +2020,7 @@ async function regenStream(spec, b){
   busy=true; sendBtn.disabled=true;
   b.style.whiteSpace="";
   b.innerHTML='<span class="gentxt">Generating<i>.</i><i>.</i><i>.</i></span>';
-  let acc="";
+  let acc="", accFb="";
   try{
     const r=await fetch(API_BASE+"/api/chat/stream",{
       method:"POST",
@@ -2021,12 +2048,14 @@ async function regenStream(spec, b){
         try{
           const j=JSON.parse(p);
           if(j.error) throw new Error(j.error);
+          if(j.fb) accFb=j.fb;
           if(j.t) acc+=j.t;
         }catch(e){ if(e instanceof SyntaxError) continue; throw e; }
       }
     }
-    b.innerHTML=acc.trim()?renderMarkdown(acc):'<p style="color:var(--ink-3)"><em>(réponse vide)</em></p>';
-    const md=acc;
+    b.innerHTML=(accFb?'<p class="viafb"><em>'+esc(accFb)+'</em></p>':"")
+      +(acc.trim()?renderMarkdown(acc):'<p style="color:var(--ink-3)"><em>(réponse vide)</em></p>');
+    const md=(accFb?"> "+accFb+"\n\n":"")+acc;
     msgActions(b,{getMd:()=>md, regen:(bb)=>regenStream(spec,bb)});
   }catch(err){
     b.innerHTML='<div class="err">'+esc(String(err && err.message ? err.message : err))+(acc?"<hr>"+renderMarkdown(acc):"")+'</div>';
@@ -2765,6 +2794,20 @@ const CFG_FIELDS = {
     {k:"temperature", label:"Température (0 à 2)", type:"num", min:0, max:2, step:0.05, ph:"défaut modèle"},
     {k:"top_p", label:"Top-p", type:"num", min:0, max:1, step:0.05, ph:"défaut modèle"},
     {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:1, max:131072, ph:"défaut modèle"},
+  ],
+  mistral: [
+    /* Paramètres Mistral (API compatible OpenAI), relayés par le bloc Roboflow. */
+    {k:"temperature", label:"Température (0 à 1,5)", type:"num", min:0, max:1.5, step:0.05, ph:"défaut modèle"},
+    {k:"top_p", label:"Échantillonnage top-p", type:"num", min:0, max:1, step:0.05, ph:"défaut modèle"},
+    {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:1, max:128000, ph:"défaut modèle"},
+    {k:"presence_penalty", label:"Pénalité de présence (-2 à 2)", type:"num", min:-2, max:2, step:0.1, ph:"0",
+     note:"Positif : pousse le modèle à aborder de nouveaux sujets."},
+    {k:"frequency_penalty", label:"Pénalité de fréquence (-2 à 2)", type:"num", min:-2, max:2, step:0.1, ph:"0",
+     note:"Positif : réduit les répétitions."},
+    {k:"random_seed", label:"Graine aléatoire", type:"int", min:0, max:2147483647, ph:"aléatoire",
+     note:"Même graine + mêmes réglages = réponse reproductible (utile pour comparer)."},
+    {k:"safe_prompt", label:"Filtre de sécurité Mistral", type:"check",
+     note:"Ajoute la consigne de modération de Mistral en tête du prompt système."},
   ],
   router: [
     {k:"temperature", label:"Température (0 à 2)", type:"num", min:0, max:2, step:0.05, ph:"défaut modèle"},
@@ -4688,13 +4731,23 @@ async function agtOpenFile(path, name){
     return;
   }
   if(cat==="img"){
-    /* Taille d'origine : aucune mise à l'échelle, la zone défile. */
+    /* Ajusté à l'écran par défaut (l'image entière est visible) ; « Plein
+       format » affiche la taille réelle, la zone défile alors. */
     const wrap=document.createElement("div"); wrap.className="av-imgwrap";
     const im=document.createElement("img"); im.className="av-img"; im.alt=name;
     im.src="data:image/"+(ext==="jpg"?"jpeg":(ext==="ico"?"x-icon":ext))+";base64,"+content;
     wrap.appendChild(im);
     body.appendChild(wrap);
     dlBtn(im.src,name);
+    let full=false;
+    const fb=mkBtn("Plein format",(b)=>{
+      full=!full;
+      wrap.classList.toggle("full",full);
+      b.classList.toggle("pressed",full);
+      b.textContent=full?"Ajuster à l'écran":"Plein format";
+    });
+    fb.title="Afficher l'image à sa taille réelle";
+    im.addEventListener("click",()=>fb.click());
     return;
   }
   if(cat==="svg"){
@@ -4720,6 +4773,14 @@ async function agtOpenFile(path, name){
     wrap.appendChild(v);
     body.appendChild(wrap);
     dlBtn(u,name);
+    let fullV=false;
+    const fbv=mkBtn("Plein format",(b)=>{
+      fullV=!fullV;
+      wrap.classList.toggle("full",fullV);
+      b.classList.toggle("pressed",fullV);
+      b.textContent=fullV?"Ajuster à l'écran":"Plein format";
+    });
+    fbv.title="Afficher la vidéo à sa taille réelle";
     return;
   }
   if(cat==="aud"){
