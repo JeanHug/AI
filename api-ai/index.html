@@ -3399,8 +3399,8 @@ async function afterText(x){
     const uDoc={role:"user", text:x.userText||"", kind:x.kind||"none", modelName:current.id,
       order:++msgSeq, createdAt:Date.now(), images:[]};
     const imgs=[];
-    if(x.kind==="upload"&&x.snap) imgs.push({name:x.snap.name, b64:x.snap.b64, mime:"image/png"});
-    for(const f of files){ if(f.kind==="image"&&!imgs.some(i=>i.b64===f.b64)) imgs.push({name:f.name, b64:f.b64, mime:"image/png"}); }
+    if(x.kind==="upload"&&x.snap) imgs.push({name:x.snap.name, b64:x.snap.b64, mime:x.snap.mime||"image/png"});
+    for(const f of files){ if(f.kind==="image"&&!imgs.some(i=>i.b64===f.b64)) imgs.push({name:f.name, b64:f.b64, mime:f.mime||"image/png"}); }
     for(const im of imgs.slice(0,4)){
       const sm=await shrinkForStore(im.b64, im.mime||"image/png");
       uDoc.images.push(sm?{name:im.name, b64:sm.b64, mime:sm.mime}:{name:im.name, mime:im.mime||"image/png", tooBig:true});
