@@ -10,11 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # .ai/
 # Worker canonique (workspace) + copie du dépôt : les deux sont écrites.
 WF   = "/home/user/worker.js"
 WF_REPO = os.path.join(ROOT, "api-ai", "worker.js")
-APPS = [
-    '/home/user/index.html',                      # source de travail
-    os.path.join(ROOT, 'index.html'),             # copie du dépôt
-    os.path.join(ROOT, 'api-ai', 'index.html'),
-]
+APP = '/home/user/index.html'          # source unique de vérité (workspace)
 DOCS = {"AGENT_DOC_B64": "agent.md", "INFOS_DOC_B64": "infos.md", "USER_DOC_B64": "user.md"}
 
 def js_str(text):
@@ -24,8 +20,8 @@ def js_str(text):
 s = io.open(WF, encoding="utf-8").read()
 
 # index.html : la source locale à la racine fait foi
-src = max(APPS, key=lambda p: os.path.getsize(p) if os.path.exists(p) else 0)
-html = io.open(src, encoding="utf-8").read()
+assert os.path.exists(APP), "index.html introuvable : " + APP
+html = io.open(APP, encoding="utf-8").read()
 i = s.index("/*APP_HTML_START*/") + len("/*APP_HTML_START*/")
 j = s.index("/*APP_HTML_END*/")
 s = s[:i] + "\nconst APP_HTML = " + js_str(html) + ";\n" + s[j:]
@@ -46,7 +42,7 @@ io.open(os.path.join(ROOT, "api-ai", "index.html"), "w", encoding="utf-8").write
 # contrôles
 s2 = io.open(WF, encoding="utf-8").read()
 ok_app = js_str(html) in s2
-print("index.html ->", os.path.relpath(src, ROOT), f"({len(html)} car.) | round-trip :", ok_app)
+print("index.html ->", APP, f"({len(html)} car.) | round-trip :", ok_app)
 for const, name in DOCS.items():
     a = s2.index("const %s = \"" % const) + len("const %s = \"" % const)
     b = s2.index("\";", a)

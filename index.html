@@ -749,7 +749,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
       </div>
       <input type="file" id="filepick" multiple hidden>
       <div id="mdprev" hidden aria-live="polite"></div>
-      <textarea id="prompt" rows="1" placeholder="Demandez à l'IA…"></textarea>
+      <textarea id="prompt" rows="1" placeholder="Demandez à l’IA…"></textarea>
       <button id="send" disabled title="Envoyer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M5 12h13M12 5l7 7-7 7"/>
@@ -3425,7 +3425,7 @@ async function ensureChat(firstText){
   return chatId;
 }
 /* Un document Firestore ne peut pas dépasser ~1 Mio : une mission d'agent
-   complète (sorties entières, jamais tronquées) dépasse forcément cette
+   complète (sorties entières, telles quelles) dépasse forcément cette
    limite. Les champs volumineux partent donc en morceaux dans une
    sous-collection « parts », puis sont recollés au chargement — rien n'est
    perdu, rien n'est coupé. */
@@ -5132,7 +5132,7 @@ async function agentRun(text){
           });
           res=await er.json();
         }catch(e){ res={ok:false,stderr:String(e&&e.message||e)}; }
-        const so=String(res.stdout||"");       /* sortie COMPLÈTE, jamais tronquée */
+        const so=String(res.stdout||"");       /* sortie COMPLÈTE, telle quelle */
         const se=String(res.stderr||"");
         agtOutEl(L,so,se,res.exit_code);
         stepsArr.push({kind:"bash", cmd:cmd, out:so, err:se, exit:res.exit_code||0});
