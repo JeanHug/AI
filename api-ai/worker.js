@@ -136,23 +136,27 @@ async function hfImage(cfg, ib) {
 }
 
 const MODELS = {
+  /* Les trois familles ci-dessous passent par un bloc dédié Roboflow ; `or`
+     donne l'identifiant du MÊME modèle chez OpenRouter : si le bloc dédié
+     échoue (500 « stopped generation », saturation, outil natif défaillant…),
+     la requête est rejouée à l'identique via le bloc OpenRouter managé. */
   /* ---- Anthropic -------------------------------------------------- */
-  "claude-opus-5-5":   { block: "roboflow_core/anthropic_claude@v5", family: "claude" },
-  "claude-sonnet-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude" },
-  "claude-fable-5-1":  { block: "roboflow_core/anthropic_claude@v5", family: "claude" },
+  "claude-opus-5-5":   { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-opus-5.5" },
+  "claude-sonnet-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-sonnet-5.5" },
+  "claude-fable-5-1":  { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-fable-5.1" },
   /* ---- OpenAI ------------------------------------------------------ */
-  "gpt-6-astra": { block: "roboflow_core/open_ai@v7", family: "openai" },
-  "gpt-6.1-sol": { block: "roboflow_core/open_ai@v7", family: "openai" },
-  "gpt-6-luna":  { block: "roboflow_core/open_ai@v7", family: "openai" },
+  "gpt-6-astra": { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6-astra" },
+  "gpt-6.1-sol": { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6.1-sol" },
+  "gpt-6-luna":  { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6-luna" },
   /* ---- Google Gemini (v3 : rf_key:account ; pas de task_type) ------ */
   "gemini-3-8-flash":      { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-3.8-flash" },
-  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.7-flash" },
-  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite" },
-  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview" },
+  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.7-flash", or: "google/gemini-3.7-flash" },
+  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite", or: "google/gemini-3.5-flash-lite" },
+  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview", or: "google/gemini-3.1-pro-preview" },
   /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie.
      Bloc dédié google_gemini v6 (v3/v4 rejettent le modèle : leur liste de
      model_version s'arrête à gemini-3.7-flash, v5 n'existe pas). */
-  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon" },
+  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon", or: "google/gemini-4-argon" },
   "gemini-2-5-pro":          { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-pro" },
   /* ---- Meta (bloc générique managé Roboflow) ----------------------- */
   "muse-spark-1-3": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-spark-1.3" },
@@ -381,7 +385,11 @@ function sanitize(params, family) {
   } else if (family === "gemini") {
     if ((v = oneOf(p.thinking_level, THINKING_LEVEL)) !== undefined) out.thinking_level = v;
     if ((v = int(p.max_tokens, 1, 65536)) !== undefined) out.max_tokens = v;
-    if ((v = bool(p.google_code_execution)) !== undefined) out.google_code_execution = v;
+    /* Toujours transmis (false par défaut) : quand le bloc laisse l'outil
+       natif actif, Gemini tente des appels d'outil et l'API peut répondre
+       500 « stopped generation with finish reason: MALFORMED_FUNCTION_CALL ».
+       L'utilisateur l'active explicitement quand il en a besoin. */
+    out.google_code_execution = bool(p.google_code_execution) === true;
   } else if (family === "router") {
     if ((v = num(p.temperature, 0, 2)) !== undefined) out.temperature = v;
     if ((v = int(p.max_tokens, 1, 128000)) !== undefined) out.max_tokens = v;
@@ -416,17 +424,24 @@ async function vmExecCmd(env, command) {
   const r = env.VMAI && typeof env.VMAI.fetch === "function" ? await env.VMAI.fetch(rq) : await fetch(rq);
   try { return await r.json(); } catch { return {}; }
 }
+const DOC_VER = "2026-10-13.2";   /* doit correspondre au marqueur dans les .md */
 async function ensureAgentDocs(env) {
-  const out = { restored: [], present: [] };
+  const out = { restored: [], present: [], updated: [] };
   const chk = await vmExecCmd(env,
-    'for f in agent.md infos.md user.md; do if [ -s /home/kasm-user/user/$f ]; then echo "OK:$f"; else echo "MISSING:$f"; fi; done');
+    'for f in agent.md infos.md user.md; do if [ -s /home/kasm-user/user/$f ]; then echo "OK:$f"; else echo "MISSING:$f"; fi; done; '
+    + 'echo "VER:"; grep -h -o "vm-doc-version: [0-9.\-]*" /home/kasm-user/user/agent.md /home/kasm-user/user/infos.md 2>/dev/null | head -1');
   const so = String(chk.stdout || "");
   const docs = { "agent.md": AGENT_DOC_B64, "infos.md": INFOS_DOC_B64 };
+  const upToDate = so.includes("vm-doc-version: " + DOC_VER);
   for (const name of Object.keys(docs)) {
-    if (so.includes("MISSING:" + name)) {
+    const missing = so.includes("MISSING:" + name);
+    /* Réécrit si le fichier manque, ou si sa version ne correspond plus au
+       contenu canonique embarqué (les correctifs de doc arrivent donc tout
+       seuls sur la VM, sans intervention). */
+    if (missing || (!upToDate && so.includes("OK:" + name))) {
       await vmExecCmd(env,
         "mkdir -p /home/kasm-user/user && printf '%s' '" + docs[name] + "' | base64 -d > /home/kasm-user/user/" + name);
-      out.restored.push(name);
+      if (missing) out.restored.push(name); else out.updated.push(name);
     } else if (so.includes("OK:" + name)) {
       out.present.push(name);
     }
@@ -1031,7 +1046,14 @@ export default {
     /* Un modèle tout juste sorti peut manquer dans le bloc dédié : `chain`
        liste les blocs à essayer dans l'ordre tant que Roboflow refuse la
        définition du workflow (erreur de validation), sinon on s'arrête. */
-    const cands = spec.chain || [spec];
+    /* Candidats : le bloc demandé, puis (pour Claude / GPT / Gemini) le même
+       modèle chez OpenRouter si le bloc dédié échoue. */
+    const orCand = { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: spec.or, orFallback: true };
+    /* `params._fallback:"or"` force la voie OpenRouter : sert uniquement à
+       vérifier le repli de bout en bout, sans dépendre d'une panne réelle. */
+    const forceOr = !!(body.params && body.params._fallback === "or");
+    const cands = forceOr && spec.or ? [orCand]
+      : (spec.chain || (spec.or ? [spec, orCand] : [spec]));
     let upstream = null, used = cands[cands.length - 1];
     for (const c of cands) {
       const step = {
@@ -1071,12 +1093,17 @@ export default {
 
       const t = await r.text();
       const last = c === cands[cands.length - 1];
-      const retry = (r.status === 400 || r.status === 404)
-        && /validation error|string_pattern_mismatch|literal\[|unknown|not found|does not exist|unsupported/i.test(t);
+      /* Repli OpenRouter : on retente quoi qu'il arrive (500 « stopped
+         generation », 429, 400…) puisque c'est un autre fournisseur.
+         Repli de bloc (chaîne) : seulement sur les erreurs de définition. */
+      const retry = c.orFallback === true ? !last
+        : ((r.status === 400 || r.status === 404)
+           && /validation error|string_pattern_mismatch|literal\[|unknown|not found|does not exist|unsupported/i.test(t));
       if (!retry || last) {
         let detail = t.slice(0, 400);
         try { const j = JSON.parse(t); detail = j.inner_error_message || j.message || detail; } catch { /* texte brut */ }
-        return json({ error: `Roboflow HTTP ${r.status} — ${detail}` }, 502);
+        const suffix = c.orFallback ? " (les deux voies Roboflow et OpenRouter ont échoué)" : "";
+        return json({ error: `Roboflow HTTP ${r.status} — ${detail}${suffix}` }, 502);
       }
       await new Promise(res => setTimeout(res, 120));
     }

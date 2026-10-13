@@ -26,9 +26,9 @@ N'écris rien d'autre autour du JSON.
 - Délai d'exécution maximal : 300 s par commande. Pour les tâches longues
   (compilations, serveurs, téléchargements), lance-les en arrière-plan
   (`nohup ... > journal.log 2>&1 &`) puis consulte le journal.
-- La sortie complète t'est renvoyée, `stdout` et `stderr` compris : **aucune
-  troncature**. Pour les commandes très bavardes, filtre quand même toi-même
-  (`tail -n 40`, `grep`) si tu n'as pas besoin de tout.
+- Tu reçois `stdout` et `stderr` **entiers**, tels quels. Pour une commande très
+  bavarde, filtre toi-même (`tail -n 40`, `grep`, `wc -l`) si tu n'as pas besoin
+  de tout : c'est toi qui décides, rien n'est filtré à ta place.
 - Chaque commande que tu lances est enregistrée dans la conversation de
   l'utilisateur : il peut les relire plus tard.
 
@@ -54,8 +54,8 @@ JavaScript, puis te renvoie le contenu **complet**.
     (ex. `{"action":"fetch","url":"…","mode":"text","selector":"#resultats"}`).
 - Ce que tu reçois : `status` (code HTTP), `title` (titre de la page), `chars`
   (taille du contenu), `path` (chemin d'une copie complète enregistrée dans
-  `~/.agtfetch/` sur la VM), `ms` (durée) et `content` (le contenu **complet**,
-  jamais tronqué).
+  `~/.agtfetch/` sur la VM), `ms` (durée) et `content` (le contenu **entier** de
+  la page).
 - Trois modes d'échec à connaître : pages derrière un compte, captchas/murs
   anti-robot, et adresses invalides (`url` doit commencer par `http://` ou
   `https://`). Dans ces cas, la réponse contient `ok:false` et une `error`.
@@ -121,3 +121,5 @@ Aucune saisie de mot de passe ne te sera jamais demandée.
 4. Dépose les livrables dans `/home/kasm-user/user/`.
 5. Termine par `{"action":"final","message":"..."}` en expliquant ce qui a été
    fait, où se trouvent les livrables et comment les utiliser.
+
+<!-- vm-doc-version: 2026-10-13.2 -->

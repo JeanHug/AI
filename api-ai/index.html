@@ -13,6 +13,8 @@
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
 *{box-sizing:border-box}
+/* « hidden » doit gagner contre les display:inline-flex des boutons. */
+[hidden]{display:none !important}
 html,body{height:100%}
 body{
   margin:0;background:var(--bg);color:var(--ink);
@@ -139,6 +141,10 @@ main{flex:1 1 auto;overflow-y:auto;padding:26px 20px 34px}
 }
 .md strong{font-weight:650}
 .md img{max-width:100%;height:auto}
+/* Les très longues suites sans espace (URL, base64, sorties d'outils) ne
+   doivent jamais élargir la page : elles reviennent à la ligne au milieu. */
+.md,.bubble,.err,.zone,.agent-log{overflow-wrap:anywhere}
+.md code,.md a{word-break:break-word}
 
 /* ---------- math ---------- */
 .math{overflow-x:auto;overflow-y:hidden;padding:.15em 0}
@@ -378,6 +384,12 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
   display:flex;flex-direction:column;gap:2px;
 }
 #imgmenu[hidden]{display:none}
+/* Aperçu markdown pendant l'écriture : discret, au-dessus de la barre. */
+#mdprev{margin:0 0 7px;padding:8px 11px;border:1px dashed #dddde3;border-radius:10px;
+  background:#fcfcfd;font-size:13.5px;line-height:1.5;max-height:190px;overflow:auto;
+  overflow-wrap:anywhere}
+#mdprev>*:first-child{margin-top:0}
+#mdprev>*:last-child{margin-bottom:0}
 #imgmenu button{
   display:flex;align-items:center;gap:8px;width:100%;text-align:left;
   border:0;background:none;border-radius:7px;padding:7px 9px;
@@ -736,7 +748,8 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
         </button>
       </div>
       <input type="file" id="filepick" multiple hidden>
-      <textarea id="prompt" rows="1" placeholder="Écris ton message…  (Entrée pour envoyer, Maj+Entrée pour un saut de ligne)"></textarea>
+      <div id="mdprev" hidden aria-live="polite"></div>
+      <textarea id="prompt" rows="1" placeholder="Demandez à l'IA…"></textarea>
       <button id="send" disabled title="Envoyer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M5 12h13M12 5l7 7-7 7"/>
@@ -1539,20 +1552,20 @@ function selectModel(m){
   const imgGen = m.gen==="img";
   attachBtn.style.display = (imgGen && m.id!=="po-gpt-image-2") ? "none" : "";
   imgMenu.hidden = true;
-  promptEl.placeholder = imgGen
-    ? "Décris l’image à générer… (Entrée pour envoyer)"
-    : "Écris ton message…  (Entrée pour envoyer, Maj+Entrée pour un saut de ligne)";
+  promptEl.placeholder = imgGen ? "Décris l’image à générer…" : "Demandez à l’IA…";
 }
 renderModelBtn();
 
-clearBtn.onclick=()=>{
-  /* Simple « nouvelle discussion » : la discussion en cours est déjà
-     enregistrée au fil de l'eau ; on repart sur une vierge. */
-  if(busy) return;
-  if(typeof AGENT_ON!=="undefined"&&AGENT_ON) return;
+/* Nouvelle discussion : la discussion en cours est déjà enregistrée au fil de
+   l'eau, on repart donc sur une vierge. Fonctionne dans les deux modes (chat et
+   agent) : seule une réponse en cours l'empêche. */
+function newConversation(){
+  if(busy){ alert("Attends la fin de la réponse en cours."); return; }
   conv=[]; log.innerHTML=""; emptyState(); updateHint();
   if(typeof FB!=="undefined"&&FB.onNewChat) FB.onNewChat();
-};
+  if(typeof agtNewConversation==="function") agtNewConversation();
+}
+clearBtn.onclick=newConversation;
 
 /* --- image noire ---------------------------------------------------- */
 /* PNG 640x640 noir pur, pré-calculé : sert de repli si canvas est indisponible. */
@@ -1664,10 +1677,25 @@ promptEl.addEventListener("input", ()=>{
   promptEl.style.height="auto";
   promptEl.style.height=Math.min(promptEl.scrollHeight,200)+"px";
   sendBtn.disabled = busy || !promptEl.value.trim();
+  mdPreview();
 });
+/* Entrée insère une nouvelle ligne (on écrit tranquillement son message) ;
+   Ctrl+Entrée (ou Cmd+Entrée) envoie, comme le bouton. */
 promptEl.addEventListener("keydown", e=>{
-  if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); submit(); }
+  if(e.key==="Enter" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); submit(); }
 });
+/* Aperçu markdown en direct pendant l'écriture : dès que le message contient
+   de la syntaxe markdown, il est rendu au-dessus de la barre de saisie. */
+const MDPREV_RE=/```|^#{1,6} |^[ \t]*[-*+] |^[ \t]*\d+[.)] |^> |\*\*|__|\[[^\]]+\]\(|`[^`]+`|\|[^\n]*\|/m;
+function mdPreview(){
+  const box=document.getElementById("mdprev");
+  if(!box) return;
+  const t=promptEl.value;
+  if(!t.trim() || !MDPREV_RE.test(t)){ if(!box.hidden){ box.hidden=true; box.innerHTML=""; } return; }
+  box.hidden=false;
+  box.innerHTML=renderMarkdown(t);
+  if(typeof agtKatex==="function"){ try{ agtKatex(box); }catch(e){} }
+}
 sendBtn.onclick=submit;
 
 function addUser(text, kind, snap, asnap){
@@ -3225,7 +3253,15 @@ async function purgeChat(id){
   const mref=fbDB.collection("users").doc(fbUser.uid).collection("chats").doc(id).collection("messages");
   const snap=await mref.get();
   let batch=fbDB.batch(), n=0;
-  for(const d of snap.docs){ batch.delete(d.ref); if(++n%400===0){ await batch.commit(); batch=fbDB.batch(); } }
+  /* Les morceaux (sous-collection « parts ») partent avec le message :
+     Firestore ne supprime pas les sous-collections tout seul. */
+  for(const d of snap.docs){
+    if(d.data() && d.data().parts){
+      const ps=await d.ref.collection("parts").get();
+      for(const q of ps.docs){ batch.delete(q.ref); if(++n%400===0){ await batch.commit(); batch=fbDB.batch(); } }
+    }
+    batch.delete(d.ref); if(++n%400===0){ await batch.commit(); batch=fbDB.batch(); }
+  }
   await batch.commit();
   await chatsRef().doc(id).delete();
 }
@@ -3254,6 +3290,7 @@ async function loadChat(id){
   closeChatPop();
   try{
     const snap=await chatsRef().doc(id).collection("messages").orderBy("order").get();
+    const mref=chatsRef().doc(id).collection("messages");
     conv=[]; log.innerHTML=""; chatId=id; msgSeq=0;
     const mm=MODELS.find(m=>m.id===c.model);
     if(mm && mm!==current) selectModel(mm);
@@ -3265,7 +3302,7 @@ async function loadChat(id){
     }
     let lastA=null, lastAMd="";
     for(const d of snap.docs){
-      const m=d.data(); msgSeq=Math.max(msgSeq, m.order||0);
+      const m=await readDocChunked(mref, d.data()); msgSeq=Math.max(msgSeq, m.order||0);
       if(m.role==="user"){
         const imgs=(m.images||[]).filter(i=>!i.tooBig&&i.b64);
         const au=(m.audio&&m.audio.b64)?{name:m.audio.name, b64:m.audio.b64, mime:m.audio.mime||"audio/wav",
@@ -3387,13 +3424,44 @@ async function ensureChat(firstText){
   }catch(e){ console.warn("ensureChat :", e); }
   return chatId;
 }
+/* Un document Firestore ne peut pas dépasser ~1 Mio : une mission d'agent
+   complète (sorties entières, jamais tronquées) dépasse forcément cette
+   limite. Les champs volumineux partent donc en morceaux dans une
+   sous-collection « parts », puis sont recollés au chargement — rien n'est
+   perdu, rien n'est coupé. */
+const DOC_MAX=450000, PART_LEN=400000;
+async function writeDocChunked(mref, id, doc){
+  const small={}, big={};
+  for(const k of Object.keys(doc)){
+    if(k==="role"||k==="order"||k==="createdAt"||k==="modelName"||k==="kind"||k==="agent") small[k]=doc[k];
+    else big[k]=doc[k];
+  }
+  const json=JSON.stringify(big);
+  if(json.length<=DOC_MAX){ await mref.doc(id).set(doc); return; }
+  const parts=[];
+  for(let i=0;i<json.length;i+=PART_LEN) parts.push(json.slice(i,i+PART_LEN));
+  await mref.doc(id).set(Object.assign({}, small, {parts:parts.length}));
+  const pref=mref.doc(id).collection("parts");
+  let batch=fbDB.batch(), n=0;
+  for(let i=0;i<parts.length;i++){
+    batch.set(pref.doc("p"+i), {d:parts[i]});
+    if(++n%400===0){ await batch.commit(); batch=fbDB.batch(); }
+  }
+  await batch.commit();
+}
+/* Recolle un message stocké en morceaux (transparent pour le reste du code). */
+async function readDocChunked(mref, m){
+  if(!m||!m.parts) return m;
+  const snap=await mref.doc("m"+m.order).collection("parts").get();
+  const arr=[];
+  for(const d of snap.docs) arr[+String(d.id).slice(1)]=d.data().d||"";
+  try{ return Object.assign({}, m, JSON.parse(arr.join(""))); }catch(e){ return m; }
+}
 async function commitPair(uDoc, aDoc){
   const mref=chatsRef().doc(chatId).collection("messages");
-  const batch=fbDB.batch();
-  batch.set(mref.doc("m"+uDoc.order), uDoc);
-  batch.set(mref.doc("m"+aDoc.order), aDoc);
-  batch.update(chatsRef().doc(chatId), {updatedAt:Date.now(), model:current.id});
-  await batch.commit();
+  await writeDocChunked(mref, "m"+uDoc.order, uDoc);
+  await writeDocChunked(mref, "m"+aDoc.order, aDoc);
+  await chatsRef().doc(chatId).update({updatedAt:Date.now(), model:current.id});
 }
 /* appelé après chaque échange texte (bloc principal) */
 async function afterText(x){
@@ -3417,7 +3485,7 @@ async function afterText(x){
     const aDoc={role:"assistant", text:x.out||"", modelName:x.via||current.id,
       order:++msgSeq, createdAt:Date.now()};
     await commitPair(uDoc, aDoc);
-  }catch(e){ console.warn("sauvegarde :", e); }
+  }catch(e){ console.warn("sauvegarde :", e); fbSaveWarn(e); }
 }
 /* appelé après chaque génération d'image */
 async function afterImage(x){
@@ -3432,7 +3500,7 @@ async function afterImage(x){
       modelName:current.id, order:++msgSeq, createdAt:Date.now(),
       images:[sm?{name:im.name, b64:sm.b64, mime:sm.mime}:{name:im.name, mime:im.mime, tooBig:true}]};
     await commitPair(uDoc, aDoc);
-  }catch(e){ console.warn("sauvegarde image :", e); }
+  }catch(e){ console.warn("sauvegarde image :", e); fbSaveWarn(e); }
 }
 /* Mission d'agent : étapes structurées (commande → sortie) pour un rendu
    identique au rechargement, sur n'importe quel appareil. */
@@ -3445,7 +3513,15 @@ async function afterAgent(x){
     const aDoc={role:"assistant", text:x.out||"", modelName:current.id,
       order:++msgSeq, createdAt:Date.now(), steps:(x.steps||[]).slice(0,400), agent:true};
     await commitPair(uDoc, aDoc);
-  }catch(e){ console.warn("sauvegarde agent :", e); }
+  }catch(e){ console.warn("sauvegarde agent :", e); fbSaveWarn(e); }
+}
+/* Une sauvegarde qui échoue ne doit pas passer inaperçue (c'est ce qui
+   faisait disparaître des messages en silence). */
+function fbSaveWarn(e){
+  try{
+    if(typeof agtToast==="function") agtToast("Sauvegarde impossible : "+String(e&&e.message||e));
+    else console.warn("sauvegarde :", e);
+  }catch(x){}
 }
 /* profil utilisateur : users/{uid} */
 async function ensureUserDoc(){
@@ -3657,7 +3733,7 @@ function renderPending(){
 (function wire(){
   $fb("#burger").onclick=()=>{ $fb("#sidebar").classList.contains("open") ? closeSide() : openSide(); };
   $fb("#sbackdrop").onclick=closeSide;
-  $fb("#newchat").onclick=()=>{ clearBtn.onclick(); closeSide(); };
+  $fb("#newchat").onclick=()=>{ newConversation(); closeSide(); };
 
   $fb("#authclose").onclick=()=>{ $fb("#authmodal").hidden=true; };
   $fb("#authtoggle").onclick=()=>setAuthMode(authMode==="login"?"signup":"login");
@@ -3937,6 +4013,12 @@ function agtHeaders(extra){
 function agtLogged(){
   return (typeof fbUser!=="undefined"&&!!fbUser
     &&String(fbUser.email||"").toLowerCase()===AGENT_EMAIL);
+}
+/* Nouvelle discussion depuis le mode agent : aucune mission ne tourne
+   (AGENT_BUSY est vérifié), on remet juste l'interface à plat. */
+function agtNewConversation(){
+  if(typeof AGENT_BUSY!=="undefined"&&AGENT_BUSY) return;
+  const t=document.getElementById("agtToast"); if(t) t.classList.add("out");
 }
 function agtToast(msg){
   let t=document.getElementById("agtToast");
@@ -5012,7 +5094,7 @@ async function agentRun(text){
           +String(m.text||"")).join("\n")
       : "";
 
-    let tr="", steps=0, done=false, lastRaw="", traceMd="";
+    let tr="", steps=0, done=false, lastRaw="", traceMd="", finalMd="";
     const stepsArr=[];                    /* étapes structurées (Firestore) */
     while(steps<1000&&!done){   /* filet de sécurité très large, pas une limite pratique */
       const prompt=steps===0
@@ -5034,8 +5116,8 @@ async function agentRun(text){
       const out=String(j.output==null?"":j.output);
       lastRaw=out;
       const call=agtParseCall(out);
-      if(!call){ killWait(); finalEl.innerHTML=renderMarkdown(out); done=true; break; }
-      if(call.action==="final"){ killWait(); finalEl.innerHTML=renderMarkdown(String(call.message||"")); done=true; break; }
+      if(!call){ killWait(); finalMd=out; finalEl.innerHTML=renderMarkdown(out); done=true; break; }
+      if(call.action==="final"){ killWait(); finalMd=String(call.message||""); finalEl.innerHTML=renderMarkdown(finalMd); done=true; break; }
       if(call.action==="bash"){
         const L=ensureTerm();
         const cmd=String(call.command||"");
@@ -5096,18 +5178,22 @@ async function agentRun(text){
         traceMd+=label+"\n"+(full||String(fj.error||""))+"\n\n";
         agtSmart();
       }else{
-        killWait(); finalEl.innerHTML=renderMarkdown(out);
+        killWait(); finalEl.innerHTML=renderMarkdown(out); finalMd=out;
         done=true;
       }
       steps++;
     }
     if(!done){
       killWait();
+      finalMd=lastRaw||"";
       finalEl.innerHTML='<p><em>(Mission interrompue : trop d\'étapes d\'affilée)</em></p>'+(lastRaw?renderMarkdown(lastRaw):"");
     }
     if(term) term.classList.add("folded");      /* zone terminal repliée en fin de mission */
     killWait();
-    const finalText=String(finalEl.textContent||"(mission agent)");
+    /* On enregistre le markdown D'ORIGINE (pas le texte rendu) : au
+       rechargement, la réponse est re-rendue à l'identique, avec sa mise en
+       forme — c'est ce qui manquait (« les messages arrivés sans rien »). */
+    const finalText=(finalMd||"").trim() || String(finalEl.textContent||"(mission agent)");
     /* Les étapes sont enregistrées EN CLAIR dans Firestore : en rouvrant la
        discussion (3 h plus tard, sur un autre appareil) la zone terminal
        repliable est reconstruite à l'identique. */

@@ -19,7 +19,16 @@ que tu puisses le guider sans deviner. Quand tu lui dis « cliquez ici » ou
   pas, il en redemande une nouvelle.
 - Les messages et, en mode agent, **les commandes du terminal** sont
   enregistrés dans son compte : en rouvrant la discussion plus tard, il
-  retrouve tout, y compris le détail des commandes et de leur sortie.
+  retrouve tout, y compris le détail des commandes et de leur sortie. Tes
+  réponses y sont conservées **en markdown** : elles se réaffichent mises en
+  forme, à l'identique.
+- Pour écrire : la touche **Entrée** fait un **retour à la ligne** (il peut donc
+  écrire un message de plusieurs lignes tranquillement), **Ctrl+Entrée** (ou
+  Cmd+Entrée) envoie, comme le bouton **→**. La barre affiche simplement
+  « Demandez à l'IA… ».
+- S'il écrit du markdown (titres, listes, gras, code, tableau), un **aperçu**
+  apparaît au-dessus de la barre pendant qu'il tape : il voit sa mise en forme
+  avant d'envoyer.
 
 ## 2. Le mode agent
 
@@ -154,3 +163,5 @@ et ne lui demande jamais ses identifiants.
   un message clair indiquant quoi ouvrir et pourquoi.
 - Il ne peut pas agir sur la VM : tout ce qui nécessite une commande, une
   installation ou un clic sur le bureau passe par toi.
+
+<!-- vm-doc-version: 2026-10-13.2 -->
