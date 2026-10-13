@@ -366,10 +366,16 @@ function oneOf(v, list) {
    au lieu de traiter le message. On rejoue alors la requête une fois avec ces
    accents graves remplacés par des apostrophes (le texte reste lisible). */
 function defuseWaf(s) {
-  const span = new RegExp("`([^`\\n]{0,400})`", "g");
-  return String(s).replace(span, (m, inner) => {
+  /* Mesure du 13/10 : le pare-feu de Roboflow refuse une commande de téléchargement
+     placée entre apostrophes ou accents graves ('curl -s http://…' / `wget http://…`).
+     Les guillemets doubles passent. On ne réécrit donc que ces passages-là,
+     et uniquement dans la copie envoyée au modèle (jamais dans l'affichage). */
+  const span = /'([^'\n]{0,600})'|`([^`\n]{0,600})`/g;
+  return String(s).replace(span, (m, simple, grave) => {
+    const inner = (simple !== undefined) ? simple : grave;
     const shell = /(^|[\s"'(])(curl|wget|bash|sh|zsh|python3?|node|nc|ncat|powershell)\b/i.test(inner);
-    return (shell && /https?:\/\//i.test(inner)) ? "'" + inner + "'" : m;
+    if (shell && /https?:\/\//i.test(inner)) return '"' + inner.replace(/"/g, "'") + '"';
+    return m;
   });
 }
 // Ne conserve que les réglages valides pour la famille du modèle.
