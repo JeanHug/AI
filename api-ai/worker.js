@@ -149,8 +149,18 @@ const MODELS = {
   "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.7-flash" },
   "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite" },
   "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview" },
-  /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie. */
-  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v4", family: "gemini", task: null, vv: "gemini-4-argon" },
+  /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie.
+     Le bloc dédié google_gemini ne le liste pas encore : on essaie la chaîne
+     de blocs (dédié le plus récent → générique managé OpenRouter). */
+  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v5", family: "gemini", task: null, vv: "gemini-4-argon",
+    chain: [
+      { block: "roboflow_core/google_gemini@v5", family: "gemini", task: null, vv: "gemini-4-argon" },
+      { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon" },
+      { block: "roboflow_core/google_gemini@v4", family: "gemini", task: null, vv: "gemini-4-argon" },
+      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-4-argon" },
+      { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-4-argon", pf: "gemini" },
+      { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-4-argon" },
+    ] },
   "gemini-2-5-pro":          { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-pro" },
   /* ---- Meta (bloc générique managé Roboflow) ----------------------- */
   "muse-spark-1-3": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-spark-1.3" },
@@ -1026,38 +1036,57 @@ export default {
       return json({ error: "image trop lourde après encodage base64" }, 413);
     }
 
-    const step = {
-      type: spec.block,
-      name: "m",
-      images: "$inputs.image",
-      prompt,
-      [spec.vf || "model_version"]: spec.vv || model,
-      ...sanitize(body.params, spec.family),
-    };
-    if (!spec.nokey) step.api_key = "rf_key:account";
-    if (spec.task !== null) step.task_type = spec.task || "unconstrained";
-    if (spec.backend) step.backend = spec.backend;
+    /* Un modèle tout juste sorti peut manquer dans le bloc dédié : `chain`
+       liste les blocs à essayer dans l'ordre tant que Roboflow refuse la
+       définition du workflow (erreur de validation), sinon on s'arrête. */
+    const cands = spec.chain || [spec];
+    let upstream = null, used = cands[cands.length - 1];
+    for (const c of cands) {
+      const step = {
+        type: c.block,
+        name: "m",
+        images: "$inputs.image",
+        prompt,
+        [c.vf || "model_version"]: c.vv || model,
+        ...sanitize(body.params, c.pf || c.family),
+      };
+      if (!c.nokey) step.api_key = "rf_key:account";
+      if (c.task !== null) step.task_type = c.task || "unconstrained";
+      if (c.backend) step.backend = c.backend;
 
-    const payload = {
-      api_key: env.ROBOFLOW_API_KEY,
-      inputs: { image: { type: "base64", value: image } },
-      specification: {
-        version: "1.0",
-        inputs: [{ type: "WorkflowImage", name: "image" }],
-        steps: [step],
-        outputs: [{ type: "JsonField", name: "output", selector: `$steps.m.${spec.out || "output"}` }],
-      },
-    };
+      const payload = {
+        api_key: env.ROBOFLOW_API_KEY,
+        inputs: { image: { type: "base64", value: image } },
+        specification: {
+          version: "1.0",
+          inputs: [{ type: "WorkflowImage", name: "image" }],
+          steps: [step],
+          outputs: [{ type: "JsonField", name: "output", selector: `$steps.m.${c.out || spec.out || "output"}` }],
+        },
+      };
 
-    let upstream;
-    try {
-      upstream = await fetch(ROBOFLOW_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      return json({ error: `Roboflow injoignable : ${err.message}` }, 502);
+      let r;
+      try {
+        r = await fetch(ROBOFLOW_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        return json({ error: `Roboflow injoignable : ${err.message}` }, 502);
+      }
+      if (r.ok) { upstream = r; used = c; break; }
+
+      const t = await r.text();
+      const last = c === cands[cands.length - 1];
+      const retry = (r.status === 400 || r.status === 404)
+        && /validation error|string_pattern_mismatch|literal\[|unknown|not found|does not exist|unsupported/i.test(t);
+      if (!retry || last) {
+        let detail = t.slice(0, 400);
+        try { const j = JSON.parse(t); detail = j.inner_error_message || j.message || detail; } catch { /* texte brut */ }
+        return json({ error: `Roboflow HTTP ${r.status} — ${detail}` }, 502);
+      }
+      await new Promise(res => setTimeout(res, 120));
     }
 
     const text = await upstream.text();
@@ -1074,7 +1103,7 @@ export default {
     }
 
     const outputs = data.outputs && data.outputs[0] ? data.outputs[0] : {};
-    return json({ output: outputs.output ?? "", applied: Object.keys(sanitize(body.params, spec.family)) });
+    return json({ output: outputs.output ?? "", via: used.block, applied: Object.keys(sanitize(body.params, used.pf || used.family)) });
   },
 
   /* ---- Cron : recrée agent.md / infos.md dans la VM s'ils ont été supprimés. ---- */
