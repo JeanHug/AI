@@ -486,11 +486,14 @@ async function jobStep(env, j) {
 
   let out = "";
   try {
-    const r = await fetch(j.origin + "/api/chat", {
+    /* Appel interne : on traverse exactement la même route que l'app,
+       sans passer par le réseau (un worker ne peut pas s'appeler lui-même). */
+    const req = new Request(j.origin + "/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Access-Code": String(env.ACCESS_CODE || j.code || ""), "User-Agent": "Mozilla/5.0" },
       body: JSON.stringify({ model: j.model, prompt: prompt, image: j.image, image_kind: j.image_kind, params: j.params }),
     });
+    const r = await fetchHandler(req, env, { waitUntil: () => {}, passThroughOnException: () => {} });
     const jr = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(String(jr.error || ("HTTP " + r.status)));
     out = String(jr.output == null ? "" : jr.output);
@@ -622,8 +625,7 @@ function b64Utf8(str) {
   return btoa(bin);
 }
 
-export default {
-  async fetch(request, env, ctx) {
+async function fetchHandler(request, env, ctx) {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
@@ -1334,7 +1336,10 @@ export default {
 
     const outputs = data.outputs && data.outputs[0] ? data.outputs[0] : {};
     return json({ output: outputs.output ?? "", applied: Object.keys(sanitize(body.params, used.pf || used.family)) });
-  },
+}
+
+export default {
+  fetch: fetchHandler,
 
   /* ---- Cron : recrée agent.md / infos.md dans la VM s'ils ont été supprimés. ---- */
   async scheduled(controller, env, ctx) {
