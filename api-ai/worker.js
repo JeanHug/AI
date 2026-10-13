@@ -150,7 +150,7 @@ const MODELS = {
   "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite" },
   "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview" },
   /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie. */
-  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-4-argon" },
+  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v4", family: "gemini", task: null, vv: "gemini-4-argon" },
   "gemini-2-5-pro":          { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-pro" },
   /* ---- Meta (bloc générique managé Roboflow) ----------------------- */
   "muse-spark-1-3": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-spark-1.3" },
