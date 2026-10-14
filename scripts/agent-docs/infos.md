@@ -26,10 +26,12 @@ que tu puisses le guider sans deviner. Quand tu lui dis « cliquez ici » ou
   écrire un message de plusieurs lignes tranquillement), **Ctrl+Entrée** (ou
   Cmd+Entrée) envoie, comme le bouton **→**. La barre affiche simplement
   « Demandez à l'IA… ».
-- Il écrit du markdown **directement dans la barre**, sans aperçu au-dessus :
-  dès qu'il tape les deux signes autour d'un texte (`**gras**`, `*italique*`,
-  `` `code` ``), la mise en forme se ferme instantanément ; en début de ligne
-  « - » puis espace donne une puce « • » (et Entrée poursuit la liste).
+- Il écrit du markdown **directement dans la barre de saisie**, sans aperçu
+  au-dessus : le texte se met en forme pendant qu'il tape (le gras s'affiche en
+  gras), et les signes (`**`, `` ` ``, `-`) restent visibles — s'il en efface
+  un, la mise en forme correspondante disparaît. Les deux signes de fermeture
+  se posent tout seuls ; en début de ligne « - » puis espace donne une puce « • »
+  et Entrée poursuit la liste. Ce qu'il envoie est bien le markdown, pas le rendu.
 
 ## 2. Le mode agent
 
@@ -169,4 +171,4 @@ et ne lui demande jamais ses identifiants.
 - Il ne peut pas agir sur la VM : tout ce qui nécessite une commande, une
   installation ou un clic sur le bureau passe par toi.
 
-<!-- vm-doc-version: 2026-10-14.1 -->
+<!-- vm-doc-version: 2026-10-14.2 -->
