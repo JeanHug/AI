@@ -125,7 +125,8 @@ main{flex:1 1 auto;overflow-y:auto;padding:26px 20px 34px}
 .md h2{border-bottom:1px solid var(--line-2);padding-bottom:.25em}
 .md p{margin:0 0 1em}
 .md a{color:var(--ink);text-decoration:underline;text-underline-offset:2px;text-decoration-color:#c9c9d1}
-.md ul,.md ol{margin:0 0 1em;padding-left:1.35em}
+.md ul,.md ol{margin:0 0 1em;padding-left:1.7em}
+.md li::marker{color:var(--ink-3)}
 .md li{margin:.25em 0}
 .md li>ul,.md li>ol{margin:.25em 0}
 .md blockquote{
@@ -371,6 +372,9 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 #prompt em{font-style:italic}
 #prompt s{text-decoration:line-through;color:var(--ink-2)}
 #prompt .mdq{color:var(--ink-2);font-style:italic}
+/* Listes : signe dans la marge, texte décalé, lignes suivantes alignées. */
+#prompt .mdli{display:inline-block;padding-left:1.6em;text-indent:-1.1em}
+#prompt .mdz{font-size:0}
 #send{
   flex:0 0 auto;width:32px;height:32px;border-radius:9px;border:0;background:var(--ink);
   color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
@@ -1405,6 +1409,9 @@ function inline(s){
         (m,a,u)=>'<img src="'+u+'" alt="'+a+'">');
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g,
         (m,t,u)=>'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+t+"</a>");
+  /* Cases à cocher (« - [x] fait ») : affichées comme telles dans les messages. */
+  s = s.replace(/^\[ \]\s+/, "\u2610 ");
+  s = s.replace(/^\[([xX])\]\s+/, "\u2611 ");
   s = s.replace(/&lt;(https?:[/][/][^\s&]+)&gt;/g,
         (m,u)=>'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+u+"</a>");
   s = s.replace(/(^|[\s(])((?:https?:[/][/])[^\s<)]+[^\s<).,;:!?])/g,
@@ -1527,7 +1534,7 @@ let fsOwner = null;         /* bouton ayant ouvert le plein écran */
 const VENDORS = [
   ["anthropic","Anthropic"],["openai","OpenAI"],["google","Google"],["groq","Groq · API gratuite"],
   ["kimi","Moonshot · Kimi"],["qwen","Alibaba · Qwen"],["glm","Zhipu · GLM"],
-  ["deepseek","DeepSeek"],["meta","Meta"],["xiaomi","Xiaomi"],["microsoft","Microsoft"],
+  ["deepseek","DeepSeek"],["mistral","Mistral"],["meta","Meta"],["xiaomi","Xiaomi"],["microsoft","Microsoft"],
   ["pollinations","Pollinations"],
   ["bfl","Black Forest Labs"],["ideogram","Ideogram"],
 ];
@@ -1725,24 +1732,46 @@ function cInline(line){
   return h.replace(/\u0001(\d+)\u0001/g, (m,n)=>tok[+n]);
 }
 function cRender(text){
-  return String(text).split("\n").map(ln=>{
+  const src=String(text);
+  /* Les listes sont décalées comme dans un vrai markdown : le signe reste dans
+     la marge, le texte part à droite, et les lignes suivantes s'alignent. */
+  const body=src.split("\n").map(ln=>{
     let m;
     if((m=/^(\s*)(#{1,6})( +)(\S.*)$/.exec(ln)))
       return cEsc(m[1])+'<span class="mdm">'+m[2]+'</span>'+m[3]+'<strong class="mdh">'+cInline(m[4])+'</strong>';
     if((m=/^(\s*)(>)( ?)(.*)$/.exec(ln)))
       return cEsc(m[1])+'<span class="mdm">'+m[2]+'</span>'+m[3]+'<span class="mdq">'+cInline(m[4])+'</span>';
+    /* Case à cocher : « - [ ] », mais aussi « • [x] » puisque la puce est
+       posée automatiquement après « - » + espace. Les crochets RESTENT dans le
+       texte (la barre doit contenir exactement ce qui sera envoyé) : seule la
+       couleur change, comme pour les autres signes. */
+    if((m=/^(\s*)([-*+]|\u2022)( +)\[([ xX])\]( +)(.*)$/.exec(ln)))
+      return '<span class="mdli">'+cEsc(m[1])+'<span class="mdm">'+m[2]+m[3]+'['+m[4]+']'+m[5]
+        +'</span>'+cInline(m[6])+'</span>';
     if((m=/^(\s*)(\d+[.)])( +)(.*)$/.exec(ln)))
-      return cEsc(m[1])+'<span class="mdm">'+m[2]+'</span>'+m[3]+cInline(m[4]);
+      return '<span class="mdli">'+cEsc(m[1])+'<span class="mdm">'+m[2]+'</span>'+m[3]+cInline(m[4])+'</span>';
+    if((m=/^(\s*)([-*+]|\u2022)( +)(.*)$/.exec(ln)))
+      return '<span class="mdli">'+cEsc(m[1])+'<span class="mdm">'+m[2]+'</span>'+m[3]+cInline(m[4])+'</span>';
     return cInline(ln);
   }).join("\n");
+  /* Une fin de texte qui se termine par un retour à la ligne doit se VOIR :
+     sans repère, le navigateur n'affiche pas la dernière ligne vide (d'où
+     l'impression qu'Entrée ne marchait pas du premier coup). */
+  return /\n$/.test(src) ? body+'<span class="mdz">\u200B</span>' : body;
 }
 /* Le texte du champ est la source : on la lit, on la rend, on replace le curseur. */
-function cText(){ return String(promptEl.textContent||""); }
-function cOffsetOf(node,off){
-  let n=0;
+function cText(){ return String(promptEl.textContent||"").replace(/\u200B/g,""); }
+/* Les nœuds de repère (fin de ligne visible) ne comptent pas dans le texte. */
+function cTextNodes(){
+  const out=[];
   const w=document.createTreeWalker(promptEl, NodeFilter.SHOW_TEXT, null);
   let t;
-  while((t=w.nextNode())){ if(t===node) return n+off; n+=t.nodeValue.length; }
+  while((t=w.nextNode())){ if(t.nodeValue && t.nodeValue.indexOf("\u200B")<0) out.push(t); }
+  return out;
+}
+function cOffsetOf(node,off){
+  let n=0;
+  for(const t of cTextNodes()){ if(t===node) return n+off; n+=t.nodeValue.length; }
   return n;
 }
 function cOffsets(){
@@ -1759,9 +1788,7 @@ function cPlace(start,end){
   try{
     const r=document.createRange();
     let n=0, sN=null, sO=0, eN=null, eO=0;
-    const w=document.createTreeWalker(promptEl, NodeFilter.SHOW_TEXT, null);
-    let t;
-    while((t=w.nextNode())){
+    for(const t of cTextNodes()){
       const len=t.nodeValue.length;
       if(sN===null && start<=n+len){ sN=t; sO=Math.max(0,start-n); }
       if(sN!==null && end<=n+len){ eN=t; eO=Math.max(0,end-n); break; }
@@ -3294,8 +3321,10 @@ function fileToImage(file){
       Continuer avec Google
     </button>
     <div class="authsep"><span>ou</span></div>
-    <label class="flab">Email<input type="email" id="authemail" autocomplete="email" placeholder="toi@exemple.com"></label>
-    <label class="flab">Mot de passe<input type="password" id="authpass" autocomplete="current-password" placeholder="••••••••"></label>
+    <label class="flab"><span id="authemailLab">Email ou identifiant</span>
+      <input type="text" id="authemail" autocomplete="username" placeholder="Email ou identifiant…"></label>
+    <label class="flab">Mot de passe
+      <input type="password" id="authpass" autocomplete="current-password" placeholder="Mot de passe…"></label>
     <button type="button" id="authsubmit" class="pbtn">Se connecter</button>
     <p class="authalt"><button type="button" id="authforgot" class="linkbtn">Mot de passe oublié ?</button></p>
     <p class="authalt" id="authalt">Pas encore de compte ? <button type="button" id="authtoggle">Créer un compte</button></p>
@@ -3812,9 +3841,53 @@ function authErr(e){
   return map[e&&e.code] || (e&&e.message) || "Erreur inconnue.";
 }
 function showAuthErr(msg){ const el=$fb("#autherr"); el.textContent=msg; el.hidden=!msg; }
+/* --- raccourci d'identifiant ---------------------------------------------
+   L'app mémorise, à chaque connexion réussie, un ou deux raccourcis pour le
+   compte (« hugdu77777 » plutôt que toute l'adresse). À la connexion, si ce
+   qui est saisi n'est pas une adresse, le raccourci est traduit en email.
+   Le tableau vit dans la passerelle (durable), donc il suit d'un appareil à
+   l'autre, et rien n'est stocké côté navigateur. */
+function aliasKeys(u){
+  const out=[];
+  const em=String((u&&u.email)||"").toLowerCase();
+  const pre=em.split("@")[0];
+  const dn=String((u&&u.displayName)||"").toLowerCase().replace(/[^a-z0-9._-]/g,"");
+  for(const k of [pre, dn]) if(k && k.length>=3 && out.indexOf(k)<0) out.push(k);
+  return out;
+}
+async function aliasSave(name, email){
+  try{
+    await fetch(API_BASE+"/api/alias",{ method:"POST",
+      headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
+      body:JSON.stringify({name:name, email:email}) });
+  }catch(e){ /* sans réseau : le raccourci sera mémorisé une autre fois */ }
+}
+function aliasRemember(u){
+  if(!u) return;
+  const em=String(u.email||"");
+  if(!em) return;
+  for(const k of aliasKeys(u)) aliasSave(k, em);
+}
+async function aliasLookup(name){
+  try{
+    const r=await fetch(API_BASE+"/api/alias?name="+encodeURIComponent(String(name).toLowerCase()),
+      { headers:{"X-Access-Code":ACCESS_CODE} });
+    const j=await r.json();
+    return (j&&j.ok&&j.email)?String(j.email):"";
+  }catch(e){ return ""; }
+}
 function setErr(msg){ const el=$fb("#seterr"); el.textContent=msg; el.hidden=!msg; }
 function setAuthMode(m){
   authMode=m;
+  const login=(m==="login");
+  /* Le champ accepte le raccourci (identifiant) à la connexion, et une
+     adresse email à la création du compte. */
+  const em=$fb("#authemail");
+  em.type = login ? "text" : "email";
+  em.setAttribute("autocomplete", login ? "username" : "email");
+  em.placeholder = login ? "Email ou identifiant…" : "Email…";
+  const lab=$fb("#authemailLab"); if(lab) lab.textContent = login ? "Email ou identifiant" : "Email";
+  $fb("#authpass").placeholder = "Mot de passe…";
   $fb("#authtitle").textContent = m==="login" ? "Se connecter" : "Créer un compte";
   $fb("#authsubmit").textContent = m==="login" ? "Se connecter" : "Créer un compte";
   $fb("#authtoggle").textContent = m==="login" ? "Créer un compte" : "J'ai déjà un compte";
@@ -4047,8 +4120,19 @@ function renderPending(){
   };
   $fb("#authsubmit").onclick=async()=>{
     if(!FB_OK) return showAuthErr("Firebase n'est pas configuré (clé web manquante).");
-    const email=$fb("#authemail").value.trim(), pass=$fb("#authpass").value;
-    if(!email||!pass) return showAuthErr("Email et mot de passe requis.");
+    let email=$fb("#authemail").value.trim(), pass=$fb("#authpass").value;
+    if(!email||!pass) return showAuthErr("Email (ou identifiant) et mot de passe requis.");
+    /* Raccourci : « hugdu77777 » au lieu de toute l'adresse. Le raccourci est
+       mémorisé par la passerelle à chaque connexion réussie. */
+    if(authMode==="login" && email.indexOf("@")<0){
+      showAuthErr("Recherche de l'identifiant…");
+      const found=await aliasLookup(email);
+      if(!found){
+        showAuthErr("Identifiant « "+email+" » inconnu. Connecte-toi une fois avec ton adresse email : le raccourci sera mémorisé.");
+        return;
+      }
+      email=found;
+    }
     showAuthErr("");
     try{
       if(authMode==="login"){
@@ -4058,6 +4142,7 @@ function renderPending(){
           try{ await pendingLink.gUser.delete(); }catch(e){ console.warn("doublon :", e); }
         }
         const u=(await fbAuth.signInWithEmailAndPassword(email,pass)).user;
+        aliasRemember(u);            /* le raccourci est prêt pour la prochaine fois */
         if(pendingLink){
           const cred=pendingLink.cred;
           pendingLink=null;
@@ -4070,6 +4155,7 @@ function renderPending(){
       else{
         const cred=await fbAuth.createUserWithEmailAndPassword(email,pass);
         await cred.user.updateProfile({displayName:email.split("@")[0]});
+        aliasRemember(cred.user);
       }
       $fb("#authmodal").hidden=true;
     }catch(e){ showAuthErr(authErr(e)); }
@@ -5386,6 +5472,9 @@ function agtSplitLegacyMission(text){
 }
 /* Mission rechargée depuis Firestore : même bulle, même zone repliable. */
 function agtRenderMission(bubble, steps, finalText, folded){
+  /* La bulle vient d'être créée avec l'indicateur d'attente : il ne fait pas
+     partie du message et ne doit pas réapparaître au rechargement. */
+  const sp=bubble.querySelector(".gentxt"); if(sp) sp.remove();
   const built=agtTermEl(bubble, null, folded!==false);
   (steps||[]).forEach(s=>{
     if(s&&s.raw){                       /* ancienne trace, d'un seul bloc */
