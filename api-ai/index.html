@@ -384,12 +384,6 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
   display:flex;flex-direction:column;gap:2px;
 }
 #imgmenu[hidden]{display:none}
-/* Aperçu markdown pendant l'écriture : discret, au-dessus de la barre. */
-#mdprev{margin:0 0 7px;padding:8px 11px;border:1px dashed #dddde3;border-radius:10px;
-  background:#fcfcfd;font-size:13.5px;line-height:1.5;max-height:190px;overflow:auto;
-  overflow-wrap:anywhere}
-#mdprev>*:first-child{margin-top:0}
-#mdprev>*:last-child{margin-bottom:0}
 #imgmenu button{
   display:flex;align-items:center;gap:8px;width:100%;text-align:left;
   border:0;background:none;border-radius:7px;padding:7px 9px;
@@ -759,7 +753,6 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
         </button>
       </div>
       <input type="file" id="filepick" multiple hidden>
-      <div id="mdprev" hidden aria-live="polite"></div>
       <textarea id="prompt" rows="1" placeholder="Demandez à l’IA…"></textarea>
       <button id="send" disabled title="Envoyer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1365,7 +1358,7 @@ function renderMarkdown(src){
       continue;
     }
 
-    if(/^\s*([-*+]|\d+[.)])\s+/.test(ln)){
+    if(/^\s*(\u2022|[-*+]|\d+[.)])\s+/.test(ln)){
       flushPara();
       const [consumed, listHtml] = parseList(lines, i);
       html+=listHtml; i=consumed; continue;
@@ -1419,11 +1412,12 @@ function inline(s){
 function indentOf(s){ return (s||"").replace(/\t/g,"  ").length; }
 
 function parseList(lines, start){
-  const reItem=/^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+  const reItem=/^(\s*)(\u2022|[-*+]|\d+[.)])\s+(.*)$/;
   const first=lines[start].match(reItem);
   if(!first) return [start, ""];
   const baseIndent=indentOf(first[1]);
   const ordered=/\d/.test(first[2]);
+  first[2]=first[2].replace("\u2022","-");      /* la puce « • » est une liste non ordonnée */
   const items=[];
   let i=start;
 
@@ -1700,25 +1694,114 @@ promptEl.addEventListener("input", ()=>{
   promptEl.style.height="auto";
   promptEl.style.height=Math.min(promptEl.scrollHeight,200)+"px";
   sendBtn.disabled = busy || !promptEl.value.trim();
-  mdPreview();
 });
-/* Entrée insère une nouvelle ligne (on écrit tranquillement son message) ;
-   Ctrl+Entrée (ou Cmd+Entrée) envoie, comme le bouton. */
-promptEl.addEventListener("keydown", e=>{
-  if(e.key==="Enter" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); submit(); }
-});
-/* Aperçu markdown en direct pendant l'écriture : dès que le message contient
-   de la syntaxe markdown, il est rendu au-dessus de la barre de saisie. */
-const MDPREV_RE=/```|^#{1,6} |^[ \t]*[-*+] |^[ \t]*\d+[.)] |^> |\*\*|__|\[[^\]]+\]\(|`[^`]+`|\|[^\n]*\|/m;
-function mdPreview(){
-  const box=document.getElementById("mdprev");
-  if(!box) return;
-  const t=promptEl.value;
-  if(!t.trim() || !MDPREV_RE.test(t)){ if(!box.hidden){ box.hidden=true; box.innerHTML=""; } return; }
-  box.hidden=false;
-  box.innerHTML=renderMarkdown(t);
-  if(typeof agtKatex==="function"){ try{ agtKatex(box); }catch(e){} }
+/* --- écriture markdown directe, dans la barre elle-même ----------------
+   Plus d'aperçu au-dessus : la mise en forme se fait pendant la frappe.
+   — un texte sélectionné puis ** (ou * _ ~ `) l'entoure aussitôt ;
+   — après **texte, le dernier * ferme le gras tout de suite ;
+   — en début de ligne, « - » puis espace donne une puce « • », et suivante ;
+   — effacer une étoile devant du gras enlève donc le gras (édition normale) ;
+   — une paire vide (****, ``) s'efface d'un seul retour arrière. */
+const MD_PAIR={ "*":"**", "_":"__", "~":"~~", "`":"`" };
+const MD_BULLET=String.fromCharCode(8226)+" ";      /* « • » + espace */
+let mdClosedAt=-1, mdClosedCh="";
+function mdApply(before, after, text, s, e){
+  promptEl.value = before + text + after;
+  promptEl.setSelectionRange(s, e);
+  promptEl.dispatchEvent(new Event("input"));
 }
+function mdCount(line, p){            /* occurrences NON chevauchantes */
+  let n=0, idx=0;
+  while((idx=line.indexOf(p, idx))>=0){ n++; idx+=p.length; }
+  return n;
+}
+/* Un signe tapé ferme-t-il une paire ouverte sur la même ligne ? */
+function mdClosePair(ch){
+  const v=promptEl.value, s=promptEl.selectionStart;
+  const ls=v.lastIndexOf("\n", s-1)+1, line=v.slice(ls,s);
+  const forms = MD_PAIR[ch].length===2 ? [MD_PAIR[ch], ch] : [MD_PAIR[ch]];
+  for(const p of forms){
+    const idx=line.lastIndexOf(p);
+    if(idx<0) continue;
+    if(mdCount(line, p)%2===0) continue;               /* cette paire est déjà refermée */
+    const inner=line.slice(idx+p.length);
+    if(!inner || /^\s|\s$/.test(inner) || inner.indexOf(ch)>=0) continue;
+    mdApply(v.slice(0,s), v.slice(s), p, s+p.length, s+p.length);
+    mdClosedAt=s+p.length; mdClosedCh=ch;              /* la frappe suivante du même signe est absorbée */
+    return true;
+  }
+  return false;
+}
+function mdEmptyPairDel(){
+  const v=promptEl.value, s=promptEl.selectionStart;
+  if(s!==promptEl.selectionEnd) return false;
+  for(const p of ["**","__","~~","``"]){
+    if(v.slice(s-p.length,s)===p && v.slice(s,s+p.length)===p){
+      mdApply(v.slice(0,s-p.length), v.slice(s+p.length), "", s-p.length, s-p.length);
+      return true;
+    }
+  }
+  return false;
+}
+promptEl.addEventListener("keydown", e=>{
+  /* Envoi : Ctrl+Entrée (ou Cmd+Entrée). */
+  if(e.key==="Enter" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); submit(); return; }
+  const ch=e.key;
+  /* La frappe qui suit une fermeture automatique est absorbée : « **gras** »
+     reste « **gras** » quand on tape les deux étoiles de fermeture. */
+  if(ch===mdClosedCh && mdClosedAt>=0 && promptEl.selectionStart===mdClosedAt && promptEl.selectionEnd===mdClosedAt){
+    mdClosedAt=-1; mdClosedCh="";
+    e.preventDefault();
+    return;
+  }
+  if(ch && MD_PAIR[ch] && !e.ctrlKey && !e.metaKey && !e.altKey){
+    const v=promptEl.value, s=promptEl.selectionStart, t=promptEl.selectionEnd;
+    const p=MD_PAIR[ch];
+    if(t>s){                                   /* texte sélectionné : on l'entoure */
+      e.preventDefault();
+      const sel=v.slice(s,t);
+      mdApply(v.slice(0,s)+p, p+v.slice(t), sel, s+p.length, s+p.length+sel.length);
+      return;
+    }
+    if(p.length===2 && mdClosePair(ch)){ e.preventDefault(); return; }
+    return;                                    /* sinon : le signe s'écrit normalement */
+  }
+  /* Liste : « - », « * », « + » ou « 1. » puis espace → puce. */
+  if((ch===" "||e.key==="Spacebar") && !e.ctrlKey && !e.metaKey && !e.altKey){
+    const v=promptEl.value, s=promptEl.selectionStart;
+    if(s===promptEl.selectionEnd){
+      const ls=v.lastIndexOf("\n", s-1)+1, line=v.slice(ls,s);
+      const m=/^(\s*)([-*+])$/.exec(line) || /^(\s*)(\d+)\.$/.exec(line);
+      if(m){
+        e.preventDefault();
+        const bullet=/^\d+$/.test(m[2]) ? (m[1]+m[2]+". ") : (m[1]+MD_BULLET);
+        mdApply(v.slice(0,ls), v.slice(s), bullet, ls+bullet.length, ls+bullet.length);
+        return;
+      }
+    }
+  }
+  /* Entrée : on continue la liste en cours (et on en sort sur une ligne vide). */
+  if(e.key==="Enter" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey){
+    const v=promptEl.value, s=promptEl.selectionStart;
+    if(s===promptEl.selectionEnd){
+      const ls=v.lastIndexOf("\n", s-1)+1, line=v.slice(ls,s);
+      const m=/^(\s*)(\d+)\. |^(\s*)\u2022 /.exec(line);
+      if(m){
+        e.preventDefault();
+        const num=m[2], indent=(m[1]!==undefined)?m[1]:m[3];
+        if(line.length===m[0].length){                              /* ligne vide : fin de liste */
+          mdApply(v.slice(0,ls), v.slice(s), "", ls, ls);
+          return;
+        }
+        const next=num ? (indent+(Number(num)+1)+". ") : (indent+MD_BULLET);
+        mdApply(v.slice(0,s), v.slice(s), "\n"+next, s+1+next.length, s+1+next.length);
+        return;
+      }
+    }
+  }
+  if(e.key==="Backspace" && mdEmptyPairDel()){ e.preventDefault(); return; }
+  mdClosedAt=-1;
+});
 sendBtn.onclick=submit;
 
 function addUser(text, kind, snap, asnap){
@@ -5227,23 +5310,87 @@ function agtRenderMission(bubble, steps, finalText, folded){
 })(0);
 
 /* --- boucle d'agent : JSON ⇄ bash --- */
+/* Lecture d'un appel d'outil. Un modèle renvoie presque toujours du JSON, mais
+   pas toujours propre : retours à la ligne bruts dans la chaîne (interdit en
+   JSON), guillemets internes non échappés, réponse coupée en pleine commande.
+   Sans réparation, ce JSON s'affichait comme un message au lieu d'être exécuté
+   (mêmes correctifs que dans la passerelle). */
+function agtJsonRepair(t){
+  let out="", str=false, esc=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(esc){ out+=c; esc=false; continue; }
+    if(c==="\\"){ out+=c; esc=true; continue; }
+    if(c==='"'){ str=!str; out+=c; continue; }
+    if(str&&(c==="\n"||c==="\r"||c==="\t")){ out+= c==="\n"?"\\n":(c==="\r"?"\\r":"\\t"); continue; }
+    out+=c;
+  }
+  return out;
+}
+function agtJsonBody(body){
+  let out="";
+  for(let i=0;i<body.length;i++){
+    const c=body[i];
+    if(c!=="\\"){ out+=c; continue; }
+    const n=body[++i];
+    if(n==="n") out+="\n";
+    else if(n==="r") out+="\r";
+    else if(n==="t") out+="\t";
+    else if(n==="u"){ out+=String.fromCharCode(parseInt(body.slice(i+1,i+5),16)||32); i+=4; }
+    else out+= (n===undefined?"\\":n);
+  }
+  return out;
+}
+function agtLooseCall(s){
+  const am=/"action"\s*:\s*"?([a-zA-Z]+)"?/.exec(s);
+  if(!am) return null;
+  const action=am[1].toLowerCase();
+  const key = action==="fetch" ? "url" : (action==="final" ? "message" : "command");
+  const km=new RegExp('"'+key+'"\\s*:\\s*"').exec(s);
+  const o={action:action};
+  if(km){
+    let i=km.index+km[0].length, body="", esc=false;
+    for(;i<s.length;i++){
+      const c=s[i];
+      if(esc){ body+="\\"+c; esc=false; continue; }
+      if(c==="\\"){ esc=true; continue; }
+      if(c==='"'){
+        const rest=s.slice(i+1).replace(/^\s+/,"");
+        if(rest===""||rest[0]===","||rest[0]==="}") break;
+        body+='"'; continue;
+      }
+      body+=c;
+    }
+    o[key]=agtJsonBody(body);
+    if(!String(o[key]).trim()) return null;
+  }else if(action!=="final") return null;
+  const mm=/"mode"\s*:\s*"([a-zA-Z]+)"/.exec(s);
+  if(mm) o.mode=mm[1];
+  return o;
+}
 function agtParseCall(s){
   s=String(s||"");
   const cand=[];
-  const fences=s.match(/```(?:json)?\s*([\s\S]*?)```/g);
-  if(fences) fences.forEach(f=>cand.push(f.replace(/^```(?:json)?/,"").replace(/```$/,"").trim()));
+  const fences=s.match(/```[a-zA-Z]*\s*([\s\S]*?)```/g);
+  if(fences) fences.forEach(f=>cand.push(f.replace(/^```[a-zA-Z]*/,"").replace(/```$/,"").trim()));
+  cand.push(s.trim());
   const i=s.indexOf("{");
   if(i>=0){
     const k=s.lastIndexOf("}");
     if(k>i) cand.push(s.slice(i,k+1));
   }
   for(const c of cand){
-    try{
-      const o=JSON.parse(c);
-      if(o&&typeof o==="object"&&(o.action||o.command)) return o;
-    }catch(e){}
+    for(const v of [c, agtJsonRepair(c)]){
+      try{
+        const o=JSON.parse(v);
+        if(o&&typeof o==="object"&&(o.action||o.command)){
+          if(!o.action&&o.command) o.action="bash";
+          return o;
+        }
+      }catch(e){}
+    }
   }
-  return null;
+  return agtLooseCall(s);
 }
 function agtNearBottom(){
   const m=document.querySelector("main");
