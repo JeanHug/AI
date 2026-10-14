@@ -171,4 +171,4 @@ et ne lui demande jamais ses identifiants.
 - Il ne peut pas agir sur la VM : tout ce qui nécessite une commande, une
   installation ou un clic sur le bureau passe par toi.
 
-<!-- vm-doc-version: 2026-10-14.2 -->
+<!-- vm-doc-version: 2026-10-14.3 -->

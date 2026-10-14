@@ -766,7 +766,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
         </button>
       </div>
       <input type="file" id="filepick" multiple hidden>
-      <div id="prompt" contenteditable="plaintext-only" role="textbox" aria-multiline="true"
+      <div id="prompt" class="empty" contenteditable="plaintext-only" role="textbox" aria-multiline="true"
            spellcheck="false" data-ph="Demandez à l’IA…"></div>
       <button id="send" disabled title="Envoyer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1713,6 +1713,20 @@ function markKind(text, kind, snap, asnap){
    s'affiche aussitôt en gras, en italique, en code… Le texte du champ EST la
    source markdown — aucun caractère n'est ajouté ni retiré au rendu — donc le
    curseur garde exactement sa place pendant la frappe. */
+/* --- PC ou mobile ------------------------------------------------------
+   La mise en forme pendant la frappe n'existe que sur PC : sur mobile, les
+   claviers rapides (composition, suggestions) perdent des caractères quand le
+   champ est réécrit à chaque touche. Sur mobile la barre est donc un simple
+   champ d'écriture : le message s'affiche en markdown une fois envoyé. */
+const IS_MOBILE=(function(){
+  try{
+    const ua=navigator.userAgent||"";
+    if(/Android|iPhone|iPad|iPod|Windows Phone|Mobile|Silk|Kindle/i.test(ua)) return true;
+    if(navigator.maxTouchPoints>1 && Math.min(screen.width||9999, screen.height||9999)<900) return true;
+  }catch(e){}
+  return false;
+})();
+const MD_RICH=!IS_MOBILE;
 const MD_PAIR={ "*":"**", "_":"__", "~":"~~", "`":"`" };
 const MD_BULLET=String.fromCharCode(8226)+" ";      /* « • » + espace */
 let mdClosedAt=-1, mdClosedCh="";
@@ -1799,9 +1813,12 @@ function cPlace(start,end){
     const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }catch(e){}
 }
+let cComposing=false;          /* composition IME en cours (clavier mobile/accents) */
 function cPaint(text, start, end){
   const t=(text===undefined)?cText():String(text);
-  promptEl.innerHTML=cRender(t);
+  if(MD_RICH) promptEl.innerHTML=cRender(t);      /* PC : mise en forme visible */
+  else promptEl.textContent=t;                    /* mobile : texte brut */
+
   promptEl.classList.toggle("empty", t.length===0);
   promptEl.style.height="auto";
   promptEl.style.height=Math.min(promptEl.scrollHeight,200)+"px";
@@ -1852,12 +1869,28 @@ function mdEmptyPairDel(){
   return false;
 }
 promptEl.addEventListener("input", ()=>{
-  /* La frappe est passée par le navigateur : on réhabilite la mise en forme
+  /* On redimensionne et on active le bouton ; sur mobile on ne touche PAS au
+     contenu du champ (le navigateur garde la main : aucune touche perdue). */
+  const t=cText();
+  promptEl.classList.toggle("empty", t.length===0);
+  promptEl.style.height="auto";
+  promptEl.style.height=Math.min(promptEl.scrollHeight,200)+"px";
+  sendBtn.disabled=busy || !t.trim();
+  if(!MD_RICH || cComposing) return;
+  /* PC : la frappe est passée par le navigateur, on rétablit la mise en forme
      et on remet le curseur exactement là où il était. */
+  const sel=cOffsets();
+  cPaint(t, sel.start, sel.end);
+});
+promptEl.addEventListener("compositionstart", ()=>{ cComposing=true; });
+promptEl.addEventListener("compositionend", ()=>{
+  cComposing=false;
+  if(!MD_RICH) return;
   const sel=cOffsets();
   cPaint(cText(), sel.start, sel.end);
 });
 promptEl.addEventListener("paste", e=>{
+  if(!MD_RICH) return;                          /* mobile : collage natif, texte brut */
   const cd=e.clipboardData||window.clipboardData;
   if(!cd) return;
   const t=cd.getData("text/plain");
@@ -1869,6 +1902,7 @@ promptEl.addEventListener("paste", e=>{
   cPaint(v.slice(0,sel.start)+ins+v.slice(sel.end), at, at);
 });
 promptEl.addEventListener("beforeinput", e=>{
+  if(!MD_RICH) return;                          /* mobile : le navigateur insère la ligne */
   if(e.inputType==="insertParagraph" || e.inputType==="insertLineBreak"){
     e.preventDefault();
     const v=cText(), sel=cOffsets();
@@ -1879,6 +1913,8 @@ promptEl.addEventListener("beforeinput", e=>{
 promptEl.addEventListener("keydown", e=>{
   /* Envoi : Ctrl+Entrée (ou Cmd+Entrée), comme le bouton. */
   if(e.key==="Enter" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); submit(); return; }
+  /* Mobile : aucun raccourci markdown, la frappe est laissée au navigateur. */
+  if(!MD_RICH) return;
   const ch=e.key;
   /* La frappe qui suit une fermeture automatique est absorbée : « **gras** »
      reste « **gras** » quand on tape les deux étoiles de fermeture. */

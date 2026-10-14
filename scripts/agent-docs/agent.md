@@ -124,4 +124,4 @@ Aucune saisie de mot de passe ne te sera jamais demandée.
 5. Termine par `{"action":"final","message":"..."}` en expliquant ce qui a été
    fait, où se trouvent les livrables et comment les utiliser.
 
-<!-- vm-doc-version: 2026-10-14.2 -->
+<!-- vm-doc-version: 2026-10-14.3 -->

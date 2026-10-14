@@ -9,7 +9,18 @@
  * sinon toutes les routes /api/agent/* renvoient l'erreur Cloudflare 1042.
  *
  * Variables d'environnement (secrets GitHub Actions) :
- *   CLOUDFLARE_TOKEN, CLOUDFLARE_ID, ACCESS_CODE (vérification finale).
+ *   CLOUDFLARE_TOKEN, CLOUDFLARE_ID, ACCESS_CODE (vérification finale),
+ *   RF_TOKEN_1, RF_TOKEN_2, RF_TOKEN_3 (jetons Roboflow supplémentaires de la
+ *   même organisation, posés ici en secrets du worker — voir plus bas).
+ *
+ * Jetons Roboflow : le worker en fait tourner plusieurs (rotation) car
+ * certaines erreurs rares viennent des limites d'un jeton et non du modèle.
+ * GitHub Actions ne peut pas les poser tout seul (`keep_bindings` ne fait que
+ * CONSERVER les secrets existants) : ce script les transmet donc explicitement
+ * à Cloudflare via l'API « Patch multiple script secrets » :
+ *   PATCH /accounts/{id}/workers/scripts/{nom}/secrets-bulk
+ *   corps : { secrets: { NOM: { name, text, type: "secret_text" } } }
+ * (Aucune valeur n'est jamais écrite dans le dépôt ni affichée dans les logs.)
  * Fichiers lus : api-ai/worker.js et api-ai/index.html (référence du /app).
  */
 const https = require('https');
@@ -21,6 +32,10 @@ const accountId = process.env.CLOUDFLARE_ID || 'aeb92cddbb638d207038daf831a5aab2
 const apiToken = process.env.CLOUDFLARE_TOKEN;
 const accessCode = process.env.ACCESS_CODE || '';
 const wanted = (process.env.WORKER_NAME || 'api-ai').trim();
+/* Jetons supplémentaires : noms des secrets attendus, dans l'ordre de rotation. */
+const tokenSecrets = ['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3']
+  .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
+  .filter((t) => t.text.length > 0);
 
 if (!apiToken) {
   console.error("❌ CLOUDFLARE_TOKEN manquant.");
@@ -163,6 +178,24 @@ function get(url, headers) {
   await api('POST', `/client/v4/accounts/${accountId}/workers/scripts/${exact}/subdomain`,
     JSON.stringify({ enabled: true }), 'application/json');
 
+  /* 2-bis) Jetons Roboflow supplémentaires : posés en secrets du worker par
+     lots (une seule version créée). Les secrets absents ne sont pas touchés. */
+  if (tokenSecrets.length) {
+    const secrets = {};
+    for (const t of tokenSecrets) {
+      secrets[t.name] = { name: t.name, text: t.text, type: 'secret_text' };
+    }
+    const r = await api('PATCH', `/client/v4/accounts/${accountId}/workers/scripts/${exact}/secrets-bulk`,
+      JSON.stringify({ secrets }), 'application/json');
+    if (r.status !== 200 || !r.json || !r.json.success) {
+      console.error('❌ Échec de la pose des secrets Roboflow :', String(JSON.stringify(r.json || r.raw || {})).slice(0, 400));
+      process.exit(1);
+    }
+    console.log(`🔐 Jetons Roboflow posés : ${tokenSecrets.map((t) => t.name).join(', ')} (valeurs jamais écrites ni affichées).`);
+  } else {
+    console.log('ℹ️  Aucun jeton Roboflow supplémentaire fourni (RF_TOKEN_1/2/3) : secrets existants conservés.');
+  }
+
   // 3) Vérifications
   const host = process.env.WORKER_HOST || `${exact.toLowerCase()}.hugdu77777.workers.dev`;
   const models = await get(`https://${host}/api/models`);
@@ -189,6 +222,33 @@ function get(url, headers) {
     }
     if (!ok) {
       console.error('❌ /app ne correspond toujours pas après 10 essais.');
+      process.exit(1);
+    }
+  }
+
+  /* Vérification de la rotation : le worker annonce combien de jetons il
+     utilise (un nombre, jamais une valeur). */
+  if (accessCode) {
+    let seen = -1;
+    for (let i = 1; i <= 5; i++) {
+      const r = await new Promise((resolve, reject) => {
+        const payload = JSON.stringify({ model: 'gemini-4-argon', prompt: 'vérification de déploiement',
+          params: { _tokens: true } });
+        const rq = https.request({ hostname: host, path: '/api/chat', method: 'POST',
+          headers: { 'X-Access-Code': accessCode, 'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload) } }, (res) => {
+          let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => resolve({ status: res.statusCode, body: d }));
+        });
+        rq.on('error', reject); rq.write(payload); rq.end();
+      });
+      try { seen = JSON.parse(r.body).tokens; } catch (e) {}
+      if (typeof seen === 'number' && seen > 0) break;
+      await sleep(4000);
+    }
+    const attendu = 1 + tokenSecrets.length;
+    console.log(`🔎 rotation des jetons Roboflow → ${seen} jeton(s) vu(s) par le worker (attendu ≥ ${attendu})`);
+    if (!(seen >= attendu)) {
+      console.error('❌ Rotation incomplète : le worker ne voit pas tous les jetons (secrets non posés ?).');
       process.exit(1);
     }
   }

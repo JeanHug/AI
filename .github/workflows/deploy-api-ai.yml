@@ -36,5 +36,10 @@ jobs:
           CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
           CLOUDFLARE_ID: ${{ secrets.CLOUDFLARE_ID }}
           ACCESS_CODE: ${{ secrets.ACCESS_CODE }}
+          # Jetons Roboflow supplémentaires (même organisation) : posés en
+          # secrets du worker par le script — rotation des jetons.
+          RF_TOKEN_1: ${{ secrets.RF_TOKEN_1 }}
+          RF_TOKEN_2: ${{ secrets.RF_TOKEN_2 }}
+          RF_TOKEN_3: ${{ secrets.RF_TOKEN_3 }}
           WORKER_NAME: api-ai
         run: node scripts/deploy-api-ai.cjs
