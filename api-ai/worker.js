@@ -867,7 +867,7 @@ async function vmExecCmd(env, command) {
   const r = env.VMAI && typeof env.VMAI.fetch === "function" ? await env.VMAI.fetch(rq) : await fetch(rq);
   try { return await r.json(); } catch { return {}; }
 }
-const DOC_VER = "2026-10-13.3";   /* doit correspondre au marqueur dans les .md */
+const DOC_VER = "2026-10-14.1";   /* doit correspondre au marqueur dans les .md */
 async function ensureAgentDocs(env) {
   const out = { restored: [], present: [], updated: [] };
   const chk = await vmExecCmd(env,
