@@ -1710,6 +1710,22 @@ async function fetchHandler(request, env, ctx) {
           if (r3 && r3.ok) good = r3;
           else if (r3) t = await r3.text();
         }
+        /* Panne passagère du fournisseur du modèle, relayée par OpenRouter
+           (« Provider returned error ») : une seconde tentative suffit presque
+           toujours, car le proxy choisit alors un autre point de terminaison. */
+        if (!good && /Provider returned (an )?error|upstream error|temporarily unavailable/i.test(t)) {
+          await new Promise((res) => setTimeout(res, 400));
+          let r4 = null;
+          try {
+            r4 = await fetch(ROBOFLOW_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+          } catch (err) { /* on retombe sur l'erreur d'origine */ }
+          if (r4 && r4.ok) good = r4;
+          else if (r4) t = await r4.text();
+        }
         /* 403 du pare-feu Roboflow : on rejoue une fois sans les passages
            « dangereux » (voir defuseWaf). */
         if (!good && r.status === 403 && /Attention Required|Cloudflare/i.test(t) && !safeTried) {
