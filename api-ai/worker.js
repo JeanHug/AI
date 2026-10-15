@@ -75,7 +75,7 @@ function stepInt(v, bounds, dflt) {
   return Math.round(n / st) * st;
 }
 
-async function hfImage(cfg, ib) {
+async function hfImage(cfg, ib, env) {
   const iprompt = String(ib.prompt ?? "").trim();
   if (!iprompt) return json({ error: "prompt vide" }, 400);
   if (iprompt.length > 4000) return json({ error: "prompt trop long (max 4000 caractères)" }, 400);
@@ -90,11 +90,17 @@ async function hfImage(cfg, ib) {
   }
   const payload = cfg.data(iprompt, w, h, s, g, mode);
 
+  /* Sans jeton, ces Spaces tournent sur le quota ZeroGPU ANONYME (d'où les
+     refus « quota » ou « durée GPU demandée trop longue » sur Ideogram).
+     Si le secret HF_TOKEN existe, il est transmis : le quota est alors celui
+     du compte. Absent, rien ne change. */
+  const hfHeaders = { "Content-Type": "application/json" };
+  if (env && env.HF_TOKEN) hfHeaders.Authorization = "Bearer " + String(env.HF_TOKEN).trim();
   let post;
   try {
     post = await fetch(`${cfg.host}/gradio_api/call/${cfg.api}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hfHeaders,
       body: JSON.stringify({ data: payload }),
     });
   } catch (err) {
@@ -107,7 +113,7 @@ async function hfImage(cfg, ib) {
 
   let sse;
   try {
-    sse = await fetch(`${cfg.host}/gradio_api/call/${cfg.api}/${evId}`);
+    sse = await fetch(`${cfg.host}/gradio_api/call/${cfg.api}/${evId}`, { headers: env && env.HF_TOKEN ? { Authorization: "Bearer " + String(env.HF_TOKEN).trim() } : {} });
   } catch (err) {
     return json({ error: `flux SSE HF injoignable : ${err.message}` }, 502);
   }
@@ -1384,7 +1390,7 @@ async function fetchHandler(request, env, ctx) {
       }
       /* Modèles d'image servis par ModelScope (Qwen Image 2.1, Wan 2.2…). */
       if (MS_IMG[ib.model]) return await msImage(env, MS_IMG[ib.model], ib);
-      if (HF_IMG_MODELS[ib.model]) return await hfImage(HF_IMG_MODELS[ib.model], ib);
+      if (HF_IMG_MODELS[ib.model]) return await hfImage(HF_IMG_MODELS[ib.model], ib, env);
       if (POLL_IMG_MAP[ib.model]) {
         if (!env.POLLINATIONS_API_KEY) return json({ error: "secret POLLINATIONS_API_KEY manquant côté Worker" }, 500);
         const p = ib.params && typeof ib.params === "object" ? ib.params : {};
