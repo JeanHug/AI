@@ -4008,6 +4008,10 @@ let ARENA_DOT=false;
 /* La bulle « Envoi… » de la discussion Arena : la réponse d'Arena la remplace
    au lieu d'en ajouter une troisième. */
 let ARENA_WAIT=null;
+/* Le plus grand numéro d'ordre déjà écrit dans la discussion Arena : deux
+   messages ne peuvent jamais partager le même, sinon le second écraserait le
+   premier (l'identifiant du document en découle). */
+let ARENA_ORDER=0;
 /* Ids déjà traités dans cette page : un même message ne s'exécute jamais deux
    fois, même si l'écoute le redonne avant que « done » soit écrit. */
 const ARENA_DONE=new Set();
@@ -4159,7 +4163,17 @@ async function arenaDedupe(main){
 async function arenaCommit(chat, docs){
   if(!FB_OK||!chat) return;
   const mref=chatsRef().doc(chat.id).collection("messages");
-  for(const d of docs) await writeDocChunked(mref, "m"+d.order, d);
+  /* Le numéro d'ordre suit l'heure RÉELLE du message — celle du canal quand
+     elle est connue : une réponse écrite pendant une absence se replace donc à
+     sa vraie place dans l'historique au lieu de s'ajouter à la fin. */
+  const plancher=(chatId===chat.id)?msgSeq:0;
+  for(const d of docs){
+    let o=Number(d.order)||Date.now();
+    const mini=Math.max(ARENA_ORDER, plancher);
+    if(o<=mini) o=mini+1;
+    d.order=o; ARENA_ORDER=o;
+    await writeDocChunked(mref, "m"+o, d);
+  }
   try{ await chatsRef().doc(chat.id).update({updatedAt:Date.now()}); }catch(e){}
 }
 /* Enregistrement « au mieux » : une panne de Firestore ne doit jamais empêcher
@@ -4173,11 +4187,12 @@ async function arenaSaveUser(text){
     return chat;
   }catch(e){ console.warn("canal arena (enregistrement) :", e); return null; }
 }
-async function arenaSaveReply(chat, text){
+async function arenaSaveReply(chat, text, at){
   if(!chat) return;
   try{
     const now=Date.now();
-    await arenaCommit(chat, [{role:"assistant", text:String(text||""), modelName:"arena", order:now, createdAt:now}]);
+    const t=(typeof at==="number" && at>0 && at<=now+60000)?at:now;
+    await arenaCommit(chat, [{role:"assistant", text:String(text||""), modelName:"arena", order:t, createdAt:now}]);
   }catch(e){ console.warn("canal arena (enregistrement) :", e); }
 }
 async function arenaMark(id, state){
@@ -4233,11 +4248,11 @@ async function arenaDeliver1(d, id){
     msgActions(b,{getMd:()=>out});
     conv.push({role:"assistant", text:out});
     scrollDown();
-    await arenaSaveReply(chat, out);
+    await arenaSaveReply(chat, out, Number(d.ts)||0);
   }else{
     /* Sur une autre discussion : on enregistre, et la ligne épinglée gagne un
        simple point (aucune fenêtre ne s'ouvre, rien ne recouvre l'écran). */
-    await arenaSaveReply(chat, out);
+    await arenaSaveReply(chat, out, Number(d.ts)||0);
     if(!ARENA_DOT){ ARENA_DOT=true; renderChatList(); }
   }
   await arenaMark(id, "done");
