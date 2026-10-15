@@ -905,7 +905,7 @@ const MODELS = [
   {id:"mistral-small-4", label:"Mistral Small 4", vendor:"mistral", family:"mistral", via:"Roboflow",
    sc:[6.5,5.5,7,220], desc:"Mistral Small 4 : le petit modèle rapide et économique — tâches simples, extraction, reformulation et pré-traitement, avec appel d'outils."},
   /* Alibaba / Qwen */
-  {id:"qwen-3-8-max", label:"Qwen 3.8 Max", vendor:"qwen", family:"qwen", via:"Roboflow · secours ModelScope", fb:"qwen-3-8-2-4t", fbTxt:"ModelScope",
+  {id:"qwen-3-8-max", label:"Qwen 3.8 Max", vendor:"qwen", family:"qwen", via:"ModelScope · relais Roboflow",
    sc:[7,6,5,60], desc:"MoE de 2,4 trillions de paramètres d'Alibaba (2.4T-A95B) ; accepte texte, image et vidéo. Servi par Roboflow, avec ModelScope en secours."},
   {id:"qwen-3-8-flash-next", label:"Qwen 3.8 Flash Next", vendor:"qwen", family:"qwen",
    sc:[6,6,4,120], desc:"Flash multimodal nouvelle génération d'Alibaba : assistance au code, workflows agentiques, compréhension visuelle et vidéo."},
@@ -933,9 +933,9 @@ const MODELS = [
    sc:[6,5,6,80], desc:"MoE open-source de Xiaomi, 309 B au total / 15 B activés par token, à attention hybride."},
   /* Black Forest Labs — génération d'image (Cloudflare Workers AI, gratuit) */
   /* ModelScope — génération d'image (crédits gratuits de la plateforme) */
-  {id:"qwen-image-2-1", label:"Qwen Image 2.1", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope", fb:"flux-2-klein-9b", fbTxt:"FLUX.2 [klein] · secours",
+  {id:"qwen-image-2-1", label:"Qwen Image 2.1", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
    sc:null, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Servi par ModelScope."},
-  {id:"wan-2-2-t2i", label:"Wan 2.2 T2I", vendor:"modelscope", family:"msimg", gen:"img", via:"ModelScope", fb:"flux-2-klein-9b", fbTxt:"FLUX.2 [klein] · secours",
+  {id:"wan-2-2-t2i", label:"Wan 2.2 T2I", vendor:"modelscope", family:"msimg", gen:"img", via:"ModelScope",
    sc:null, desc:"Wan 2.2 (Tongyi Wanxiang, Alibaba) en version texte→image, servi par ModelScope — crédits gratuits de la plateforme."},
   {id:"flux-2-klein-9b", label:"FLUX.2 [klein] 9B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-9b",
    sc:null, desc:"Modèle de génération d'images de Black Forest Labs (9 milliards de paramètres), hébergé gratuitement par Cloudflare Workers AI. Texte→image de haute qualité, rapide."},

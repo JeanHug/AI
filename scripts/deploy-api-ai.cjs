@@ -70,8 +70,8 @@ if (!src.includes('vmai.hugdu77777.workers.dev')) {
 // Garde-fous « chaîne ModelScope » : le worker doit porter toute la mécanique
 // (tables de secours, appel quotidien, routes /api/ms/*), sans quoi l'appel
 // quotidien de l'application et les modèles servis par ModelScope seraient muets.
-const msParts = ['MS_TEXT', 'MS_IMG', 'MS_BASE', 'MS_SITE', 'msKey', 'msChat', 'msImage', 'msDaily',
-  '"/api/ms/daily"', '"/api/ms/models"'];
+const msParts = ['MS_TEXT', 'MS_IMG', 'MS_FIRST', 'MS_BASE', 'MS_SITE', 'msKey', 'msChat', 'msImage',
+  'msDaily', 'msTextRelay', '"/api/ms/daily"', '"/api/ms/models"', '"/api/ms/state"'];
 const msMissing = msParts.filter((n) => !src.includes(n));
 if (msMissing.length) {
   console.error('❌ Sécurité : chaîne ModelScope incomplète dans le worker (' + msMissing.join(', ') + ') — déploiement annulé.');
