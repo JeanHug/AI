@@ -67,6 +67,35 @@ if (!src.includes('vmai.hugdu77777.workers.dev')) {
   process.exit(1);
 }
 
+// Garde-fous « chaîne ModelScope » : le worker doit porter toute la mécanique
+// (tables de secours, appel quotidien, routes /api/ms/*), sans quoi l'appel
+// quotidien de l'application et les modèles servis par ModelScope seraient muets.
+const msParts = ['MS_TEXT', 'MS_IMG', 'MS_BASE', 'MS_SITE', 'msKey', 'msChat', 'msImage', 'msDaily',
+  '"/api/ms/daily"', '"/api/ms/models"'];
+const msMissing = msParts.filter((n) => !src.includes(n));
+if (msMissing.length) {
+  console.error('❌ Sécurité : chaîne ModelScope incomplète dans le worker (' + msMissing.join(', ') + ') — déploiement annulé.');
+  process.exit(1);
+}
+// Parité application ↔ worker : chaque modèle servi par ModelScope (clé des
+// tables MS_TEXT / MS_IMG) doit exister dans l'application (roster ou modèle de
+// secours). Renommer un modèle d'un côté seulement est ainsi impossible.
+if (fs.existsSync(indexRef)) {
+  const app = fs.readFileSync(indexRef, 'utf8');
+  const msKeys = [];
+  for (const table of ['MS_TEXT', 'MS_IMG']) {
+    const m = src.match(new RegExp('const ' + table + '\\s*=\\s*\\{([\\s\\S]*?)\\n\\};'));
+    if (!m) continue;
+    for (const km of m[1].matchAll(/^\s*"([a-z0-9][a-z0-9.\-]*)"\s*:/gm)) msKeys.push(km[1]);
+  }
+  const orphans = msKeys.filter((k) => app.indexOf('"' + k + '"') < 0);
+  if (msKeys.length < 5 || orphans.length) {
+    console.error('❌ Sécurité : parité ModelScope rompue — modèles absents de l\'application : ' + (orphans.join(', ') || '(tables illisibles)') + ' — déploiement annulé.');
+    process.exit(1);
+  }
+  console.log('✅ Chaîne ModelScope : ' + msKeys.length + ' modèles servis, tous présents dans l\'application.');
+}
+
 function api(method, apiPath, body, ctype) {
   return new Promise((resolve, reject) => {
     const headers = { Authorization: 'Bearer ' + apiToken };

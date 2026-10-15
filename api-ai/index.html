@@ -905,10 +905,12 @@ const MODELS = [
   {id:"mistral-small-4", label:"Mistral Small 4", vendor:"mistral", family:"mistral", via:"Roboflow",
    sc:[6.5,5.5,7,220], desc:"Mistral Small 4 : le petit modèle rapide et économique — tâches simples, extraction, reformulation et pré-traitement, avec appel d'outils."},
   /* Alibaba / Qwen */
-  {id:"qwen-3-8-max", label:"Qwen 3.8 Max", vendor:"qwen", family:"qwen",
-   sc:[7,6,5,60], desc:"MoE de 2,4 trillions de paramètres d'Alibaba ; accepte texte, image et vidéo, destiné aux tâches structurées exigeantes."},
+  {id:"qwen-3-8-max", label:"Qwen 3.8 Max", vendor:"qwen", family:"qwen", via:"Roboflow · secours ModelScope", fb:"qwen-3-8-2-4t", fbTxt:"ModelScope",
+   sc:[7,6,5,60], desc:"MoE de 2,4 trillions de paramètres d'Alibaba (2.4T-A95B) ; accepte texte, image et vidéo. Servi par Roboflow, avec ModelScope en secours."},
   {id:"qwen-3-8-flash-next", label:"Qwen 3.8 Flash Next", vendor:"qwen", family:"qwen",
    sc:[6,6,4,120], desc:"Flash multimodal nouvelle génération d'Alibaba : assistance au code, workflows agentiques, compréhension visuelle et vidéo."},
+  {id:"qwen-3-8-2-4t", hidden:true, label:"Qwen 3.8 2.4T-A95B · ModelScope", vendor:"modelscope", family:"router",
+   via:"ModelScope", sc:[7,6,5,60], desc:"Le même Qwen 3.8 Max (2,4 T de paramètres) appelé directement chez ModelScope, avec les crédits gratuits de la plateforme. Modèle masqué : il sert de repli automatique à « Qwen 3.8 Max »."},
   {id:"qwen-3-8-27b", hidden:true, label:"Qwen 3.8 27B", vendor:"qwen", family:"qwen",
    sc:[6,5,4,60], desc:"Modèle vision dense open-weight de Qwen pour le code, la recherche et les tâches agentiques longues."},
   /* Moonshot */
@@ -916,8 +918,10 @@ const MODELS = [
    sc:[8,6,4,60], desc:"Modèle multimodal open-weight de 2,8 T de paramètres de Moonshot AI ; fort en code complexe et workflows agentiques longs."},
   /* Zhipu */
   
-  {id:"glm-5-3-flash", label:"GLM 5.3 Flash", vendor:"glm", family:"router",
-   sc:[8,6.5,5,70], desc:"Multimodal natif de Z.ai à attention hybride sparse/linéaire ; code efficace et tâches agentiques longues."},
+  {id:"glm-5-3-flash", label:"GLM 5.3 Flash", vendor:"glm", family:"router", via:"Roboflow · secours ModelScope",
+   sc:[8,6.5,5,70], desc:"Multimodal natif de Z.ai à attention hybride sparse/linéaire ; code efficace et tâches agentiques longues. Servi par Roboflow, avec ModelScope en secours."},
+  {id:"glm-5-3", label:"GLM 5.3", vendor:"glm", family:"router", via:"Roboflow · secours ModelScope",
+   sc:[9,7.5,4.5,80], desc:"Le grand GLM de Z.ai, frère de GLM 5.3 Flash : raisonnement long, code et agents — servi par ModelScope (crédits gratuits), voie Roboflow en secours."},
   /* DeepSeek */
   {id:"deepseek-v4-1-flash", label:"DeepSeek V4.1 Flash", vendor:"deepseek", family:"router",
    sc:[7,6,6,150], desc:"MoE sparse de DeepSeek, premier modèle sur l'architecture CED ; 8 B de paramètres actifs en entrée, 16 B en sortie."},
@@ -928,6 +932,11 @@ const MODELS = [
   {id:"mimo-v2-6-flash", label:"Mimo V2.6 Flash", vendor:"xiaomi", family:"router",
    sc:[6,5,6,80], desc:"MoE open-source de Xiaomi, 309 B au total / 15 B activés par token, à attention hybride."},
   /* Black Forest Labs — génération d'image (Cloudflare Workers AI, gratuit) */
+  /* ModelScope — génération d'image (crédits gratuits de la plateforme) */
+  {id:"qwen-image-2-1", label:"Qwen Image 2.1", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope", fb:"flux-2-klein-9b", fbTxt:"FLUX.2 [klein] · secours",
+   sc:null, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Servi par ModelScope."},
+  {id:"wan-2-2-t2i", label:"Wan 2.2 T2I", vendor:"modelscope", family:"msimg", gen:"img", via:"ModelScope", fb:"flux-2-klein-9b", fbTxt:"FLUX.2 [klein] · secours",
+   sc:null, desc:"Wan 2.2 (Tongyi Wanxiang, Alibaba) en version texte→image, servi par ModelScope — crédits gratuits de la plateforme."},
   {id:"flux-2-klein-9b", label:"FLUX.2 [klein] 9B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-9b",
    sc:null, desc:"Modèle de génération d'images de Black Forest Labs (9 milliards de paramètres), hébergé gratuitement par Cloudflare Workers AI. Texte→image de haute qualité, rapide."},
   {id:"flux-2-klein-4b", label:"FLUX.2 [klein] 4B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-4b",
@@ -948,6 +957,7 @@ const ACCESS_CODE = "ZO7NI3Jmnup0FIf1Jb6o2H7i";
 
 /* Marques SVG minimales (tracés maison, monochromes) */
 const MARKS = {
+  modelscope: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.667 5.333V8H0v5.333h2.667v-2.666H.5V8.5h2.166v2.166h2.666V8H8V5.333Zm0 8v5.334H8V16H5.333v-2.667Zm13.333-8V8h2.667v2.667h2.666V8.5H23.5v2.166h-2.166v2.666H24V8h-2.667V5.333Zm5.333 8h-2.666V16H16v2.667h5.333zM8 10.667v2.666h2.667v-2.666zm2.667 2.666V16h2.666v-2.667zm2.666 0H16v-2.666h-2.667z"/></svg>',
   microsoft: '<svg width="13" height="13" viewBox="0 0 23 23" aria-hidden="true"><path fill="#F25022" d="M1 1h10v10H1z"/><path fill="#7FBA00" d="M12 1h10v10H12z"/><path fill="#00A4EF" d="M1 12h10v10H1z"/><path fill="#FFB900" d="M12 12h10v10H12z"/></svg>',
   anthropic: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#191918"  d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg>',
   openai: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#111111"  d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>',
@@ -1537,6 +1547,7 @@ const VENDORS = [
   ["deepseek","DeepSeek"],["mistral","Mistral"],["meta","Meta"],["xiaomi","Xiaomi"],["microsoft","Microsoft"],
   ["pollinations","Pollinations"],
   ["bfl","Black Forest Labs"],["ideogram","Ideogram"],
+  ["modelscope","ModelScope"],
 ];
 const CHEV='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>';
 function renderModelBtn(){
@@ -3036,6 +3047,11 @@ const CFG_FIELDS = {
     {k:"temperature", label:"Température (0 à 2)", type:"num", min:0, max:2, step:0.05, ph:"défaut modèle"},
     {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:1, max:128000, ph:"défaut modèle"},
   ],
+  msimg: [
+    {k:"width", label:"Largeur (px)", type:"int", min:512, max:1440, step:64, ph:"1024",
+     note:"ModelScope : côtés entre 512 et 1440 px, multiples de 64."},
+    {k:"height", label:"Hauteur (px)", type:"int", min:512, max:1440, step:64, ph:"1024"},
+  ],
   pimg: [
     {k:"width", label:"Largeur (px)", type:"int", min:768, max:1024, step:16, ph:"1024",
      note:"Contraintes MAI : côtés multiples de 16 px, 768 px minimum, 1 048 576 px² au total. Flux 2 Dev accepte ces mêmes tailles."},
@@ -3468,6 +3484,9 @@ function initFirebase(){
       $fb("#authmodal").hidden=true;
       await ensureUserDoc();
       await loadChats();
+      /* Appel quotidien ModelScope : lancé tout seul, sans jamais retarder
+         l'app (il tourne en arrière-plan et se contente d'enregistrer). */
+      msDailyRun().catch(()=>{});
     }else{
       chats=[]; chatId=null; msgSeq=0; userName=""; userPhoto="";
       $fb("#authmodal").hidden=false;
@@ -3853,6 +3872,50 @@ async function ensureUserDoc(){
     }
     userColor=avatarColor(fbUser.email||userName);
   }catch(e){ console.warn("profil :", e); }
+}
+
+/* --- ModelScope : appel quotidien (une fois par jour) ------------------
+   Le jeton ModelScope sert une fois par jour à s'authentifier auprès de la
+   plateforme (identité + solde de crédits). L'état du jour vit dans Firestore
+   (users/{uid}.msDaily) sous la forme { day: "AAAA-MM-JJ", ok: true|false } :
+     • par défaut la journée est « non » : au chargement de l'app, si l'état
+       enregistré ne porte pas la date du jour, il est réécrit à « non » ;
+     • l'appel part alors tout seul ; s'il réussit, l'état passe à « oui » ;
+     • le lendemain, le « oui » de la veille est périmé (sa date n'est plus
+       celle du jour) : l'app le repasse à « non » et refait l'appel.
+   Une seule fois par jour : si la journée est déjà « oui », rien ne repart. */
+let MS_DAILY=null;                    /* état du jour : {day, ok, at, …} */
+function msTodayKey(){
+  const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+async function msDailyRun(){
+  if(!FB_OK||!fbUser||!fbDB) return null;
+  const ref=fbDB.collection("users").doc(fbUser.uid);
+  const today=msTodayKey();
+  let st=null;
+  try{ const snap=await ref.get(); st=((snap&&snap.data())||{}).msDaily||null; }catch(e){ st=null; }
+  if(st&&st.day===today&&st.ok===true){ MS_DAILY=st; return st; }   /* déjà « oui » aujourd'hui */
+  const base={day:today, ok:false, at:Date.now(),
+    tries:((st&&st.day===today)?(Number(st.tries)||0):0)+1};
+  MS_DAILY=base;
+  try{ await ref.set({msDaily:base},{merge:true}); }catch(e){}      /* « non » pour aujourd'hui */
+  let j={};
+  try{
+    const r=await fetch(API_BASE+"/api/ms/daily",{method:"POST",
+      headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},body:"{}"});
+    j=await r.json();
+  }catch(e){ j={ok:false,error:String(e&&e.message||e)}; }
+  const done=Object.assign({},base,{
+    ok:j.ok===true, token:j.token||"", identity:j.identity||"",
+    balance:j.balance||null, error:j.error||"",
+  });
+  MS_DAILY=done;
+  try{ await ref.set({msDaily:done},{merge:true}); }catch(e){}      /* « oui » si l'appel a réussi */
+  if(typeof console!=="undefined"&&console.log){
+    console.log("ModelScope (quotidien) :",done.ok?("connecté"+(done.identity?(" · "+done.identity):"")+(done.balance?(" · solde "+done.balance.available):"")):("non — "+(done.error||"échec")));
+  }
+  return done;
 }
 
 /* --- authentification --------------------------------------------------- */
