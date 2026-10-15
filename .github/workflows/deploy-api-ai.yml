@@ -41,5 +41,8 @@ jobs:
           RF_TOKEN_1: ${{ secrets.RF_TOKEN_1 }}
           RF_TOKEN_2: ${{ secrets.RF_TOKEN_2 }}
           RF_TOKEN_3: ${{ secrets.RF_TOKEN_3 }}
+          # Clé NVIDIA NIM : posée elle aussi en secret du worker, réservée aux
+          # modèles NVIDIA NIM (ajoutés plus tard). Aucun modèle n'est activé ici.
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
           WORKER_NAME: api-ai
         run: node scripts/deploy-api-ai.cjs

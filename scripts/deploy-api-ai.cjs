@@ -36,6 +36,12 @@ const wanted = (process.env.WORKER_NAME || 'api-ai').trim();
 const tokenSecrets = ['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3']
   .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
   .filter((t) => t.text.length > 0);
+/* Autres secrets du worker, posés exactement de la même façon (aucune valeur
+   n'est écrite dans le dépôt ni affichée). NVIDIA_NIM_API_KEY : clé réservée
+   aux modèles NVIDIA NIM, qui seront ajoutés plus tard. */
+const otherSecrets = ['NVIDIA_NIM_API_KEY']
+  .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
+  .filter((t) => t.text.length > 0);
 
 if (!apiToken) {
   console.error("❌ CLOUDFLARE_TOKEN manquant.");
@@ -180,18 +186,19 @@ function get(url, headers) {
 
   /* 2-bis) Jetons Roboflow supplémentaires : posés en secrets du worker par
      lots (une seule version créée). Les secrets absents ne sont pas touchés. */
-  if (tokenSecrets.length) {
+  const allSecrets = tokenSecrets.concat(otherSecrets);
+  if (allSecrets.length) {
     const secrets = {};
-    for (const t of tokenSecrets) {
+    for (const t of allSecrets) {
       secrets[t.name] = { name: t.name, text: t.text, type: 'secret_text' };
     }
     const r = await api('PATCH', `/client/v4/accounts/${accountId}/workers/scripts/${exact}/secrets-bulk`,
       JSON.stringify({ secrets }), 'application/json');
     if (r.status !== 200 || !r.json || !r.json.success) {
-      console.error('❌ Échec de la pose des secrets Roboflow :', String(JSON.stringify(r.json || r.raw || {})).slice(0, 400));
+      console.error('❌ Échec de la pose des secrets :', String(JSON.stringify(r.json || r.raw || {})).slice(0, 400));
       process.exit(1);
     }
-    console.log(`🔐 Jetons Roboflow posés : ${tokenSecrets.map((t) => t.name).join(', ')} (valeurs jamais écrites ni affichées).`);
+    console.log(`🔐 Secrets posés : ${allSecrets.map((t) => t.name).join(', ')} (valeurs jamais écrites ni affichées).`);
   } else {
     console.log('ℹ️  Aucun jeton Roboflow supplémentaire fourni (RF_TOKEN_1/2/3) : secrets existants conservés.');
   }

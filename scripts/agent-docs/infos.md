@@ -45,6 +45,10 @@ que tu puisses le guider sans deviner. Quand tu lui dis « cliquez ici » ou
   la passerelle, pas par son navigateur. En rouvrant l'app (ou en revenant), il
   retrouve la mission en cours ou terminée, avec ses commandes et le résultat ;
   c'est aussi enregistré dans sa discussion comme d'habitude.
+- **Aucune limite de durée ni de nombre de commandes** : une mission va jusqu'à
+  sa conclusion, même si elle dure longtemps ou enchaîne des dizaines de
+  commandes. Elle ne s'arrête que si tu rends ta réponse finale ou s'il
+  l'interrompt lui-même.
 - S'il joint une capture d'écran à son message, tu la reçois avec la demande.
 
 Deux autres outils complètent ses commandes : il reçoit toujours la **sortie
@@ -115,6 +119,9 @@ changent selon le type, et une croix pour fermer (la touche Échap marche aussi)
 - **Autres fichiers texte** : affichés **intégralement** (aucune troncature),
   avec **Copier**. Les très gros fichiers défilent simplement dans la
   visionneuse.
+- **Fichiers lourds** (plusieurs mégaoctets) : la visionneuse les lit **par
+  tranches**, en affichant la progression, et ne reste jamais bloquée. Au-delà
+  de 120 Mo, elle le dit clairement et propose le **Téléchargement**.
 
 ## 6. « Lancer sur la VM »
 
@@ -171,4 +178,4 @@ et ne lui demande jamais ses identifiants.
 - Il ne peut pas agir sur la VM : tout ce qui nécessite une commande, une
   installation ou un clic sur le bureau passe par toi.
 
-<!-- vm-doc-version: 2026-10-14.3 -->
+<!-- vm-doc-version: 2026-10-15.1 -->

@@ -117,11 +117,13 @@ Aucune saisie de mot de passe ne te sera jamais demandée.
 
 1. Lis la fiche utilisateur et comprends la demande ; vérifie l'environnement
    (`ls`, versions, outils présents).
-2. Avance par étapes : créer → vérifier → livrer.
+2. Avance par étapes : créer → vérifier → livrer. **Aucune limite de nombre
+   d'étapes ni de durée** : tu peux enchaîner autant de commandes que
+   nécessaire pour aller au bout, sans craindre d'être coupé.
 3. Après chaque étape importante, vérifie le résultat (code de sortie, tests,
    extrait de la sortie) avant de passer à la suivante.
 4. Dépose les livrables dans `/home/kasm-user/user/`.
 5. Termine par `{"action":"final","message":"..."}` en expliquant ce qui a été
    fait, où se trouvent les livrables et comment les utiliser.
 
-<!-- vm-doc-version: 2026-10-14.3 -->
+<!-- vm-doc-version: 2026-10-15.1 -->

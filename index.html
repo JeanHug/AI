@@ -4395,9 +4395,12 @@ function agtJobKeep(x){
 function agtJobStored(){
   try{ const s=localStorage.getItem("agt_job"); return s?JSON.parse(s):null; }catch(e){ return null; }
 }
-async function agtJobState(id){
+async function agtJobState(id,since){
   try{
-    const r=await fetch(API_BASE+"/api/agent/job?id="+encodeURIComponent(id),{headers:agtHeaders()});
+    /* `since` : ne recevoir que les étapes pas encore affichées — une mission
+       très longue ne retransfère donc jamais tout son déroulé. */
+    const r=await fetch(API_BASE+"/api/agent/job?id="+encodeURIComponent(id)
+      +(since?("&since="+encodeURIComponent(since)):""),{headers:agtHeaders()});
     const j=await r.json();
     return (j&&j.ok&&j.job)?j.job:null;
   }catch(e){ return null; }
@@ -4408,12 +4411,20 @@ async function agtJobFollow(id, ui, initial){
   ui=ui||{};
   let seen=0, first=(initial||null);
   for(;;){
-    const st=first||await agtJobState(id);
+    const st=first||await agtJobState(id,seen);
     first=null;
     if(!st) return {lost:true, seen:seen};
     const list=st.steps||[];
-    const L=(list.length>seen)?ui.ensureTerm():null;
-    for(;seen<list.length;seen++){ if(ui.onStep) ui.onStep(list[seen]||{}, L); }
+    /* La passerelle renvoie les étapes à partir de `stepsFrom` (celles déjà
+       affichées ne sont plus transmises) ; `stepsTotal` donne le nombre total.
+       Si elle renvoie tout le déroulé (passerelle d'une version antérieure),
+       on reprend simplement après ce qui est déjà affiché : jamais de doublon. */
+    const from=(st.stepsFrom===undefined)?0:(Number(st.stepsFrom)||0);
+    let i=Math.max(0,seen-from);
+    const L=(list.length>i)?ui.ensureTerm():null;
+    for(;i<list.length;i++){ if(ui.onStep) ui.onStep(list[i]||{}, L); }
+    seen=from+list.length;
+    if(st.stepsTotal!==undefined) seen=Math.max(seen,Number(st.stepsTotal)||0);
     if(ui.afterPoll) ui.afterPoll();
     if(st.done) return {done:true, final:String(st.final||""), error:String(st.error||""), seen:seen};
     await new Promise(r=>setTimeout(r,1500));
@@ -4774,6 +4785,69 @@ function agtB64Blob(b64,mime){
   for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
   return new Blob([arr],{type:mime||"application/octet-stream"});
 }
+/* --- lecture des fichiers de la VM --------------------------------------
+   Une requête ne doit JAMAIS rester en attente indéfiniment : au-delà du
+   délai, on l'abandonne (AbortController) et l'interface reprend la main.
+   Pour un fichier lourd, la lecture se fait par tranches de quelques Mo,
+   servies par la VM : l'aperçu se remplit au fur et à mesure, avec le
+   pourcentage, au lieu de tourner sans fin. */
+const AGT_READ_TIMEOUT=45000;            /* lecture normale (texte) */
+const AGT_READ_TIMEOUT_B64=90000;        /* lecture normale (base64) */
+const AGT_CHUNK=6*1024*1024;             /* taille d'une tranche */
+const AGT_MAX_READ=120*1024*1024;        /* au-delà : téléchargement conseillé */
+function agtMo(n){
+  n=Number(n)||0;
+  if(n>=1073741824) return (n/1073741824).toFixed(2)+" Go";
+  if(n>=1048576) return (n/1048576).toFixed(1)+" Mo";
+  if(n>=1024) return Math.round(n/1024)+" Ko";
+  return n+" o";
+}
+async function agtFetchJson(url,ms,opts){
+  const ctl=(typeof AbortController!=="undefined")?new AbortController():null;
+  let to=null;
+  if(ctl&&ms) to=setTimeout(()=>{ try{ ctl.abort(); }catch(e){} },ms);
+  try{
+    const r=await fetch(url,Object.assign({},opts||{},{headers:agtHeaders(),signal:ctl?ctl.signal:undefined}));
+    return await r.json();
+  }catch(e){
+    const ab=(e&&(e.name==="AbortError"||String(e.message||"").indexOf("abort")>=0));
+    return {ok:false,error:ab?("délai dépassé ("+Math.round(ms/1000)+" s) — le fichier est peut-être trop lourd pour un envoi en un seul bloc"):String(e&&e.message||e)};
+  }finally{ if(to) clearTimeout(to); }
+}
+async function agtReadFileChunked(path,onProgress){
+  const parts=[]; let chars=0, total=0, n=0;
+  for(let guard=0;guard<2000;guard++){
+    const j=await agtFetchJson(API_BASE+"/api/agent/file?path="+encodeURIComponent(path)
+      +"&chunk="+n+"&size="+AGT_CHUNK, AGT_READ_TIMEOUT);
+    if(!j.ok) throw new Error(String(j.error||"lecture impossible"));
+    total=Number(j.total)||total;
+    if(total>AGT_MAX_READ) throw new Error("Fichier de "+agtMo(total)+" : trop lourd pour l'aperçu — utilisez « Télécharger ».");
+    const c=String(j.content||"");
+    if(c){ parts.push(c); chars+=c.length; }
+    if(onProgress) onProgress(chars,total);
+    if(j.eof||!c) break;
+    n++;
+  }
+  return {content:parts.join(""),total:total};
+}
+function agtFromB64Utf8(b64){
+  const bin=atob(String(b64||"").replace(/[^A-Za-z0-9+/=]/g,""));
+  const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  try{ return new TextDecoder("utf-8").decode(arr); }catch(e){}
+  let out="",i=0;
+  while(i<arr.length){
+    const b=arr[i++];
+    if(b<0x80){ out+=String.fromCharCode(b); continue; }
+    let cp=0, extra=0;
+    if(b>=0xf0){ cp=b&7; extra=3; } else if(b>=0xe0){ cp=b&15; extra=2; } else { cp=b&31; extra=1; }
+    for(let k=0;k<extra&&i<arr.length;k++) cp=(cp<<6)|(arr[i++]&63);
+    if(cp>0xffff){ cp-=0x10000; out+=String.fromCharCode(0xd800|(cp>>10),0xdc00|(cp&1023)); }
+    else out+=String.fromCharCode(cp);
+  }
+  return out;
+}
+
 function agtKatex(el){
   try{
     if(window.renderMathInElement&&/\$/.test(String(el.textContent||""))){
@@ -5007,11 +5081,32 @@ async function agtOpenFile(path, name){
   const needB64=(cat==="img"||cat==="svg"||cat==="vid"||cat==="aud"||cat==="pdf"||cat==="docx"||cat==="pptx"||cat==="xlsx");
   let j={};
   try{
-    const r=await fetch(API_BASE+"/api/agent/file?path="+encodeURIComponent(path)+(needB64?"&format=base64":""),{headers:agtHeaders()});
-    j=await r.json();
-  }catch(e){ j={ok:false}; }
-  if(!j.ok){ body.innerHTML='<div class="at-load">Fichier illisible</div>'; return; }
-  let content=String(j.content==null?"":j.content);
+    j=await agtFetchJson(API_BASE+"/api/agent/file?path="+encodeURIComponent(path)+(needB64?"&format=base64":""),
+      needB64?AGT_READ_TIMEOUT_B64:AGT_READ_TIMEOUT);
+  }catch(e){ j={ok:false,error:String(e&&e.message||e)}; }
+  let content="";
+  if(j.ok){
+    content=String(j.content==null?"":j.content);
+  }else{
+    /* Lecture directe impossible (fichier lourd, ou délai dépassé) : on
+       reprend par tranches, en affichant la progression. */
+    try{
+      const prog=document.createElement("div");
+      prog.className="at-load";
+      prog.textContent="Chargement…";
+      body.innerHTML=""; body.appendChild(prog);
+      const r=await agtReadFileChunked(path,(done,total)=>{
+        prog.textContent="Chargement… "+agtMo(Math.round(done*3/4))
+          +(total?(" / "+agtMo(total)+" ("+Math.min(100,Math.round((done*3/4)*100/Math.max(1,total)))+" %)"):"");
+      });
+      content=r.content;
+      if(!needB64&&content){ try{ content=agtFromB64Utf8(content); }catch(e){} }
+      body.innerHTML="";
+    }catch(e){
+      body.innerHTML='<div class="at-load">'+esc(String(e&&e.message||e))+"</div>";
+      return;
+    }
+  }
   const mkBtn=(label,fn)=>{
     const b=document.createElement("button");
     b.type="button"; b.className="av-btn"; b.textContent=label;
