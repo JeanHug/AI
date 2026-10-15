@@ -3909,10 +3909,18 @@ async function msDailyRun(){
   const done=Object.assign({},base,{
     ok:j.ok===true, token:j.token||"", identity:j.identity||"",
     balance:j.balance||null, error:j.error||"",
+    /* Noms de modèles confirmés par ModelScope (lecture seule, zéro crédit) :
+       « ok » = le nom configuré existe chez ModelScope, « inconnu » = à revoir. */
+    models:j.models||null,
   });
   MS_DAILY=done;
   try{ await ref.set({msDaily:done},{merge:true}); }catch(e){}      /* « oui » si l'appel a réussi */
   if(typeof console!=="undefined"&&console.log){
+    if(done.models){
+      const okN=Object.keys(done.models).filter(k=>done.models[k]==="ok").length;
+      const tot=Object.keys(done.models).length;
+      console.log("ModelScope — noms de modèles confirmés : "+okN+"/"+tot);
+    }
     console.log("ModelScope (quotidien) :",done.ok?("connecté"+(done.identity?(" · "+done.identity):"")+(done.balance?(" · solde "+done.balance.available):"")):("non — "+(done.error||"échec")));
   }
   return done;
