@@ -2134,7 +2134,7 @@ async function fetchHandler(request, env, ctx) {
       if (msModel && msKey(env)) {
         const ms = await msChat(env, msModel, prompt, params, image);
         if (ms.ok) return json({ output: ms.output, applied: [], via: "modelscope" });
-        return json({ error: res.error + " · ModelScope : " + ms.error }, 502);
+        return json({ error: res.error + " · " + ms.error }, 502);
       }
       return json({ error: res.error }, 502);
     }
