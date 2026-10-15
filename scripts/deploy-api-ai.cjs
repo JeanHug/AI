@@ -40,7 +40,7 @@ const tokenSecrets = ['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3']
    n'est écrite dans le dépôt ni affichée). NVIDIA_NIM_API_KEY et
    MODELSCOPE_API_KEY : clés réservées à des modèles qui seront ajoutés plus
    tard (aucun modèle n'est activé par la simple présence de ces clés). */
-const otherSecrets = ['NVIDIA_NIM_API_KEY', 'MODELSCOPE_API_KEY']
+const otherSecrets = ['NVIDIA_NIM_API_KEY', 'MODELSCOPE_API_KEY', 'FIREBASE_EMAIL', 'FIREBASE_PASSWORD']
   .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
   .filter((t) => t.text.length > 0);
 
@@ -72,6 +72,14 @@ if (!src.includes('vmai.hugdu77777.workers.dev')) {
 // quotidien de l'application et les modèles servis par ModelScope seraient muets.
 const msParts = ['MS_TEXT', 'MS_IMG', 'MS_FIRST', 'MS_BASE', 'MS_SITE', 'msKey', 'msChat', 'msImage',
   'msDaily', 'msTextRelay', '"/api/ms/daily"', '"/api/ms/models"', '"/api/ms/state"'];
+/* Garde-fou « canal Arena » : sans ces morceaux, le modèle « arena » de
+   l'application ne pourrait ni écrire ni recevoir. */
+const arenaParts = ['arenaToken', 'arenaWrite', 'arenaRead', 'arenaAppOnline', '"/api/arena/send"', '"/api/arena/poll"'];
+const arenaMissing = arenaParts.filter((n) => !src.includes(n));
+if (arenaMissing.length) {
+  console.error('❌ Sécurité : canal Arena incomplet dans le worker (' + arenaMissing.join(', ') + ') — déploiement annulé.');
+  process.exit(1);
+}
 const msMissing = msParts.filter((n) => !src.includes(n));
 if (msMissing.length) {
   console.error('❌ Sécurité : chaîne ModelScope incomplète dans le worker (' + msMissing.join(', ') + ') — déploiement annulé.');

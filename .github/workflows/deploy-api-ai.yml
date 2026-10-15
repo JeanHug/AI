@@ -47,5 +47,7 @@ jobs:
           # Clé ModelScope (jetons « ms-… ») : posée en secret du worker, prête
           # pour les modèles à ajouter plus tard.
           MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
+          FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}
+          FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
           WORKER_NAME: api-ai
         run: node scripts/deploy-api-ai.cjs

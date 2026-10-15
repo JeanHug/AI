@@ -947,6 +947,11 @@ const MODELS = [
    sc:null, desc:"FLUX.2 klein 4B sur le Space officiel Black Forest Labs, gratuit via Hugging Face ZeroGPU, sans token. Le plus rapide (~2-5 s/image)."},
   {id:"ideogram-v4", label:"Ideogram v4", vendor:"ideogram", family:"ideo", gen:"img", via:"HF ZeroGPU",
    sc:null, desc:"Ideogram v4 (Space officiel ideogram-ai), excellent en typographie et couleurs, gratuit via Hugging Face ZeroGPU, sans token. ~20-30 s/image."},
+  /* Arena — le canal direct entre cette application et Arena : aucun service de
+     modèle derrière, tout passe par un canal Firebase dédié. Placé en fin de
+     liste : le modèle choisi par défaut au premier lancement ne change pas. */
+  {id:"arena", label:"Arena", vendor:"arena", family:"arena", via:"Canal Firebase",
+   sc:null, desc:"Le canal direct avec Arena : les messages envoyés ici partent dans un canal Firebase dédié, et Arena les lit, répond ou y exécute des commandes. Créé par arena.ai."},
 ];
 
 /* Relais Cloudflare Worker : il détient la clé Roboflow, ce fichier n'en
@@ -957,6 +962,8 @@ const ACCESS_CODE = "ZO7NI3Jmnup0FIf1Jb6o2H7i";
 
 /* Marques SVG minimales (tracés maison, monochromes) */
 const MARKS = {
+  /* Arena : la colonne du logo officiel (marque monochrome). */
+  arena: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><g class="mk" fill="#111113"><rect x="4.4" y="3.3" width="15.2" height="1.7" rx=".5"/><rect x="6.1" y="5.4" width="11.8" height="1.5" rx=".7"/><circle cx="4.9" cy="6.2" r="1.5"/><circle cx="19.1" cy="6.2" r="1.5"/><rect x="7.5" y="8" width="1.5" height="10.3"/><rect x="10.1" y="8" width="1.5" height="10.3"/><rect x="12.4" y="8" width="1.5" height="10.3"/><rect x="15" y="8" width="1.5" height="10.3"/><rect x="5.7" y="18.8" width="12.6" height="1.4" rx=".4"/><rect x="4.4" y="20.6" width="15.2" height="1.6" rx=".5"/></g></svg>',
   modelscope: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2.667 5.333V8H0v5.333h2.667v-2.666H.5V8.5h2.166v2.166h2.666V8H8V5.333Zm0 8v5.334H8V16H5.333v-2.667Zm13.333-8V8h2.667v2.667h2.666V8.5H23.5v2.166h-2.166v2.666H24V8h-2.667V5.333Zm5.333 8h-2.666V16H16v2.667h5.333zM8 10.667v2.666h2.667v-2.666zm2.667 2.666V16h2.666v-2.667zm2.666 0H16v-2.666h-2.667z"/></svg>',
   microsoft: '<svg width="13" height="13" viewBox="0 0 23 23" aria-hidden="true"><path fill="#F25022" d="M1 1h10v10H1z"/><path fill="#7FBA00" d="M12 1h10v10H12z"/><path fill="#00A4EF" d="M1 12h10v10H1z"/><path fill="#FFB900" d="M12 12h10v10H12z"/></svg>',
   anthropic: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#191918"  d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg>',
@@ -1548,6 +1555,7 @@ const VENDORS = [
   ["pollinations","Pollinations"],
   ["bfl","Black Forest Labs"],["ideogram","Ideogram"],
   ["modelscope","ModelScope"],
+  ["arena","Arena"],
 ];
 const CHEV='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>';
 function renderModelBtn(){
@@ -2035,6 +2043,7 @@ async function submit(){
   sendBtn.classList.remove("sent"); void sendBtn.offsetWidth; sendBtn.classList.add("sent");
 
   if(typeof AGENT_ON!=="undefined"&&AGENT_ON){ await agentRun(text); return; }
+  if(current.family==="arena"){ await submitArena(text); return; }
   if(current.gen==="img"){ await submitImage(text); return; }
   if(current.gen==="live"){ await submitLive(text); return; }
   if(current.family==="gtext"||current.family==="groq"||current.family==="ptext"){ await submitStreaming(text); return; }
@@ -2984,6 +2993,9 @@ function fallbackCopy(t){
    Réglages par modèle (appui long sur une puce)
    ===================================================================== */
 const CFG_FIELDS = {
+  /* Arena n'a pas d'option de génération : le tableau vide évite toute
+     erreur quand on ouvre sa fiche. */
+  arena: [],
   claude: [
     {k:"extended_thinking", label:"Réflexion étendue", type:"check",
      note:"Activable, mais la profondeur n'est plus contrôlable depuis Claude Opus 4.7 : le thinking est « adaptive » et le budget ci-dessous est ignoré."},
@@ -3487,6 +3499,8 @@ function initFirebase(){
       /* Appel quotidien ModelScope : lancé tout seul, sans jamais retarder
          l'app (il tourne en arrière-plan et se contente d'enregistrer). */
       msDailyRun().catch(()=>{});
+      /* Canal Arena : écoute en temps réel + présence signalée au canal. */
+      try{ arenaWatch(); }catch(e){ console.warn("canal arena :",e); }
     }else{
       chats=[]; chatId=null; msgSeq=0; userName=""; userPhoto="";
       $fb("#authmodal").hidden=false;
@@ -3924,6 +3938,248 @@ async function msDailyRun(){
     console.log("ModelScope (quotidien) :",done.ok?("connecté"+(done.identity?(" · "+done.identity):"")+(done.balance?(" · solde "+done.balance.available):"")):("non — "+(done.error||"échec")));
   }
   return done;
+}
+
+/* --- Canal Arena : le modèle « arena » --------------------------------
+   Deux sens de circulation, un seul document Firebase (chan/main) :
+
+     chan/main           état du canal (agent connecté ou non, dernier échange)
+     chan/main/box/{id}  les messages : role « user » (l'application),
+                         « arena » (Arena) ou « tool » (résultat de commande),
+                         kind « text » ou « call » (JSON d'action).
+
+   • Ce que l'utilisateur écrit au modèle « arena » part dans le canal.
+   • Arena écrit dedans de son côté (script z-canal.py) : son message arrive ici
+     par écoute temps réel. Un JSON d'action (bash / fetch / final) est EXÉCUTÉ
+     sur la VM et le résultat repart dans le canal — il n'est jamais affiché
+     comme du texte. Un message normal s'affiche exactement comme une réponse
+     d'IA (markdown, boutons), dans la discussion « Arena ».
+   • Rien n'est perdu quand l'utilisateur est sur une autre discussion : un
+     bandeau l'avertit, et le message est enregistré dans sa discussion. */
+let ARENA_UNSUB=null, ARENA_TOAST_T=null, ARENA_DEV_T=null, ARENA_LAST_USER=null;
+function arenaBoxRef(){
+  if(!FB_OK||!fbDB) return null;
+  return fbDB.collection("chan").doc("main").collection("box");
+}
+function arenaMainRef(){
+  if(!FB_OK||!fbDB) return null;
+  return fbDB.collection("chan").doc("main");
+}
+/* ---- bandeau (message arrivé pendant qu'une autre discussion est ouverte) ---- */
+function arenaToast(text, target){
+  let el=document.getElementById("arenaToast");
+  if(!el){
+    el=document.createElement("div");
+    el.id="arenaToast";
+    el.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:90;"
+      +"max-width:min(92vw,540px);background:#111113;color:#fff;border-radius:12px;padding:11px 14px;"
+      +"font-size:13px;line-height:1.5;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.24);white-space:pre-wrap";
+    el.title="Ouvrir la discussion Arena";
+    el.addEventListener("click",()=>{
+      const c=chats.find(x=>x.model==="arena");
+      if(c) loadChat(c.id);
+      const e2=document.getElementById("arenaToast"); if(e2) e2.remove();
+    });
+    document.body.appendChild(el);
+  }
+  el.textContent="◆ Arena — "+String(text||"").slice(0,300);
+  if(ARENA_TOAST_T) clearTimeout(ARENA_TOAST_T);
+  ARENA_TOAST_T=setTimeout(()=>{ const e3=document.getElementById("arenaToast"); if(e3) e3.remove(); },20000);
+  if(target==="ping") return el;
+  return el;
+}
+/* ---- marqueur de présence : l'app dit au canal qu'elle est ouverte ---- */
+async function arenaDevice(online){
+  const ref=arenaMainRef();
+  if(!ref) return;
+  try{ await ref.set({arenaApp:{online:!!online, at:Date.now()}},{merge:true}); }catch(e){}
+}
+function arenaHeartbeat(){
+  if(ARENA_DEV_T) clearInterval(ARENA_DEV_T);
+  if(!FB_OK) return;
+  arenaDevice(true);
+  ARENA_DEV_T=setInterval(()=>arenaDevice(true), 60000);
+  window.addEventListener("pagehide",()=>{ arenaDevice(false); });
+  window.addEventListener("beforeunload",()=>{ arenaDevice(false); });
+}
+/* ---- écriture/lecture du canal, par le worker (le jeton reste chez lui) ---- */
+async function arenaSend(text, kind, req, note){
+  try{
+    const r=await fetch(API_BASE+"/api/arena/send",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
+      body:JSON.stringify({text:String(text||""), kind:kind||"text", req:req||"", note:note||""}),
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) return {ok:false, error:(j&&j.error)||("HTTP "+r.status)};
+    return j||{ok:false, error:"réponse illisible"};
+  }catch(e){ return {ok:false, error:String(e&&e.message?e.message:e)}; }
+}
+/* ---- ce qu'on fait d'un message reçu ---- */
+function arenaParse(text){
+  const t=String(text||"").trim();
+  if(t.charAt(0)!=="{") return {kind:"text", text:String(text||"")};
+  let o=null;
+  try{ o=JSON.parse(t); }catch(e){ return {kind:"text", text:String(text||"")}; }
+  if(!o||typeof o!=="object") return {kind:"text", text:String(text||"")};
+  const a=String(o.action||"").toLowerCase();
+  if(a!=="bash"&&a!=="fetch"&&a!=="final") return {kind:"text", text:String(text||"")};
+  return {kind:"call", call:o, text:String(o.message||"")};
+}
+async function arenaExecCall(call){
+  const action=String(call.action||"").toLowerCase();
+  if(action==="bash"){
+    const cmd=String(call.command||"");
+    let r={};
+    try{
+      const er=await fetch(API_BASE+"/api/agent/exec",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
+        body:JSON.stringify({command:cmd}),
+      });
+      r=await er.json().catch(()=>({}));
+    }catch(e){ r={ok:false, stderr:String(e&&e.message?e.message:e)}; }
+    const so=String(r.stdout||""), se=String(r.stderr||"");
+    const txt="$ "+cmd+"\n[exit] "+(r.exit_code==null?"?":r.exit_code)+"\n"+(so||se||"(aucune sortie)");
+    return {ok:!!r.ok, text:txt, exit:r.exit_code||0};
+  }
+  /* fetch : lecture d'une page par la VM (Chrome sans écran). */
+  const url=String(call.url||"").trim();
+  const fmode=(String(call.mode||"text").toLowerCase()==="html")?"html":"text";
+  let j={};
+  try{
+    const fr=await fetch(API_BASE+"/api/agent/fetch",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
+      body:JSON.stringify({url:url, mode:fmode}),
+    });
+    j=await fr.json().catch(()=>({}));
+  }catch(e){ j={ok:false, error:String(e&&e.message?e.message:e)}; }
+  const head=(j.ok?("HTTP "+(j.status==null?"?":j.status)):"ÉCHEC")
+    +(j.title?(" · "+j.title):"")+(j.chars?(" · "+j.chars+" caractères"):"");
+  const txt=url+"\n"+head+"\n\n"+String(j.content==null?(j.error||""):j.content);
+  return {ok:!!j.ok, text:txt, exit:j.ok?0:1};
+}
+/* ---- la discussion « Arena » : créée une fois, jamais dupliquée ---- */
+async function arenaChat(){
+  if(!FB_OK||!fbUser||!fbDB) return null;
+  const found=chats.find(c=>c.model==="arena")||null;
+  if(found) return found;
+  const id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  const now=Date.now();
+  try{
+    await chatsRef().doc(id).set({title:"Arena", model:"arena", agent:false, arena:true, createdAt:now, updatedAt:now});
+    chats.unshift({id:id, title:"Arena", model:"arena", agent:false, arena:true, createdAt:now, updatedAt:now});
+    renderChatList();
+  }catch(e){ return null; }
+  return chats[0];
+}
+/* ---- enregistrement dans la discussion « Arena » ----
+   `order` vient de l'horloge : les messages restent dans l'ordre même si
+   l'utilisateur est en train de lire une autre discussion pendant ce temps. */
+async function arenaCommit(chat, docs){
+  if(!FB_OK||!chat) return;
+  const mref=chatsRef().doc(chat.id).collection("messages");
+  for(const d of docs) await writeDocChunked(mref, "m"+d.order, d);
+  try{ await chatsRef().doc(chat.id).update({updatedAt:Date.now()}); }catch(e){}
+}
+async function arenaSaveUser(text){
+  const chat=await arenaChat();
+  if(!chat) return null;
+  const now=Date.now();
+  await arenaCommit(chat, [{role:"user", text:String(text||""), kind:"none", modelName:"arena", order:now, createdAt:now, images:[]}]);
+  return chat;
+}
+async function arenaSaveReply(chat, text){
+  if(!chat) return;
+  const now=Date.now();
+  await arenaCommit(chat, [{role:"assistant", text:String(text||""), modelName:"arena", order:now, createdAt:now}]);
+}
+async function arenaMark(id, state){
+  const box=arenaBoxRef(); if(!box) return;
+  try{ await box.doc(id).set({state:state, doneAt:Date.now()},{merge:true}); }catch(e){}
+}
+/* ---- réception : l'utilisateur voit la réponse comme une réponse d'IA ---- */
+async function arenaDeliver(d, id){
+  const parsed=arenaParse(d.text);
+  const chat=await arenaChat();
+  const inChat=!!(chat&&chatId===chat.id);
+  /* 1. Une action (bash / fetch) est EXÉCUTÉE, jamais affichée ; son résultat
+        repart dans le canal pour Arena, et s'affiche ici en zone repliable. */
+  if(parsed.kind==="call" && parsed.call.action!=="final"){
+    const res=await arenaExecCall(parsed.call);
+    if(inChat&&chat&&chatId===chat.id){
+      const b=addAssistant("arena");
+      const zone=document.createElement("div");
+      zone.className="arena-call";
+      zone.style.cssText="font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;background:#0d0d0f;color:#e6e6e9;"
+        +"border-radius:10px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere";
+      zone.textContent=res.text;
+      b.appendChild(zone);
+    }
+    await arenaSend(res.text, "tool", id, "résultat de commande");
+    await arenaMark(id, "done");
+    return;
+  }
+  /* 2. Un message (texte, ou action « final ») s'affiche comme une réponse. */
+  const out=parsed.text;
+  if(!out) { await arenaMark(id,"done"); return; }
+  if(inChat && chat){
+    const b=addAssistant("arena");
+    b.innerHTML=renderMarkdown(out);
+    msgActions(b,{getMd:()=>out});
+    conv.push({role:"assistant", text:out});
+    scrollDown();
+    await arenaSaveReply(chat, out);
+  }else{
+    arenaToast(out);
+    await arenaSaveReply(chat, out);
+  }
+  await arenaMark(id, "done");
+}
+/* ---- écoute du canal (temps réel) ---- */
+function arenaWatch(){
+  const box=arenaBoxRef();
+  if(!box) return false;
+  arenaStop();
+  try{
+    ARENA_UNSUB=box.where("role","==","arena").where("state","==","new")
+      .onSnapshot(snap=>{
+        snap.docChanges().forEach(ch=>{
+          if(ch.type!=="added") return;
+          const d=ch.doc.data()||{};
+          arenaDeliver(d, ch.doc.id).catch(e=>console.warn("canal arena :",e));
+        });
+      }, err=>console.warn("canal arena :", err && err.message));
+  }catch(e){ console.warn("canal arena :",e); return false; }
+  arenaHeartbeat();
+  return true;
+}
+function arenaStop(){
+  if(ARENA_UNSUB){ try{ ARENA_UNSUB(); }catch(e){} ARENA_UNSUB=null; }
+}
+/* ---- envoi depuis l'application (modèle « arena » sélectionné) ---- */
+async function submitArena(text){
+  busy=true; sendBtn.disabled=true;
+  const kind = pendingAudio ? "audio" : (pendingImage ? "upload" : (useBlackImage ? "black" : "none"));
+  addUser(text, kind, pendingImage, pendingAudio);
+  const b=addAssistant("arena");
+  promptEl.value=""; promptEl.style.height="auto"; scrollDown();
+  b.innerHTML='<span class="gentxt">Envoi<i>.</i><i>.</i><i>.</i></span>';
+  const chat=await arenaSaveUser(text);
+  const j=await arenaSend(text, "text", "", "");
+  const dev=!!(j&&j.device);
+  if(!j||!j.ok){
+    b.innerHTML='<div class="err">Canal injoignable : '+esc((j&&j.error)||"raison inconnue")+'</div>';
+  }else if(dev){
+    b.innerHTML='<p style="color:var(--ink-2);font-size:13.5px">Message transmis à Arena — la réponse arrivera ici même.</p>';
+  }else{
+    b.innerHTML='<p style="color:var(--ink-2);font-size:13.5px">Message envoyé à Arena. Il n\'est pas connecté en ce moment : la réponse apparaîtra ici dès qu\'il reprendra le canal.</p>';
+  }
+  conv.push({role:"user", text:text});
+  ARENA_LAST_USER=new Date().toISOString();
+  busy=false; sendBtn.disabled=!promptEl.value.trim(); scrollDown();
+  if(chat) renderChatList();
 }
 
 /* --- authentification --------------------------------------------------- */
