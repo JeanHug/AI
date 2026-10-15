@@ -221,6 +221,12 @@ main{flex:1 1 auto;overflow-y:auto;padding:26px 20px 34px}
   padding:8px 8px;border-radius:9px;cursor:pointer;text-align:left;font:inherit}
 .chitem:hover{background:var(--line-2)}
 .chitem.sel{background:#eeeef0}
+/* La discussion « Arena » est épinglée en tête : sa marque à gauche du nom. */
+.chitem .chmark{flex:none;display:inline-flex;align-items:center;opacity:.92}
+.chitem.pinned{background:#f7f7f9}
+.chitem.pinned .cht{font-weight:600}
+.chitem.pinned.sel{background:#eeeef0}
+.chdot{flex:none;width:7px;height:7px;border-radius:50%;background:#111113;animation:fadein .25s ease}
 .chitem .cht{flex:1;min-width:0;font-size:13.5px;color:var(--ink);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;border:0;background:none;padding:0;text-align:left}
 .chitem .cht:focus{outline:none}
@@ -950,8 +956,11 @@ const MODELS = [
   /* Arena — le canal direct entre cette application et Arena : aucun service de
      modèle derrière, tout passe par un canal Firebase dédié. Placé en fin de
      liste : le modèle choisi par défaut au premier lancement ne change pas. */
-  {id:"arena", label:"Arena", vendor:"arena", family:"arena", via:"Canal Firebase",
-   sc:null, desc:"Le canal direct avec Arena : les messages envoyés ici partent dans un canal Firebase dédié, et Arena les lit, répond ou y exécute des commandes. Créé par arena.ai."},
+  /* Le modèle « arena » n'est PLUS proposé dans le sélecteur : la discussion
+     « Arena », épinglée en tête de liste, l'active d'elle-même. L'entrée reste
+     ici pour la mécanique interne du canal. */
+  {id:"arena", hidden:true, label:"Arena", vendor:"arena", family:"arena", via:"Canal Firebase",
+   sc:null, desc:"Le canal direct avec Arena : la discussion « Arena », épinglée en tête de liste, envoie chaque message dans un canal Firebase dédié ; Arena les lit, répond ou y exécute des commandes. Créé par arena.ai."},
 ];
 
 /* Relais Cloudflare Worker : il détient la clé Roboflow, ce fichier n'en
@@ -1667,7 +1676,13 @@ updateHint();
 function emptyState(){
   if(log.children.length) return;
   const d=document.createElement("div"); d.className="empty";
-  d.innerHTML="<p>Aucun message.</p><p style=\"font-size:12.5px\">"+esc(current.label)+" · aucun prompt système · usage classique</p>";
+  if(current.family==="arena"){
+    d.innerHTML="<p>Canal direct avec Arena.</p><p style=\"font-size:12.5px\">"
+      +"Écris ton message : il part aussitôt dans le canal. La réponse s'affiche ici, "
+      +"et les commandes exécutées apparaissent dans la zone terminale.</p>";
+  }else{
+    d.innerHTML="<p>Aucun message.</p><p style=\"font-size:12.5px\">"+esc(current.label)+" · aucun prompt système · usage classique</p>";
+  }
   log.appendChild(d);
 }
 emptyState();
@@ -3541,14 +3556,30 @@ function renderChatList(){
   const note=document.createElement("p");
   note.style.cssText="font-size:12.5px;color:var(--ink-3);padding:12px 10px;line-height:1.5";
   if(!fbUser){ note.textContent="Connecte-toi pour enregistrer tes discussions et les retrouver sur tous tes appareils."; list.appendChild(note); return; }
-  if(!chats.length){ note.textContent="Aucune discussion enregistrée pour le moment."; list.appendChild(note); return; }
-  for(const c of chats){
+  /* Les discussions écartées (doublons de l'ancien modèle « arena ») ne
+     s'affichent pas : il n'existe qu'une seule discussion « Arena ». */
+  const shown=chats.filter(c=>!c.hidden);
+  if(!shown.length){ note.textContent="Aucune discussion enregistrée pour le moment."; list.appendChild(note); return; }
+  /* La discussion « Arena » est TOUJOURS en tête, épinglée, avec sa marque. */
+  const ordered=shown.slice().sort((a,b)=>(b.arena?1:0)-(a.arena?1:0));
+  for(const c of ordered){
     const row=document.createElement("div");
-    row.className="chitem"+(c.id===chatId?" sel":"");
+    row.className="chitem"+(c.id===chatId?" sel":"")+(c.arena?" pinned":"");
+    if(c.arena){
+      const mk=document.createElement("span");
+      mk.className="chmark"; mk.title="Discussion Arena · canal direct";
+      mk.innerHTML=MARKS.arena;
+      row.appendChild(mk);
+    }
     const t=document.createElement("button");
     t.type="button"; t.className="cht"; t.textContent=c.title; t.title=c.title;
     t.onclick=()=>{ if(c.id!==chatId) loadChat(c.id); else closeSide(); };
     row.appendChild(t);
+    if(c.arena&&ARENA_DOT){
+      const dot=document.createElement("span");
+      dot.className="chdot"; dot.title="Nouveau message d'Arena";
+      row.appendChild(dot);
+    }
     if(c.agent){
       const badge=document.createElement("span");
       badge.className="chbadge"; badge.textContent="Agent"; badge.title="Discussion en mode agent";
@@ -3618,6 +3649,10 @@ async function loadChats(){
     const snap=await chatsRef().orderBy("updatedAt","desc").limit(100).get();
     chats=snap.docs.map(d=>Object.assign({id:d.id}, d.data()));
   }catch(e){ chats=[]; console.warn("chats :", e); }
+  /* La discussion « Arena » existe toujours, et une seule : elle est créée ici
+     si besoin, et les doublons éventuels sont écartés de la liste. */
+  try{ const a=await arenaChat(); if(a) await arenaDedupe(a); }
+  catch(e){ console.warn("canal arena :", e); }
   renderChatList();
 }
 async function loadChat(id){
@@ -3628,8 +3663,13 @@ async function loadChat(id){
     const snap=await chatsRef().doc(id).collection("messages").orderBy("order").get();
     const mref=chatsRef().doc(id).collection("messages");
     conv=[]; log.innerHTML=""; chatId=id; msgSeq=0;
+    /* Ouvrir la discussion « Arena » efface son point : on a vu le message. */
+    if(c.arena && ARENA_DOT){ ARENA_DOT=false; renderChatList(); }
     const mm=MODELS.find(m=>m.id===c.model);
-    if(mm && mm!==current) selectModel(mm);
+    /* Une ancienne discussion qui portait encore le modèle « arena » reprend le
+       modèle par défaut : le canal ne passe plus que par la discussion épinglée. */
+    if(mm && mm.family==="arena" && !c.arena){ selectModel(MODELS[0]); }
+    else if(mm && mm!==current) selectModel(mm);
     /* La discussion retrouve son mode : agent ou chat. */
     if(typeof AGENT_ON!=="undefined"){
       AGENT_ON=!!c.agent;
@@ -3962,6 +4002,12 @@ async function msDailyRun(){
    • Rien n'est perdu quand l'utilisateur est sur une autre discussion : le
      message est enregistré dans la discussion « Arena », sans notification. */
 let ARENA_UNSUB=null, ARENA_DEV_T=null, ARENA_LAST_USER=null;
+/* Un message d'Arena arrivé pendant qu'une autre discussion est ouverte laisse
+   un simple point sur la ligne épinglée — aucune fenêtre, aucun bandeau. */
+let ARENA_DOT=false;
+/* La bulle « Envoi… » de la discussion Arena : la réponse d'Arena la remplace
+   au lieu d'en ajouter une troisième. */
+let ARENA_WAIT=null;
 /* Ids déjà traités dans cette page : un même message ne s'exécute jamais deux
    fois, même si l'écoute le redonne avant que « done » soit écrit. */
 const ARENA_DONE=new Set();
@@ -4063,20 +4109,49 @@ async function arenaExecCall(call){
   const txt=url+"\n"+head+"\n\n"+String(j.content==null?(j.error||""):j.content);
   return {ok:!!j.ok, text:txt, exit:j.ok?0:1};
 }
-/* ---- la discussion « Arena » : créée une fois, jamais dupliquée ---- */
+/* ---- la discussion « Arena » : UNE seule, épinglée en tête ---- */
+/* Elle est créée une fois puis retrouvée à chaque fois (jamais de doublon) :
+   c'est elle qui porte le canal, et rien d'autre. */
 async function arenaChat(){
   if(!FB_OK||!fbUser||!fbDB) return null;
   if(typeof chats==="undefined"||!Array.isArray(chats)) return null;
-  const found=chats.find(c=>c.model==="arena")||null;
-  if(found) return found;
+  let found=chats.find(c=>c.arena===true&&c.pinned===true)
+    || chats.find(c=>c.arena===true)
+    || chats.find(c=>c.model==="arena"&&!c.hidden)     /* une ancienne : on l'adopte */
+    || null;
+  if(found){
+    if(found.arena!==true||found.pinned!==true||found.agent!==true){
+      found.arena=true; found.pinned=true; found.agent=true;
+      try{ await chatsRef().doc(found.id).set({arena:true, pinned:true, agent:true},{merge:true}); }catch(e){}
+    }
+    return found;
+  }
   const id="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
   const now=Date.now();
+  const neuve={id:id, title:"Arena", model:"arena", agent:true, arena:true, pinned:true,
+    createdAt:now, updatedAt:now};
   try{
-    await chatsRef().doc(id).set({title:"Arena", model:"arena", agent:false, arena:true, createdAt:now, updatedAt:now});
-    chats.unshift({id:id, title:"Arena", model:"arena", agent:false, arena:true, createdAt:now, updatedAt:now});
-    renderChatList();
+    await chatsRef().doc(id).set({title:"Arena", model:"arena", agent:true, arena:true, pinned:true,
+      createdAt:now, updatedAt:now});
   }catch(e){ return null; }
-  return chats[0];
+  chats.unshift(neuve);
+  renderChatList();
+  return neuve;
+}
+/* Les discussions qui portaient encore le modèle « arena » avant l'épinglage
+   deviendraient des doublons : elles quittent la liste (rien n'est supprimé
+   dans Firestore). */
+async function arenaDedupe(main){
+  if(!main) return;
+  const extra=chats.filter(c=>c!==main&&(c.arena===true||c.model==="arena"));
+  if(!extra.length) return;
+  let change=false;
+  for(const c of extra){
+    if(c.hidden===true) continue;
+    c.hidden=true; change=true;
+    if(FB_OK&&fbUser){ try{ await chatsRef().doc(c.id).set({hidden:true},{merge:true}); }catch(e){} }
+  }
+  if(change) renderChatList();
 }
 /* ---- enregistrement dans la discussion « Arena » ----
    `order` vient de l'horloge : les messages restent dans l'ordre même si
@@ -4125,13 +4200,22 @@ async function arenaDeliver1(d, id){
   if(parsed.kind==="call" && parsed.call.action!=="final"){
     const res=await arenaExecCall(parsed.call);
     if(inChat&&chat&&chatId===chat.id){
+      /* La commande et sa sortie s'affichent dans une zone terminale, comme
+         pendant une mission d'agent : barre, monospace, défilement. */
       const b=addAssistant("arena");
       const zone=document.createElement("div");
-      zone.className="arena-call";
-      zone.style.cssText="font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;background:#0d0d0f;color:#e6e6e9;"
-        +"border-radius:10px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere";
-      zone.textContent=res.text;
+      zone.className="zone";
+      const bar=document.createElement("div"); bar.className="zone-bar";
+      const lang=document.createElement("span"); lang.className="zone-lang";
+      lang.textContent="commande vm";
+      bar.appendChild(lang);
+      const pre=document.createElement("pre");
+      const code=document.createElement("code");
+      code.textContent=res.text;
+      pre.appendChild(code);
+      zone.appendChild(bar); zone.appendChild(pre);
       b.appendChild(zone);
+      scrollDown();
     }
     await arenaSend(res.text, "tool", id, "résultat de commande");
     await arenaMark(id, "done");
@@ -4141,15 +4225,20 @@ async function arenaDeliver1(d, id){
   const out=parsed.text;
   if(!out) { await arenaMark(id,"done"); return; }
   if(inChat && chat){
-    const b=addAssistant("arena");
+    /* La réponse prend la place de la bulle « Envoi… » : elle apparaît donc
+       exactement là où l'utilisateur l'attend, dès qu'elle est générée. */
+    const b=(ARENA_WAIT&&ARENA_WAIT.isConnected)?ARENA_WAIT:addAssistant("arena");
+    ARENA_WAIT=null;
     b.innerHTML=renderMarkdown(out);
     msgActions(b,{getMd:()=>out});
     conv.push({role:"assistant", text:out});
     scrollDown();
     await arenaSaveReply(chat, out);
   }else{
-    /* Sur une autre discussion : on enregistre, sans rien afficher. */
+    /* Sur une autre discussion : on enregistre, et la ligne épinglée gagne un
+       simple point (aucune fenêtre ne s'ouvre, rien ne recouvre l'écran). */
     await arenaSaveReply(chat, out);
+    if(!ARENA_DOT){ ARENA_DOT=true; renderChatList(); }
   }
   await arenaMark(id, "done");
 }
@@ -4186,6 +4275,7 @@ async function submitArena(text){
     const kind = pendingAudio ? "audio" : (pendingImage ? "upload" : (useBlackImage ? "black" : "none"));
     addUser(text, kind, pendingImage, pendingAudio);
     const b=addAssistant("arena");
+    ARENA_WAIT=b;
     promptEl.value=""; promptEl.style.height="auto"; scrollDown();
     b.innerHTML='<span class="gentxt">Envoi<i>.</i><i>.</i><i>.</i></span>';
     conv.push({role:"user", text:text});
