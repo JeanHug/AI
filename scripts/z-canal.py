@@ -17,7 +17,7 @@ Le canal vit dans Firestore, sous la forme d'une liste de messages :
 
 Sous-commandes
 --------------
-  wait  [--timeout 1700] [--interval 4]   attend un message de l'utilisateur
+  wait  [--timeout 1800] [--interval 4]   attend un message (30 min par défaut)
   read  [--n 30] [--all] [--since ID]     affiche l'historique du canal
   write <texte|-> [--json] [--req ID] [--wait 15]
                                           envoie un message vers l'app
@@ -164,6 +164,8 @@ def _val(field):
             return v
     if "timestampValue" in field:
         return field["timestampValue"]
+    if "arrayValue" in field:
+        return [_val(v) for v in (field["arrayValue"].get("values") or [])]
     return None
 
 
@@ -277,6 +279,30 @@ def read_state():
         return {}
 
 
+def seen_ids():
+    """Ce qu'Arena a déjà vu, lu dans le canal lui-même (chan/main.arenaSeen).
+
+    L'état n'est donc pas lié à cette machine : un message arrivé pendant une
+    absence est rendu dès la première vérification, même depuis un autre poste.
+    """
+    status, res = _http("GET", MAIN + "?key=" + API_KEY, token=token())
+    if status >= 300:
+        return []
+    fields = (res.get("fields") or {})
+    arr = fields.get("arenaSeen")
+    ids = _val(arr) if arr else None
+    if isinstance(ids, list):
+        return [i for i in ids if i]
+    return list(read_state().get("seen_ids") or [])
+
+
+def seen_ids_put(ids):
+    ids = list(dict.fromkeys([i for i in ids if i]))[-300:]
+    fields = {"arenaSeen": {"arrayValue": {"values": [{"stringValue": i} for i in ids]}}}
+    url = MAIN + "?key=%s&updateMask.fieldPaths=arenaSeen" % API_KEY
+    return _http("PATCH", url, {"fields": fields}, token=token())
+
+
 ROLE_TAG = {"user": "👤 toi", "arena": "◆ arena", "tool": "⚙ vm"}
 
 
@@ -296,13 +322,12 @@ def show(msg, full=False, indent="  "):
 
 # ------------------------------------------------------------------ commandes
 def marquer_vus(docs):
-    """Retient les messages que l'agent vient de voir (état local du script)."""
-    st = read_state()
-    vus = list(st.get("seen_ids") or [])
+    """Retient les messages que l'agent vient de voir (dans le canal)."""
+    vus = seen_ids()
     for m in docs:
         if m.get("role") == "user" and m["id"] not in vus:
             vus.append(m["id"])
-    write_state(seen_ids=vus[-400:])
+    seen_ids_put(vus)
 
 
 def cmd_read(args):
@@ -336,9 +361,11 @@ def cmd_state(args):
     if docs:
         print("  dernier message     : [%s] %s" % (hhmm(docs[-1].get("ts")),
                                                    ROLE_TAG.get(docs[-1].get("role"), "?")))
+    vus = seen_ids()
+    print("  vus par arena       : %d message(s) — état stocké dans le canal" % len(vus))
     st = read_state()
     if st.get("last_user"):
-        print("  dernier vu          : %s à %s" % (st.get("last_user"), st.get("last_user_at", "?")))
+        print("  dernier reçu        : %s à %s" % (st.get("last_user"), st.get("last_user_at", "?")))
     if neufs:
         print("\n  à traiter :")
         for m in neufs:
@@ -353,11 +380,13 @@ def cmd_wait(args):
     contenu du canal : un message arrivé pendant une absence est donc rendu
     tout de suite, dès la première vérification.
     """
-    deja = set(read_state().get("seen_ids") or [])
+    deja = set(seen_ids())
     t0 = time.time()
     interval = max(2, args.interval)
     print("⏳ canal arena : attente d'un message (jusqu'à %.0f min, toutes les %d s)…"
           % (args.timeout / 60.0, interval))
+    print("   (elle s'arrête dès qu'un message arrive ; sinon elle rend la main au bout de %.0f min)"
+          % (args.timeout / 60.0))
     sys.stdout.flush()
     main_patch({"arenaWaiting": "true", "arenaWaitingSince": str(int(time.time() * 1000))})
     try:
@@ -369,8 +398,8 @@ def cmd_wait(args):
                 for m in neufs:
                     deja.add(m["id"])
                 box_patch(msg["id"], {"state": "read", "readAt": str(int(time.time() * 1000))})
-                write_state(last_user=msg["id"], last_user_at=hhmm(msg.get("ts")),
-                            seen_ids=list(deja))
+                seen_ids_put(list(deja))
+                write_state(last_user=msg["id"], last_user_at=hhmm(msg.get("ts")))
                 print("\n📨 message reçu après %.0f s :\n" % (time.time() - t0))
                 for m in neufs[:-1]:
                     print("  (il y en a un autre, plus récent : %s)" % m["id"])
@@ -437,6 +466,8 @@ def cmd_write(args):
 def cmd_selftest(args):
     print("canal : %s" % BOX)
     print("projet : %s" % PROJECT)
+    vus = seen_ids()
+    print("état partagé (arenaSeen) : %d message(s) déjà vus" % len(vus))
     msg = box_add("arena", "test canal z-canal.py " + str(int(time.time())), kind="text")
     docs = box_list(3)
     ok = any(d["id"] == msg["id"] for d in docs)
@@ -455,7 +486,7 @@ def main():
     sub = p.add_subparsers(dest="cmd")
 
     w = sub.add_parser("wait", help="attendre un message de l'utilisateur")
-    w.add_argument("--timeout", type=float, default=1700, help="durée max en secondes (défaut 1700)")
+    w.add_argument("--timeout", type=float, default=1800, help="durée max en secondes (défaut 1800 = 30 min)")
     w.add_argument("--interval", type=float, default=4, help="intervalle de vérification en secondes")
     w.set_defaults(func=cmd_wait)
 
