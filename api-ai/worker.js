@@ -1699,7 +1699,11 @@ async function fetchHandler(request, env, ctx) {
         let b = {};
         try { b = await request.json(); } catch { /* corps illisible */ }
         const kind = String(b.kind || "text");
-        const role = kind === "tool" ? "tool" : "arena";
+        /* Rôle : l'application écrit toujours en tant qu'UTILISATEUR, et son
+           résultat de commande en tant que « tool ». Elle ne peut PAS écrire
+           au nom d'Arena (sinon elle se répondrait à elle-même). C'est le
+           script z-canal.py qui écrit « arena », directement dans Firestore. */
+        const role = kind === "tool" ? "tool" : "user";
         const text = String(b.text == null ? "" : b.text);
         if (!text && kind !== "tool") return json({ error: "texte vide" }, 400);
         const now = Date.now();
