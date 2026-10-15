@@ -44,5 +44,8 @@ jobs:
           # Clé NVIDIA NIM : posée elle aussi en secret du worker, réservée aux
           # modèles NVIDIA NIM (ajoutés plus tard). Aucun modèle n'est activé ici.
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          # Clé ModelScope (jetons « ms-… ») : posée en secret du worker, prête
+          # pour les modèles à ajouter plus tard.
+          MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
           WORKER_NAME: api-ai
         run: node scripts/deploy-api-ai.cjs

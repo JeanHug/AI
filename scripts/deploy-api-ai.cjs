@@ -37,9 +37,10 @@ const tokenSecrets = ['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3']
   .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
   .filter((t) => t.text.length > 0);
 /* Autres secrets du worker, posés exactement de la même façon (aucune valeur
-   n'est écrite dans le dépôt ni affichée). NVIDIA_NIM_API_KEY : clé réservée
-   aux modèles NVIDIA NIM, qui seront ajoutés plus tard. */
-const otherSecrets = ['NVIDIA_NIM_API_KEY']
+   n'est écrite dans le dépôt ni affichée). NVIDIA_NIM_API_KEY et
+   MODELSCOPE_API_KEY : clés réservées à des modèles qui seront ajoutés plus
+   tard (aucun modèle n'est activé par la simple présence de ces clés). */
+const otherSecrets = ['NVIDIA_NIM_API_KEY', 'MODELSCOPE_API_KEY']
   .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
   .filter((t) => t.text.length > 0);
 
