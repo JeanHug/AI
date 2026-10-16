@@ -4140,8 +4140,10 @@ async function arenaExecCall(call){
     }catch(e){ r={ok:false, stderr:String(e&&e.message?e.message:e)}; }
     finally{ g.stop(); }
     const so=String(r.stdout||""), se=String(r.stderr||"");
+    const ex=(r.exit_code==null?0:r.exit_code);
     const txt="$ "+cmd+"\n[exit] "+(r.exit_code==null?"?":r.exit_code)+"\n"+(so||se||"(aucune sortie)");
-    return {ok:!!r.ok, text:txt, exit:r.exit_code||0};
+    return {ok:!!r.ok, text:txt, exit:ex,
+      step:{kind:"bash", cmd:cmd, out:so, err:se, exit:ex}};
   }
   /* fetch : lecture d'une page par la VM (Chrome sans écran). */
   const url=String(call.url||"").trim();
@@ -4160,7 +4162,8 @@ async function arenaExecCall(call){
   const head=(j.ok?("HTTP "+(j.status==null?"?":j.status)):"ÉCHEC")
     +(j.title?(" · "+j.title):"")+(j.chars?(" · "+j.chars+" caractères"):"");
   const txt=url+"\n"+head+"\n\n"+String(j.content==null?(j.error||""):j.content);
-  return {ok:!!j.ok, text:txt, exit:j.ok?0:1};
+  return {ok:!!j.ok, text:txt, exit:j.ok?0:1,
+    step:{kind:"fetch", cmd:"fetch ["+fmode+"] "+url, out:txt, err:(j.ok?"":String(j.error||head)), exit:(j.ok?0:1)}};
 }
 /* ---- la discussion « Arena » : UNE seule, épinglée en tête ---- */
 /* Elle est créée une fois puis retrouvée à chaque fois (jamais de doublon) :
@@ -4236,6 +4239,17 @@ async function arenaSaveUser(text){
     return chat;
   }catch(e){ console.warn("canal arena (enregistrement) :", e); return null; }
 }
+/* Une commande exécutée est enregistrée comme un message : à la réouverture,
+   la zone terminale est reconstruite à l'identique. */
+async function arenaSaveStep(chat, step, at){
+  if(!chat||!step) return;
+  try{
+    const now=Date.now();
+    const t=(typeof at==="number" && at>0 && at<=now+60000)?at:now;
+    await arenaCommit(chat, [{role:"assistant", text:"", modelName:"arena",
+      order:t, createdAt:now, steps:[step]}]);
+  }catch(e){ console.warn("canal arena (commande) :", e); }
+}
 async function arenaSaveReply(chat, text, at){
   if(!chat) return;
   try{
@@ -4263,24 +4277,15 @@ async function arenaDeliver1(d, id){
         repart dans le canal pour Arena, et s'affiche ici en zone repliable. */
   if(parsed.kind==="call" && parsed.call.action!=="final"){
     const res=await arenaExecCall(parsed.call);
+    /* La commande s'affiche dans la discussion Arena, avec sa sortie, dans la
+       zone terminale (mêmes briques qu'une mission d'agent) — et elle y est
+       ENREGISTRÉE : on la retrouve en rouvrant la discussion, même plus tard. */
     if(inChat&&chat&&chatId===chat.id){
-      /* La commande et sa sortie s'affichent dans une zone terminale, comme
-         pendant une mission d'agent : barre, monospace, défilement. */
       const b=addAssistant("arena");
-      const zone=document.createElement("div");
-      zone.className="zone";
-      const bar=document.createElement("div"); bar.className="zone-bar";
-      const lang=document.createElement("span"); lang.className="zone-lang";
-      lang.textContent="commande vm";
-      bar.appendChild(lang);
-      const pre=document.createElement("pre");
-      const code=document.createElement("code");
-      code.textContent=res.text;
-      pre.appendChild(code);
-      zone.appendChild(bar); zone.appendChild(pre);
-      b.appendChild(zone);
+      agtRenderMission(b, [res.step], "", true);
       scrollDown();
     }
+    if(chat) await arenaSaveStep(chat, res.step, Number(d.ts)||0);
     await arenaSend(res.text, "tool", id, "résultat de commande");
     await arenaMark(id, "done");
     return;
