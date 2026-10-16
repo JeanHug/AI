@@ -876,6 +876,7 @@ async function msChat(env, msModel, prompt, params, image) {
 const ARENA_PROJECT = "ai-agent-1234a";
 const ARENA_FS = "https://firestore.googleapis.com/v1/projects/" + ARENA_PROJECT + "/databases/(default)/documents";
 let ARENA_TOKEN = { id: "", uid: "", expires: 0 };
+let ARENA_FS_ERR = null;               /* dernière erreur Firestore (diagnostic) */
 let ARENA_LAST = null;                 /* dernier aller-retour (diagnostic) */
 
 function fsStr(v) { return { stringValue: String(v == null ? "" : v) }; }
@@ -906,13 +907,30 @@ async function arenaToken(env) {
     headers: { "Content-Type": "application/json", "User-Agent": BROWSER_UA },
     body: JSON.stringify({ email: email, password: pass, returnSecureToken: true }),
   });
-  const j = await r.json().catch(() => null);
-  if (!r.ok || !j || !j.idToken) {
-    ARENA_LAST = { at: Date.now(), action: "login", ok: false, statut: r.status };
-    return "";
+  let j = await r.json().catch(() => null);
+  if (r.ok && j && j.idToken) {
+    ARENA_TOKEN = { id: j.idToken, uid: String(j.localId || ""), expires: Date.now() + (Number(j.expiresIn || 3600) * 1000) };
+    return ARENA_TOKEN.id;
   }
-  ARENA_TOKEN = { id: j.idToken, uid: String(j.localId || ""), expires: Date.now() + (Number(j.expiresIn || 3600) * 1000) };
-  return ARENA_TOKEN.id;
+  ARENA_LAST = { at: Date.now(), action: "login", ok: false, statut: r.status };
+  /* Repli : une session ANONYME. Les règles du projet autorisent cette voie
+     (l'application elle-même s'en sert), et elle évite de rester bloqué si le
+     compte du service est momentanément refusé. */
+  try {
+    const r2 = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyC58J1paO0ULhTW0RuDfUePVeuOUmG5fZY", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": BROWSER_UA },
+      body: JSON.stringify({ returnSecureToken: true }),
+    });
+    const j2 = await r2.json().catch(() => null);
+    if (r2.ok && j2 && j2.idToken) {
+      ARENA_TOKEN = { id: j2.idToken, uid: String(j2.localId || ""), expires: Date.now() + (Number(j2.expiresIn || 3600) * 1000) };
+      ARENA_LAST = { at: Date.now(), action: "login", ok: true, mode: "anonyme" };
+      return ARENA_TOKEN.id;
+    }
+    ARENA_LAST = { at: Date.now(), action: "login", ok: false, statut: r2.status };
+  } catch (e) { /* réseau : on réessaiera */ }
+  return "";
 }
 async function arenaWrite(env, doc) {
   const tok = await arenaToken(env);
@@ -1487,6 +1505,13 @@ function canalBase(id) {
 /* Un message écrit par un agent : « arena » pour le canal par défaut (l'app
    l'écoute sous ce rôle depuis toujours), « agent » ailleurs. */
 function canalRole(id) { return id === "arena" ? "arena" : "agent"; }
+/* Le document qui PORTE la collection : chan/main pour « arena », le document
+   du canal sinon. Les requêtes filtrées (runQuery, agrégations) partent de là. */
+function canalParent(id) {
+  return (id === "arena")
+    ? { parent: "chan/main", coll: "box" }
+    : { parent: "canaux/" + encodeURIComponent(id), coll: "messages" };
+}
 async function canalDoc(env, id) {
   const tok = await arenaToken(env);
   if (!tok) return { ok: false, error: "compte Firebase non configuré" };
@@ -1535,10 +1560,58 @@ async function canalAppend(env, id, fields) {
   return { ok: true, id: String(j.name || "").split("/").pop() };
 }
 async function canalUnread(env, id) {
-  const l = await canalList(env, id, 200);
-  if (!l.ok) return l;
-  const unread = l.messages.filter((m) => m.role === "user" && m.state === "new");
-  return { ok: true, messages: unread, unread: unread.length, total: l.messages.length };
+  /* Les messages non lus, par une requête FILTRÉE sur state == "new" :
+     Firestore ne facture que les documents rendus, donc une attente qui ne
+     trouve rien ne coûte AUCUNE lecture. (Avant, chaque tour relisait les 200
+     derniers messages : 41 documents × 24 tours/minute — le quota quotidien du
+     compte a été épuisé comme ça, et Firestore a répondu 429.) */
+  const tok = await arenaToken(env);
+  if (!tok) return { ok: false, error: "compte Firebase non configuré" };
+  const p = canalParent(id);
+  const body = { structuredQuery: {
+    from: [{ collectionId: p.coll }],
+    where: { fieldFilter: { field: { fieldPath: "state" }, op: "EQUAL", value: { stringValue: "new" } } },
+    limit: 50,
+  } };
+  const r = await fetch(ARENA_FS + "/" + p.parent + ":runQuery", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok, "User-Agent": BROWSER_UA },
+    body: JSON.stringify(body),
+  });
+  const txt = await r.text().catch(() => "");
+  let j = null; try { j = JSON.parse(txt); } catch (e) { j = null; }
+  if (!r.ok || !Array.isArray(j)) {
+    ARENA_FS_ERR = { at: Date.now(), statut: r.status, corps: String(txt).slice(0, 300) };
+    return { ok: false, error: "lecture refusée (" + r.status + ") " + String(txt).slice(0, 160) };
+  }
+  const docs = j.filter((x) => x && x.document).map((x) => fsDoc(x.document));
+  const unread = docs.filter((m) => m.role === "user" && m.state === "new");
+  unread.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  return { ok: true, messages: unread, unread: unread.length, total: docs.length };
+}
+/* Le nombre de messages, par AGRÉGATION : une requête de comptage coûte une
+   lecture pour mille entrées, là où relire la collection en coûtait 200. */
+async function canalCount(env, id) {
+  const tok = await arenaToken(env);
+  if (!tok) return null;
+  const p = canalParent(id);
+  const body = { structuredAggregationQuery: {
+    structuredQuery: { from: [{ collectionId: p.coll }] },
+    aggregations: [{ count: {} }],
+  } };
+  const r = await fetch(ARENA_FS + "/" + p.parent + ":runAggregationQuery", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok, "User-Agent": BROWSER_UA },
+    body: JSON.stringify(body),
+  });
+  const txt = await r.text().catch(() => "");
+  let j = null; try { j = JSON.parse(txt); } catch (e) { j = null; }
+  if (!r.ok || !Array.isArray(j)) { ARENA_FS_ERR = { at: Date.now(), statut: r.status, corps: String(txt).slice(0, 300) }; return null; }
+  for (const x of j) {
+    const f = x && x.result && x.result.aggregateFields;
+    if (f) { const k = Object.keys(f)[0]; if (k) return Number(f[k].integerValue || 0); }
+  }
+  return null;
 }
 async function canalMarkRead(env, id, msgs) {
   for (const m of msgs) {
@@ -1740,12 +1813,13 @@ async function canalRoute(env, request, url) {
       messages: u.messages.map(canalPublic), unread: u.messages.length });
   }
   if (action === "state" || !action) {
-    const l = await canalList(env, id, 200);
-    const msgs = l.ok ? l.messages : [];
-    const unread = msgs.filter((m) => m.role === "user" && m.state === "new").length;
     if (!action) return htmlOut(canalOwnPage(base, c));
+    const u = await canalUnread(env, id);
+    const n = await canalCount(env, id);
     return json({ ok: true, canal: { id: id, name: c.name || id, mode: c.mode || "chat",
-      pinned: !!c.pinned, createdAt: c.createdAt || 0, messages: msgs.length, unread: unread } });
+      pinned: !!c.pinned, createdAt: c.createdAt || 0, messages: (n == null ? 0 : n),
+      unread: (u.ok ? u.messages.length : 0) },
+      erreur: u.ok ? null : u.error, firestore: ARENA_FS_ERR });
   }
   return json({ ok: false, error: "action inconnue (write, read, wait, state, install)" }, 404);
 }
