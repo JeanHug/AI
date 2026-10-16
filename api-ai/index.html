@@ -559,7 +559,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .agentbtn.on{background:#111113;color:#fff;border-color:#111113;
   box-shadow:0 2px 10px rgba(17,17,19,.25);animation:agtPop .25s ease}
 /* --- Phase 69 : le mode de la discussion dans la zone noire ------------ */
-.agentbtn.mode{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;
+.agentbtn.mode{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;cursor:default;
   background:#111113;color:#fff;border-color:#111113;padding:5px 12px;line-height:1.32;
   max-width:min(58vw,470px);cursor:default}
 .agentbtn.mode:hover{background:#111113}
@@ -568,19 +568,32 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .agentbtn.mode .mbnotice{max-width:100%;font-size:11px;font-weight:500;color:#c9c9cf;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* --- Paramètres : la liste des réglages ------------------------------- */
-.setrow{display:flex;align-items:center;gap:12px;width:100%;border:0;border-top:1px solid var(--line);
-  background:none;padding:12px 2px;cursor:pointer;text-align:left;font:inherit;color:inherit}
-.setsec .setrow:first-of-type{border-top:0}
-.setrow:hover{background:#fafafb}
+#setlist,#setcompte,#setcanal{animation:setview .22s ease both}
+@keyframes setview{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.setrow{display:flex;align-items:center;gap:13px;width:100%;border:1px solid transparent;
+  border-radius:13px;background:none;padding:12px 13px;cursor:pointer;text-align:left;
+  font:inherit;color:inherit;transition:background .16s ease,border-color .16s ease,transform .12s ease}
+.setrow+.setrow{margin-top:6px}
+.setrow:hover{background:#fafafb;border-color:var(--line)}
+.setrow:active{transform:scale(.985)}
+.setrow:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.setrow .sra{transition:transform .16s ease}
+.setrow:hover .sra{transform:translateX(2px)}
 .setrow .sric{flex:none;width:38px;height:38px;border-radius:50%;overflow:hidden;display:flex;
-  align-items:center;justify-content:center;background:#f3f3f5;color:#111113}
+  align-items:center;justify-content:center;background:#f3f3f5;color:#111113;
+  transition:background .16s ease,transform .16s ease}
+.setrow:hover .sric{background:#ececef;transform:scale(1.04)}
 .setrow .sric .avat{width:38px;height:38px;font-size:15px}
 .setrow .srtx{flex:1 1 auto;min-width:0}
-.setrow .srtx b{display:block;font-size:14px;font-weight:600}
+.setrow .srtx b{display:block;font-size:14px;font-weight:600;letter-spacing:-.01em}
 .setrow .srtx span{display:block;font-size:12.5px;color:var(--ink-2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .setrow .sra{flex:none;color:var(--ink-3);display:flex;align-items:center}
 .setback{margin-bottom:2px}
+/* --- Réglages : la liste arrive en douceur ---------------------------- */
+.setlistsec .setrow{animation:setrow .26s ease-out both}
+.setlistsec .setrow:nth-of-type(2){animation-delay:.05s}
+@keyframes setrow{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 /* --- Z-Canal : la liste des canaux (c'est ELLE qui défile, pas la page) */
 .canlist{display:flex;gap:10px;align-items:stretch;overflow-x:auto;overflow-y:hidden;
   overscroll-behavior-x:contain;padding:2px 2px 12px;margin:0 -2px;scrollbar-width:thin}
@@ -601,7 +614,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .copybtn:hover{border-color:var(--ink-3);color:var(--ink)}
 .copybtn.ok{color:#0a7d3c;border-color:#bfe3cd;background:#f4fbf6}
 /* --- Nouvelle discussion : le choix du mode --------------------------- */
-#newpop{position:fixed;inset:0;z-index:130;background:rgba(17,17,16,.45);display:flex;
+#newpop{position:fixed;inset:0;z-index:145;background:rgba(17,17,16,.45);display:flex;
   align-items:center;justify-content:center;padding:20px;animation:fadein .18s both}
 #newpop[hidden]{display:none}
 #newpop .npc{position:relative;background:#fff;border-radius:16px;padding:20px 20px 18px;
@@ -613,7 +626,8 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .modepick{border:1px solid var(--line);border-radius:12px;background:#fff;padding:14px 6px 11px;
   cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:9px;font-size:13px;
   font-weight:600;color:var(--ink);transition:border-color .15s ease,transform .12s ease}
-.modepick:hover{border-color:#111113}
+.modepick:hover{border-color:#111113;background:#fcfcfd}
+.modepick:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .modepick:active{transform:scale(.97)}
 .modepick svg{display:block}
 .canfree{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
@@ -3509,7 +3523,8 @@ function fileToImage(file){
     <div class="setwrap" id="setlist">
       <h2 class="settitle">Paramètres</h2>
       <p class="setsub">Compte, canaux et sécurité</p>
-      <section class="setsec">
+      <section class="setsec setlistsec">
+        <h3>Réglages</h3>
         <button type="button" class="setrow" id="setgoaccount">
           <span class="sric" id="setrowavatar"></span>
           <span class="srtx"><b>Compte</b><span id="setrowmail">Photo, profil, sécurité</span></span>
@@ -3596,7 +3611,9 @@ function fileToImage(file){
       <button type="button" class="pbtn" id="canalcreate">Créer le canal</button>
       <div id="canalfree" hidden></div>
       <p class="autherr" id="canalerr" hidden></p>
-      <p class="authalt"><button type="button" class="linkbtn" id="npcancel">Retour</button></p>
+      <p class="authalt"><button type="button" class="linkbtn" id="npback">&#8249; Modes</button>
+        &nbsp;·&nbsp;
+        <button type="button" class="linkbtn" id="npcancel">Annuler</button></p>
     </div>
     <div id="npcanalmode" hidden>
       <p class="npd"></p>
@@ -5186,6 +5203,9 @@ async function agtAttachJob(info, cid){
   const mission=String(info.mission||st0.mission||"(mission)");
   AGT_JOB_OWN=info.id; AGT_JOB_CHAT=cid;
   if(typeof AGENT_ON!=="undefined"&&!AGENT_ON){
+    /* Une mission rattachée à sa discussion : cette discussion est en mode
+       agent (c'est le mode qui commande l'en-tête, plus un interrupteur). */
+    if(typeof CUR_MODE!=="undefined") CUR_MODE="agent";
     AGENT_ON=true; try{ agtBtn.classList.add("on"); }catch(e){} agtSyncUI();
   }
   addUser(mission,"none",null,null);
@@ -5324,23 +5344,15 @@ function pwPeek(input){
 }
 pwPeek(document.getElementById("authpass"));
 
-/* --- la zone noire (phase 69) : elle MONTRE le mode de la discussion ----
-   Fini l'interrupteur allumé/éteint : le mode se choisit à la création de la
-   discussion (chat, agent ou Z-Canal), et il ne change plus ensuite. Le clic
-   n'a donc qu'un rôle d'explication — sauf sur une discussion encore vierge,
-   où il rouvre le choix du mode. */
+/* --- la zone noire (phases 69-70) : elle MONTRE le mode de la discussion --
+   Fini l'interrupteur allumé/éteint, et fini le clic-surprise : c'est un
+   affichage pur. Le mode se choisit à la création (chat, agent ou Z-Canal),
+   depuis la poubelle en mode chat ou depuis « Nouvelle discussion » dans le
+   menu, et il ne change plus ensuite. */
 function agtBtnModeClick(){
-  if(typeof fbUser==="undefined"||!fbUser){
-    agtToast("Veuillez vous connecter pour choisir un mode.");
-    return;
-  }
-  if(typeof busy!=="undefined"&&busy) return;
-  if(typeof conv!=="undefined"&&conv.length===0){
-    if(typeof openNewPop==="function"){ openNewPop(); return; }
-  }
   agtToast((typeof modeBadgeInfo==="function")?modeBadgeInfo().label:"Mode");
 }
-agtBtn.addEventListener("click",agtBtnModeClick);
+/* Aucun écouteur : la zone noire est un affichage. */
 agtFilesBtn.addEventListener("click",()=>agtOpenPanel());
 document.getElementById("attach").addEventListener("click",()=>agtSyncUI());
 
@@ -7071,6 +7083,13 @@ function newPopView(view){
 function openNewPop(){
   if (busy) { alert("Attends la fin de la réponse en cours."); return; }
   const p = newPopEl(); if (!p) return;
+  /* Une seule surface à la fois : la popup ferme les réglages, la connexion,
+     le menu d'une discussion et le tiroir des conversations. */
+  try {
+    const st = document.getElementById("settings"); if (st) st.hidden = true;
+    const am = document.getElementById("authmodal"); if (am) am.hidden = true;
+    closeChatPop(); closeSide();
+  } catch (e) {}
   const err = document.getElementById("canalerr"); if (err) err.hidden = true;
   const inp = document.getElementById("canalname"); if (inp) inp.value = "";
   newPopView("npmodes");
@@ -7098,8 +7117,8 @@ function pickMode(md){
 /* Choix « Z-Canal » : on crée le canal, puis on fige son mode. */
 function pickCanal(){
   if (!(typeof fbUser !== "undefined") || !fbUser) { agtToast("Veuillez vous connecter pour créer un canal."); return; }
-  CUR_MODE = "canal";
-  renderModeBadge();
+  /* Le mode ne s'affiche dans la zone noire qu'une fois VRAIMENT choisi :
+     tant que le canal n'est pas relié, la discussion garde son mode. */
   newPopView("npcanalform");
   fillFreeCanals();
 }
@@ -7232,6 +7251,8 @@ function renderCanalList(){
 /* ==================== les fonctions reprises (mode, liste, réglages) ==== */
 function openAccountSettings2(){
   if (!fbUser) { openAuth(); return; }
+  closeNewPop();          /* jamais les réglages et la popup de mode ensemble */
+  closeChatPop();
   fillSettings();
   showSetView("list");
   $fb("#settings").hidden = false;
@@ -7371,13 +7392,23 @@ function newConversation2(md){
   if (typeof FB !== "undefined" && FB.onNewChat) FB.onNewChat();
   if (typeof agtNewConversation === "function") agtNewConversation();
   renderModeBadge();
+  agtSyncUI2();
 }
+/* Ce que la discussion en cours est vraiment : chat, agent, ou canal. */
+function currentMode(){ return (CUR_MODE === "agent" || CUR_MODE === "canal") ? CUR_MODE : "chat"; }
+function currentChat(){ try { return (chats || []).find(x => x.id === chatId) || null; } catch (e) { return null; } }
 function agtSyncUI2(){
   const ok = agtLogged();
-  if (AGENT_ON && !ok) { AGENT_ON = false; }
+  const md = currentMode();
+  /* Le mode de la discussion commande tout : les missions d'agent n'existent
+     qu'en mode agent (jamais dans une discussion de canal, qui travaille par
+     le canal), et l'interrupteur interne suit le mode. */
+  AGENT_ON = (md === "agent");
   agtFilesBtn.hidden = !(AGENT_ON && ok);
-  /* La « nouvelle discussion » reste toujours accessible : c'est elle qui
-     choisit le mode (chat, agent ou Z-Canal). */
+  /* La poubelle (nouvelle discussion) n'apparaît qu'en mode chat : en mode
+     agent on garde le fil de la mission, et une discussion de canal est liée
+     à son canal (elle ne se recrée pas). */
+  if (typeof clearBtn !== "undefined" && clearBtn) clearBtn.hidden = (md !== "chat");
   const ms = document.getElementById("menushare");
   if (ms) ms.hidden = !(AGENT_ON && ok);
   renderModeBadge();
@@ -7386,8 +7417,12 @@ function agtSyncUI2(){
 /* ==================== câblage ------------------------------------------- */
 function canalWire(){
   const g = function(id){ return document.getElementById(id); };
-  /* le bouton « nouvelle discussion » ouvre le choix du mode */
+  /* le bouton « nouvelle discussion » ouvre le choix du mode (mode chat), et
+     celui du menu aussi — c'est le seul chemin en mode agent ou canal, où la
+     poubelle n'est plus là. */
   if (typeof clearBtn !== "undefined" && clearBtn) clearBtn.onclick = openNewPop;
+  const nc = g("newchat");
+  if (nc) nc.onclick = function(){ closeSide(); openNewPop(); };
   const p = newPopEl();
   if (p) {
     const close = g("newpclose"); if (close) close.onclick = closeNewPop;
@@ -7395,7 +7430,8 @@ function canalWire(){
     const c1 = g("pickchat"); if (c1) c1.onclick = function(){ pickMode("chat"); };
     const c2 = g("pickagent"); if (c2) c2.onclick = function(){ pickMode("agent"); };
     const c3 = g("pickcanal"); if (c3) c3.onclick = function(){ pickCanal(); };
-    const bk = g("npcancel"); if (bk) bk.onclick = function(){ newPopView("npmodes"); fillFreeCanals(); };
+    const bk = g("npback"); if (bk) bk.onclick = function(){ newPopView("npmodes"); fillFreeCanals(); };
+    const cx = g("npcancel"); if (cx) cx.onclick = closeNewPop;
     const cr = g("canalcreate"); if (cr) cr.onclick = canalCreateClick;
     const cname = g("canalname");
     if (cname) cname.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); canalCreateClick(); } });
