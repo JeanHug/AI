@@ -567,6 +567,13 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .agentbtn.mode .mbmode svg{display:block;flex:none}
 .agentbtn.mode .mbnotice{max-width:100%;font-size:11px;font-weight:500;color:#c9c9cf;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* --- Paramètres : des zones en grisé, comme de vrais réglages --------- */
+.setsec{background:#f5f5f7;border-radius:14px;padding:5px 6px;margin:0 0 14px;border-top:0}
+.setsec h3{margin:2px 0 7px;padding:0 8px;font-size:11.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3)}
+.setrow+.setrow{box-shadow:inset 0 1px 0 var(--line)}
+.setrow{border-radius:10px}
+.setrow:hover{background:#fff}
 /* --- Paramètres : la liste des réglages ------------------------------- */
 #setlist,#setcompte,#setcanal{animation:setview .22s ease both}
 @keyframes setview{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
@@ -589,7 +596,11 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .setrow .srtx span{display:block;font-size:12.5px;color:var(--ink-2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .setrow .sra{flex:none;color:var(--ink-3);display:flex;align-items:center}
-.setback{margin-bottom:2px}
+.setbackbtn{width:34px;height:34px;margin:0 0 6px;display:inline-flex;align-items:center;
+  justify-content:center;border:1px solid var(--line);border-radius:10px;background:#fff;
+  color:var(--ink-2);cursor:pointer;padding:0;transition:border-color .15s ease,transform .12s ease}
+.setbackbtn:hover{border-color:var(--ink-3);color:var(--ink)}
+.setbackbtn:active{transform:scale(.94)}
 /* --- Réglages : la liste arrive en douceur ---------------------------- */
 .setlistsec .setrow{animation:setrow .26s ease-out both}
 .setlistsec .setrow:nth-of-type(2){animation-delay:.05s}
@@ -599,17 +610,13 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
   overscroll-behavior-x:contain;padding:2px 2px 12px;margin:0 -2px;scrollbar-width:thin}
 .canlist::-webkit-scrollbar{height:8px}
 .canlist::-webkit-scrollbar-thumb{background:#e2e2e6;border-radius:99px}
-.cancard{flex:0 0 auto;width:min(300px,76vw);border:1px solid var(--line);border-radius:12px;
-  background:#fff;padding:12px 13px}
-.cancard .cn{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;white-space:nowrap}
-.cancard .cn svg{flex:none}
-.cancard .cn span{overflow:hidden;text-overflow:ellipsis}
-.cancard .ctag{flex:none;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
-  color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:2px 8px}
-.cancard .cid{display:flex;align-items:center;gap:8px;margin-top:9px}
-.cancard .cid code{font-family:var(--mono);font-size:12.5px;background:#f4f4f6;padding:.18em .45em;border-radius:5px}
-.cancard .cmeta{margin-top:8px;font-size:12px;color:var(--ink-3)}
-.copybtn{width:28px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+.cancard{flex:0 0 auto;display:flex;align-items:center;gap:11px;border:1px solid var(--line);
+  border-radius:12px;background:#fff;padding:8px 10px 8px 12px;white-space:nowrap}
+.cancard .cn svg{flex:none;display:block}
+.cancard .cn{display:flex;align-items:center;gap:8px}
+.cancard .cname{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.cancard .cid{font-family:var(--mono);font-size:12px;color:var(--ink-3);background:none;padding:0}
+.copybtn{width:26px;height:26px;flex:none;display:inline-flex;align-items:center;justify-content:center;
   border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink-2);cursor:pointer;padding:0}
 .copybtn:hover{border-color:var(--ink-3);color:var(--ink)}
 .copybtn.ok{color:#0a7d3c;border-color:#bfe3cd;background:#f4fbf6}
@@ -3524,21 +3531,20 @@ function fileToImage(file){
       <h2 class="settitle">Paramètres</h2>
       <p class="setsub">Compte, canaux et sécurité</p>
       <section class="setsec setlistsec">
-        <h3>Réglages</h3>
         <button type="button" class="setrow" id="setgoaccount">
           <span class="sric" id="setrowavatar"></span>
-          <span class="srtx"><b>Compte</b><span id="setrowmail">Photo, profil, sécurité</span></span>
+          <span class="srtx"><b>Compte</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
         <button type="button" class="setrow" id="setgocanal">
           <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 7.2h11.2M17.6 7.2 6.4 16.8M6.4 16.8h11.2"/><circle cx="3.4" cy="7.2" r="1.6"/><circle cx="20.6" cy="16.8" r="1.6"/></svg></span>
-          <span class="srtx"><b>Z-Canal</b><span>Relier un agent à l'application — un canal, une discussion</span></span>
+          <span class="srtx"><b>Z-Canal</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
     </div>
     <div class="setwrap" id="setcompte" hidden>
-      <button type="button" class="linkbtn setback" id="setbackcompte">&#8249; Paramètres</button>
+      <button type="button" class="setbackbtn" id="setbackcompte" title="Retour" aria-label="Revenir aux paramètres"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
       <div id="setavatar" class="setavatar"></div>
       <button type="button" class="linkbtn" id="setphoto">Changer la photo de profil</button>
       <input type="file" id="setphotofile" accept="image/*" hidden>
@@ -3566,13 +3572,13 @@ function fileToImage(file){
       <p class="autherr" id="seterr" hidden></p>
     </div>
     <div class="setwrap" id="setcanal" hidden>
-      <button type="button" class="linkbtn setback" id="setbackcanal">&#8249; Paramètres</button>
+      <button type="button" class="setbackbtn" id="setbackcanal" title="Retour" aria-label="Revenir aux paramètres"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
       <h2 class="settitle">Z-Canal</h2>
       <p class="setsub">Un canal relie un agent — n'importe lequel — à l'application : il reçoit vos messages, répond, et si son mode est « agent », exécute des commandes sur la VM.</p>
       <section class="setsec">
         <h3>Mes canaux</h3>
         <div class="canlist" id="canallist"></div>
-        <p class="setnote" id="setcanalnote">L'identifiant d'un canal (12 caractères) est la clé de son agent : copiez-le pour l'installer. Un canal ne sert qu'à une seule discussion, et son mode ne change plus.</p>
+        <p class="setnote" id="setcanalnote">Un canal, une discussion. Son identifiant est la clé de l'agent : copiez-le pour l'installer.</p>
       </section>
       <section class="setsec">
         <h3>Documentation</h3>
@@ -7225,15 +7231,13 @@ function renderCanalList(){
   const list = canalListAll();
   let h = "";
   for (const c of list) {
-    const md = c.arena ? "agent" : (c.mode || "");
-    const tag = c.arena ? "canal par défaut" : (md ? ("mode " + md) : "sans discussion");
-    const chat = c.chat ? ((chats || []).find(x => x.id === c.chat) || null) : null;
-    h += '<div class="cancard">'
-      + '<div class="cn">' + zIcon(14, "canal", "#111113") + '<span>' + esc(c.name || c.id) + '</span>'
-      + (c.arena ? '<span class="ctag pin">épinglé</span>' : '') + '</div>'
-      + '<div class="cid"><code>' + esc(c.id) + '</code>'
-      + '<button type="button" class="copybtn" data-copy="' + esc(c.id) + '" title="Copier l\'identifiant" aria-label="Copier l\'identifiant du canal">' + COPYIC + '</button></div>'
-      + '<div class="cmeta">' + esc(tag) + (chat ? ' · ' + esc(chat.title) : '') + '</div>'
+    /* Une ligne, rien de plus : le nom, l'identifiant en gris clair, et le
+       bouton « copier ». Tout tient sur une ligne — c'est la LISTE qui défile. */
+    const md = c.arena ? "canal par défaut (agent)" : (c.mode ? ("mode " + c.mode) : "sans discussion");
+    h += '<div class="cancard" title="' + esc((c.name || c.id) + " · " + md) + '">'
+      + '<span class="cn">' + zIcon(13, "canal", "#111113") + '<span class="cname">' + esc(c.name || c.id) + '</span></span>'
+      + '<code class="cid">' + esc(c.id) + '</code>'
+      + '<button type="button" class="copybtn" data-copy="' + esc(c.id) + '" title="Copier l\'identifiant" aria-label="Copier l\'identifiant du canal">' + COPYIC + '</button>'
       + '</div>';
   }
   box.innerHTML = h;
@@ -7405,10 +7409,13 @@ function agtSyncUI2(){
      le canal), et l'interrupteur interne suit le mode. */
   AGENT_ON = (md === "agent");
   agtFilesBtn.hidden = !(AGENT_ON && ok);
-  /* La poubelle (nouvelle discussion) n'apparaît qu'en mode chat : en mode
-     agent on garde le fil de la mission, et une discussion de canal est liée
-     à son canal (elle ne se recrée pas). */
-  if (typeof clearBtn !== "undefined" && clearBtn) clearBtn.hidden = (md !== "chat");
+  /* La poubelle (nouvelle discussion) est là dans tous les modes : c'est elle
+     qui ouvre le choix du mode. Seule exception, la discussion « Arena » :
+     épinglée et liée au canal par défaut, elle ne se remplace pas. */
+  if (typeof clearBtn !== "undefined" && clearBtn) {
+    const cc = currentChat();
+    clearBtn.hidden = !!(cc && cc.arena);
+  }
   const ms = document.getElementById("menushare");
   if (ms) ms.hidden = !(AGENT_ON && ok);
   renderModeBadge();
