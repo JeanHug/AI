@@ -614,17 +614,27 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .setlistsec .setrow{animation:setrow .26s ease-out both}
 .setlistsec .setrow:nth-of-type(2){animation-delay:.05s}
 @keyframes setrow{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-/* --- Z-Canal : la liste des canaux (c'est ELLE qui défile, pas la page) */
-.canlist{display:flex;gap:10px;align-items:stretch;overflow-x:auto;overflow-y:hidden;
-  overscroll-behavior-x:contain;padding:2px 2px 12px;margin:0 -2px;scrollbar-width:thin}
-.canlist::-webkit-scrollbar{height:8px}
-.canlist::-webkit-scrollbar-thumb{background:#e2e2e6;border-radius:99px}
-.cancard{flex:0 0 auto;display:flex;align-items:center;gap:11px;border:1px solid var(--line);
-  border-radius:12px;background:#fff;padding:8px 10px 8px 12px;white-space:nowrap}
-.cancard .cn svg{flex:none;display:block}
-.cancard .cn{display:flex;align-items:center;gap:8px}
-.cancard .cname{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
-.cancard .cid{font-family:var(--mono);font-size:12px;color:var(--ink-3);background:none;padding:0}
+/* --- Z-Canal : la liste des canaux — un canal par ligne, en grand ------- */
+.canlist{display:block;margin:2px 0 0}
+.canrow{position:relative;display:flex;align-items:center;gap:13px;padding:15px 2px}
+/* Le trait fin entre deux canaux : il ne prend pas toute la largeur, il part
+   après le logo et s'arrête avant le bord. */
+.canrow + .canrow::before{content:"";position:absolute;left:47px;right:12px;top:0;height:1px;background:var(--line)}
+.canrow .cic{width:34px;height:34px;flex:none;border-radius:50%;background:#f4f4f6;
+  display:flex;align-items:center;justify-content:center}
+.canrow .cic svg{display:block}
+.canrow .cmain{flex:1;min-width:0;display:flex;align-items:baseline;gap:11px;flex-wrap:nowrap}
+.canrow .cname{font-size:16px;font-weight:600;letter-spacing:-.015em;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.canrow .cid{flex:none;font-family:var(--mono);font-size:13px;color:var(--ink-3);background:none;padding:0}
+.canrow .copybtn{width:30px;height:30px}
+.ctag{float:right;font-size:11.5px;letter-spacing:0;text-transform:none;color:var(--ink-3)}
+/* --- Z-Canal : l'installation, adresses entières ------------------------ */
+.urlbox{border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;margin:10px 0;background:#fff}
+.urlhead{display:flex;align-items:center;gap:8px}
+.urlab{flex:1;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+.urlval{display:block;margin-top:7px;font-family:var(--mono);font-size:12px;line-height:1.62;
+  color:var(--ink);word-break:break-all;white-space:pre-wrap}
 .copybtn{width:26px;height:26px;flex:none;display:inline-flex;align-items:center;justify-content:center;
   border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink-2);cursor:pointer;padding:0}
 .copybtn:hover{border-color:var(--ink-3);color:var(--ink)}
@@ -3552,7 +3562,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P73</p>
+      <p class="setver">Version P74</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3584,18 +3594,34 @@ function fileToImage(file){
     <div class="setwrap" id="setcanal" hidden>
       <h2 class="settitle">Z-Canal</h2>
       <p class="setsub">Un canal relie un agent — n'importe lequel — à l'application : il reçoit vos messages, répond, et si son mode est « agent », exécute des commandes sur la VM.</p>
+
       <section class="setsec">
-        <h3>Mes canaux</h3>
+        <h3>Mes canaux <span class="ctag" id="setcanalcount"></span></h3>
         <div class="canlist" id="canallist"></div>
-        <p class="setnote" id="setcanalnote">Un canal, une discussion. Son identifiant est la clé de l'agent : copiez-le pour l'installer.</p>
       </section>
+
       <section class="setsec">
-        <h3>Documentation</h3>
-        <div class="setrowline"><span class="setlab">Adresse</span><span class="setval"><a id="canaldoclink" href="https://api-ai.hugdu77777.workers.dev/canal" target="_blank" rel="noopener">https://api-ai.hugdu77777.workers.dev/canal</a></span></div>
-        <p class="setnote">Installer un agent : <code>curl -s "&lt;adresse&gt;/&lt;id&gt;/install"</code> — les formats <b>python</b>, <b>js</b>, <b>sh</b> et <b>ts</b> sont fournis, avec un fichier de documentation. <span id="setcanalcount">1 canal</span>.</p>
+        <h3>Installation</h3>
+        <p class="setnote">Chaque canal a sa propre adresse. L'agent s'y connecte avec l'identifiant du canal : aucun mot de passe à créer.</p>
+        <div class="urlbox">
+          <span class="urlhead"><span class="urlab">Adresse des canaux</span>
+            <button type="button" class="copybtn" id="canalbasecopy" title="Copier l'adresse" aria-label="Copier l'adresse"></button></span>
+          <code class="urlval" id="canalbase"></code>
+        </div>
+        <div class="urlbox">
+          <span class="urlhead"><span class="urlab">Installer l'agent d'un canal (Python)</span>
+            <button type="button" class="copybtn" id="canalinstcopy" title="Copier la commande" aria-label="Copier la commande"></button></span>
+          <code class="urlval" id="canalinstcmd"></code>
+        </div>
+        <div class="urlbox">
+          <span class="urlhead"><span class="urlab">L'adresse d'un canal</span>
+            <button type="button" class="copybtn" id="canaladdrcopy" title="Copier l'adresse du canal" aria-label="Copier l'adresse du canal"></button></span>
+          <code class="urlval" id="canaladdr"></code>
+        </div>
+        <p class="setnote">Mêmes commandes pour <b>js</b>, <b>sh</b> et <b>ts</b> (<code>format=js</code>…) ; avec <code>doc=1</code> vous obtenez la documentation du canal, et sans <code>format</code> les instructions d'installation complètes. Chaque canal a son adresse complète : <b id="setcanalcount2"></b>.</p>
       </section>
     </div>
-    <div id="setpop" class="setpop" hidden>
+<div id="setpop" class="setpop" hidden>
       <div class="setpopcard">
         <h3 id="setpoptitle"></h3>
         <div id="setpopbody"></div>
@@ -7241,29 +7267,66 @@ function showSetView(view){
   if (view === "canal") renderCanalList();
 }
 function renderCanalList(){
-  const box = document.getElementById("canallist"); if (!box) return;
+  const box = document.getElementById("canallist");
+  if (!box) return;
   const list = canalListAll();
+  const base = API_BASE + "/canal";
   let h = "";
   for (const c of list) {
-    /* Une ligne, rien de plus : le nom, l'identifiant en gris clair, et le
-       bouton « copier ». Tout tient sur une ligne — c'est la LISTE qui défile. */
-    const md = c.arena ? "canal par défaut (agent)" : (c.mode ? ("mode " + c.mode) : "sans discussion");
-    h += '<div class="cancard" title="' + esc((c.name || c.id) + " · " + md) + '">'
-      + '<span class="cn">' + zIcon(13, "canal", "#111113") + '<span class="cname">' + esc(c.name || c.id) + '</span></span>'
-      + '<code class="cid">' + esc(c.id) + '</code>'
+    /* Un canal par ligne, en grand : son logo, son nom, son identifiant
+       COMPLET, et le bouton « copier ». Le trait fin qui sépare deux lignes
+       ne prend pas toute la largeur (voir .canrow + .canrow::before). */
+    const md = c.arena ? "canal par défaut · mode agent" : (c.mode ? ("mode " + c.mode) : "sans discussion");
+    const icon = (c.arena && typeof MARKS !== "undefined" && MARKS.arena)
+      ? MARKS.arena : zIcon(18, "canal", "#111113");
+    h += '<div class="canrow" title="' + esc((c.name || c.id) + " — " + md) + '">'
+      + '<span class="cic">' + icon + '</span>'
+      + '<span class="cmain"><b class="cname">' + esc(c.name || c.id) + '</b>'
+      + '<code class="cid">' + esc(c.id) + '</code></span>'
       + '<button type="button" class="copybtn" data-copy="' + esc(c.id) + '" title="Copier l\'identifiant" aria-label="Copier l\'identifiant du canal">' + COPYIC + '</button>'
       + '</div>';
   }
+  if (!list.length) h = '<p class="setnote">Aucun canal pour l\'instant. Créez-en un avec « Nouvelle discussion » → « Z-Canal ».</p>';
   box.innerHTML = h;
-  [].slice.call(box.querySelectorAll("[data-copy]")).forEach(function(b){
-    b.onclick = function(){
-      agtCopyText(b.getAttribute("data-copy"));
-      b.innerHTML = CHECKIC; b.classList.add("ok"); b.title = "Copié !";
-      setTimeout(function(){ b.innerHTML = COPYIC; b.classList.remove("ok"); b.title = "Copier l'identifiant"; }, 1600);
-    };
-  });
+  wireCanalCopies(box);
+
   const n = document.getElementById("setcanalcount");
   if (n) n.textContent = String(list.length) + (list.length > 1 ? " canaux" : " canal");
+  const n2 = document.getElementById("setcanalcount2");
+  if (n2) n2.textContent = String(list.length) + (list.length > 1 ? " canaux" : " canal");
+
+  /* Toutes les adresses sont écrites EN ENTIER, jusqu'au dernier caractère. */
+  const first = list[0];
+  const cid = first ? first.id : "arena";
+  const set = function (id, txt, copyId) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+    const bt = document.getElementById(copyId);
+    if (bt) bt.setAttribute("data-copy", txt);
+  };
+  set("canalbase", base, "canalbasecopy");
+  set("canaladdr", base + "/" + cid, "canaladdrcopy");
+  set("canalinstcmd", 'curl -s "' + base + "/" + cid + '/install?raw=1&format=python" -o z-canal.py', "canalinstcopy");
+  wireCanalCopies(document.getElementById("setcanal"));
+}
+/* Le bouton « copier » d'une adresse ou d'un identifiant : le même partout. */
+function wireCanalCopies(root){
+  if (!root) return;
+  [].slice.call(root.querySelectorAll(".copybtn")).forEach(function (b) {
+    if (b.dataset.wired) return;
+    b.dataset.wired = "1";
+    if (!b.innerHTML.trim()) b.innerHTML = COPYIC;
+    b.onclick = function () {
+      const txt = b.getAttribute("data-copy") || "";
+      if (!txt) return;
+      agtCopyText(txt);
+      b.innerHTML = CHECKIC; b.classList.add("ok"); b.title = "Copié !";
+      setTimeout(function () {
+        b.innerHTML = COPYIC; b.classList.remove("ok");
+        b.title = b.id === "canalbasecopy" ? "Copier l'adresse" : (b.id === "canaladdrcopy" ? "Copier l'adresse du canal" : (b.id === "canalinstcopy" ? "Copier la commande" : "Copier l'identifiant"));
+      }, 1600);
+    };
+  });
 }
 
 /* ==================== les fonctions reprises (mode, liste, réglages) ==== */
@@ -7463,8 +7526,8 @@ function canalWire(){
   const ga = g("setgoaccount"); if (ga) ga.onclick = function(){ showSetView("compte"); };
   const gc = g("setgocanal"); if (gc) gc.onclick = function(){ showSetView("canal"); };
   const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView("list"); };
-  const dl = g("canaldoclink");
-  if (dl) { dl.textContent = API_BASE + "/canal"; dl.href = API_BASE + "/canal"; }
+  /* les adresses de l'écran Z-Canal sont remplies (et copiables) d'un coup */
+  if (typeof renderCanalList === "function") renderCanalList();
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeNewPop(); });
   renderModeBadge();
 }
