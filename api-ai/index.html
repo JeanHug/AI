@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="cache-control" content="no-store">
 <title>AI Agent</title>
 <style>
 :root{
@@ -608,6 +609,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
   color:var(--ink-2);cursor:pointer;padding:0;transition:border-color .15s ease,transform .12s ease}
 .setbackbtn:hover{border-color:var(--ink-3);color:var(--ink)}
 .setbackbtn:active{transform:scale(.94)}
+.setver{font-size:11.5px;color:var(--ink-3);text-align:center;margin:18px 0 0}
 /* --- Réglages : la liste arrive en douceur ---------------------------- */
 .setlistsec .setrow{animation:setrow .26s ease-out both}
 .setlistsec .setrow:nth-of-type(2){animation-delay:.05s}
@@ -3533,6 +3535,7 @@ function fileToImage(file){
 
 <div id="settings" class="modal" hidden>
   <div class="setcard">
+    <button type="button" class="setbackbtn" id="setback" title="Retour" aria-label="Revenir aux paramètres" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
     <button type="button" class="modalx" id="setclose" aria-label="Fermer" title="Fermer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <div class="setwrap" id="setlist">
       <h2 class="settitle">Paramètres</h2>
@@ -3549,9 +3552,9 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
+      <p class="setver">Version P73</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
-      <button type="button" class="setbackbtn" id="setbackcompte" title="Retour" aria-label="Revenir aux paramètres"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
       <div id="setavatar" class="setavatar"></div>
       <button type="button" class="linkbtn" id="setphoto">Changer la photo de profil</button>
       <input type="file" id="setphotofile" accept="image/*" hidden>
@@ -3579,7 +3582,6 @@ function fileToImage(file){
       <p class="autherr" id="seterr" hidden></p>
     </div>
     <div class="setwrap" id="setcanal" hidden>
-      <button type="button" class="setbackbtn" id="setbackcanal" title="Retour" aria-label="Revenir aux paramètres"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
       <h2 class="settitle">Z-Canal</h2>
       <p class="setsub">Un canal relie un agent — n'importe lequel — à l'application : il reçoit vos messages, répond, et si son mode est « agent », exécute des commandes sur la VM.</p>
       <section class="setsec">
@@ -7232,6 +7234,10 @@ function showSetView(view){
   if (l) l.hidden = (view !== "list");
   if (a) a.hidden = (view !== "compte");
   if (c) c.hidden = (view !== "canal");
+  /* Le bouton « revenir » est un frère de la croix, dans le panneau : les deux
+     sont donc posés au même endroit, à la même hauteur, quoi qu'il arrive. */
+  const b = document.getElementById("setback");
+  if (b) b.hidden = (view === "list");
   if (view === "canal") renderCanalList();
 }
 function renderCanalList(){
@@ -7456,8 +7462,7 @@ function canalWire(){
   if (sc && !sc.dataset.wired2) { sc.dataset.wired2 = "1"; sc.addEventListener("click", function(){ showSetView("list"); }); }
   const ga = g("setgoaccount"); if (ga) ga.onclick = function(){ showSetView("compte"); };
   const gc = g("setgocanal"); if (gc) gc.onclick = function(){ showSetView("canal"); };
-  const b1 = g("setbackcompte"); if (b1) b1.onclick = function(){ showSetView("list"); };
-  const b2 = g("setbackcanal"); if (b2) b2.onclick = function(){ showSetView("list"); };
+  const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView("list"); };
   const dl = g("canaldoclink");
   if (dl) { dl.textContent = API_BASE + "/canal"; dl.href = API_BASE + "/canal"; }
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeNewPop(); });
