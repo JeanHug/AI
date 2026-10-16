@@ -226,6 +226,13 @@ main{flex:1 1 auto;overflow-y:auto;padding:26px 20px 34px}
 .chitem.pinned{background:#f7f7f9}
 .chitem.pinned .cht{font-weight:600}
 .chitem.pinned.sel{background:#eeeef0}
+/* Une mission tourne encore dans cette discussion : elle avance toute seule,
+   même si l'application est fermée. */
+.chjob{flex:none;display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;
+  letter-spacing:.4px;text-transform:uppercase;color:#0b6b3a;background:#e8f6ee;
+  border:1px solid #cbe9d8;border-radius:999px;padding:2px 7px}
+.chjob i{width:5px;height:5px;border-radius:50%;background:#12a35c;animation:jobpulse 1.3s ease-in-out infinite}
+@keyframes jobpulse{0%,100%{opacity:.3}50%{opacity:1}}
 .chdot{flex:none;width:7px;height:7px;border-radius:50%;background:#111113;animation:fadein .25s ease}
 .chitem .cht{flex:1;min-width:0;font-size:13.5px;color:var(--ink);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;border:0;background:none;padding:0;text-align:left}
@@ -2053,7 +2060,13 @@ function scrollDown(){ const m=document.querySelector("main"); m.scrollTop=m.scr
 
 async function submit(){
   const text=promptEl.value.trim();
-  if(!text || busy) return;
+  if(!text) return;
+  if(busy){
+    /* Une mission tourne encore ici : elle continue en arrière-plan (c'est la
+       passerelle qui la mène) et l'on peut écrire la suite tout de suite. */
+    if(AGT_JOB_OWN){ try{ await agtDetachNow(); }catch(e){} }
+    else return;
+  }
   if(log.querySelector(".empty")) log.innerHTML="";
   sendBtn.classList.remove("sent"); void sendBtn.offsetWidth; sendBtn.classList.add("sent");
 
@@ -3585,6 +3598,12 @@ function renderChatList(){
       badge.className="chbadge"; badge.textContent="Agent"; badge.title="Discussion en mode agent";
       row.appendChild(badge);
     }
+    if(c.job&&c.job.state==="run"){
+      const jb=document.createElement("span");
+      jb.className="chjob"; jb.title="Mission en cours : elle avance toute seule, même app fermée";
+      jb.innerHTML="<i></i>en cours";
+      row.appendChild(jb);
+    }
     const more=document.createElement("button");
     more.type="button"; more.className="chmore"; more.textContent="•••";
     more.setAttribute("aria-label","Options : "+c.title);
@@ -3642,13 +3661,27 @@ async function deleteChat(c){
 function chatsRef(){ return fbDB.collection("users").doc(fbUser.uid).collection("chats"); }
 
 /* --- nouvelle discussion / chargement ---------------------------------- */
-function onNewChat(){ chatId=null; msgSeq=0; renderChatList(); }
+function onNewChat(){
+  /* Une mission affichée ici continue en arrière-plan : elle a sa discussion. */
+  if(AGT_JOB_OWN) agtDetachNow().catch(()=>{});
+  chatId=null; msgSeq=0; renderChatList();
+}
 async function loadChats(){
   if(!FB_OK||!fbUser) return;
   try{
     const snap=await chatsRef().orderBy("updatedAt","desc").limit(100).get();
     chats=snap.docs.map(d=>Object.assign({id:d.id}, d.data()));
   }catch(e){ chats=[]; console.warn("chats :", e); }
+  /* Les missions en cours connues de CET appareil : le marqueur Firestore fait
+     foi (il est visible de partout), mais une écriture qui a échoué ne doit pas
+     faire disparaître une mission du registre. */
+  try{
+    const reg=agtJobsLoad();
+    for(const c of chats){
+      const l=reg[c.id];
+      if(l&&(!c.job||!c.job.state)) c.job={id:l.id, state:"run", at:l.at, mission:l.mission||"", model:l.model||""};
+    }
+  }catch(e){}
   /* La discussion « Arena » existe toujours, et une seule : elle est créée ici
      si besoin, et les doublons éventuels sont écartés de la liste. */
   try{ const a=await arenaChat(); if(a) await arenaDedupe(a); }
@@ -3658,6 +3691,11 @@ async function loadChats(){
 async function loadChat(id){
   if(!FB_OK||!fbUser) return;
   const c=chats.find(x=>x.id===id); if(!c) return;
+  /* On quitte la discussion où une mission s'affichait : la mission continue
+     toute seule sur la passerelle (et reste marquée « en cours »). */
+  if(AGT_JOB_OWN&&AGT_JOB_CHAT&&AGT_JOB_CHAT!==id){
+    try{ await agtDetachNow(); }catch(e){}
+  }
   closeChatPop();
   try{
     const snap=await chatsRef().doc(id).collection("messages").orderBy("order").get();
@@ -3836,6 +3874,19 @@ async function readDocChunked(mref, m){
   for(const d of snap.docs) arr[+String(d.id).slice(1)]=d.data().d||"";
   try{ return Object.assign({}, m, JSON.parse(arr.join(""))); }catch(e){ return m; }
 }
+/* Le numéro d'ordre d'un nouveau message suit ce qui est DÉJÀ écrit dans la
+   discussion : une mission a pu déposer ses messages pendant que la page était
+   fermée, et deux messages ne doivent jamais partager le même numéro (le
+   second écraserait le premier). */
+async function fbSeqSync(cid){
+  if(!cid) return msgSeq;
+  try{
+    const last=await chatsRef().doc(cid).collection("messages").orderBy("order","desc").limit(1).get();
+    const v=last.empty?0:(Number(last.docs[0].data().order)||0);
+    if(cid===chatId) msgSeq=Math.max(msgSeq,v);
+    return v;
+  }catch(e){ return msgSeq; }
+}
 async function commitPair(uDoc, aDoc){
   const mref=chatsRef().doc(chatId).collection("messages");
   await writeDocChunked(mref, "m"+uDoc.order, uDoc);
@@ -3848,6 +3899,7 @@ async function afterText(x){
   const files=pendingFiles.slice();
   try{
     await ensureChat(x.userText);
+    await fbSeqSync(chatId);                 /* on repart de ce qui est écrit */
     const uDoc={role:"user", text:x.userText||"", kind:x.kind||"none", modelName:current.id,
       order:++msgSeq, createdAt:Date.now(), images:[]};
     const imgs=[];
@@ -3890,14 +3942,11 @@ async function afterAgent(x){
      même dans la bonne — c'est ce qui faisait « disparaître » la mission. */
   const back=(x.chatId && x.chatId!==chatId)?{id:chatId, seq:msgSeq}:null;
   try{
-    if(back){
-      chatId=x.chatId;
-      try{
-        const last=await chatsRef().doc(chatId).collection("messages").orderBy("order","desc").limit(1).get();
-        msgSeq=last.empty?0:(last.docs[0].data().order||0);
-      }catch(e){ msgSeq=0; }
-    }
+    if(back) chatId=x.chatId;
     await ensureChat(x.userText);
+    /* Toujours repartir de ce qui est écrit : la passerelle a pu enregistrer
+       la mission elle-même (application fermée, autre appareil). */
+    await fbSeqSync(chatId);
     const uDoc={role:"user", text:x.userText||"", kind:"none", modelName:current.id,
       order:++msgSeq, createdAt:Date.now(), images:[]};
     const aDoc={role:"assistant", text:x.out||"", modelName:current.id,
@@ -4851,12 +4900,77 @@ function agtLogged(){
    La mission est exécutée par la passerelle (worker) et non par le
    navigateur : elle continue donc même si l'app est fermée. L'app garde son
    identifiant et s'y raccroche au chargement suivant. */
-let AGT_JOB_OWN=null;   /* mission déjà suivie par cette page (ne pas la reprendre) */
-function agtJobKeep(x){
-  try{ if(x) localStorage.setItem("agt_job", JSON.stringify(x)); else localStorage.removeItem("agt_job"); }catch(e){}
+let AGT_JOB_OWN=null;        /* mission affichée en direct sur cette page */
+let AGT_JOB_CHAT=null;       /* sa discussion */
+let AGT_DETACH=false;        /* on lâche la mission : elle continue seule */
+/* Registre local des missions : plusieurs peuvent tourner en même temps, une
+   par discussion (le marqueur qui fait foi, lui, est dans Firestore, donc il
+   est visible depuis n'importe quel appareil). */
+function agtJobsLoad(){
+  try{
+    const s=localStorage.getItem("agt_jobs"); const m=s?JSON.parse(s):{};
+    return (m&&typeof m==="object")?m:{};
+  }catch(e){ return {}; }
 }
-function agtJobStored(){
-  try{ const s=localStorage.getItem("agt_job"); return s?JSON.parse(s):null; }catch(e){ return null; }
+function agtJobsSave(m){ try{ localStorage.setItem("agt_jobs", JSON.stringify(m||{})); }catch(e){} }
+function agtJobPut(job){
+  if(!job||!job.id||!job.chat) return;
+  const m=agtJobsLoad();
+  m[job.chat]={id:job.id, chat:job.chat, mission:job.mission||"", model:job.model||"", at:job.at||Date.now()};
+  agtJobsSave(m);
+}
+function agtJobDrop(chat){
+  if(!chat) return;
+  const m=agtJobsLoad();
+  if(m[chat]){ delete m[chat]; agtJobsSave(m); }
+}
+function agtJobLocal(chat){ const m=agtJobsLoad(); return (chat&&m[chat])?m[chat]:null; }
+/* Lâcher la mission affichée : elle continue sur la passerelle et son résultat
+   arrivera dans sa discussion. */
+async function agtDetachNow(){
+  if(!AGT_JOB_OWN) return;
+  AGT_DETACH=true;
+  for(let i=0;i<60&&AGT_JOB_OWN;i++) await new Promise(r=>setTimeout(r,100));
+  AGT_DETACH=false;
+}
+/* Le marqueur « en cours » de la discussion, écrit dans Firestore : il dit à
+   tous les appareils qu'une mission tourne là. */
+async function agtSetJobMark(cid, job, state){
+  if(!cid) return;
+  const c=(typeof chats!=="undefined")?chats.find(x=>x.id===cid):null;
+  const mark={id:String((job&&job.id)||(c&&c.job&&c.job.id)||""), state:state||"run",
+    at:Date.now(), mission:String((job&&job.mission)||(c&&c.job&&c.job.mission)||""),
+    model:String((job&&job.model)||(c&&c.job&&c.job.model)||"")};
+  if(c){ c.job=mark; renderChatList(); }
+  if(typeof FB==="undefined"||!FB_OK||!fbUser) return;
+  try{ await chatsRef().doc(cid).set({job:mark},{merge:true}); }catch(e){}
+}
+/* La passerelle range le résultat elle-même : on vérifie qu'elle l'a fait. */
+async function agtDelivered(cid){
+  if(!cid||typeof FB==="undefined"||!FB_OK||!fbUser) return false;
+  for(let i=0;i<4;i++){
+    let ok=true;
+    try{
+      const d=await chatsRef().doc(cid).get();
+      const j=(d.data()||{}).job;
+      if(j&&j.state==="done") return true;
+    }catch(e){ ok=false; }        /* Firebase injoignable : inutile d'attendre */
+    if(!ok) return false;
+    if(i<3) await new Promise(r=>setTimeout(r,3000));
+  }
+  return false;
+}
+/* Rien ne doit se perdre : si la passerelle n'a pas pu ranger le résultat,
+   c'est la page qui l'enregistre — une seule fois. */
+async function agtEnsureSaved(info, mission, stepsArr, finalText){
+  const cid=String((info&&info.chat)||"");
+  if(!cid) return;
+  if(await agtDelivered(cid)){ agtJobDrop(cid); return; }
+  if(typeof FB!=="undefined"&&FB.afterAgent){
+    try{ await FB.afterAgent({userText:mission, steps:stepsArr, out:finalText, chatId:cid}); }catch(e){}
+  }
+  agtJobDrop(cid);
+  await agtSetJobMark(cid, info, finalText?"done":"error");
 }
 async function agtJobState(id,since){
   try{
@@ -4874,6 +4988,9 @@ async function agtJobFollow(id, ui, initial){
   ui=ui||{};
   let seen=0, first=(initial||null);
   for(;;){
+    /* On peut lâcher la mission à tout moment (changement de discussion,
+       nouveau message) : elle continue sur la passerelle. */
+    if(ui.detached && ui.detached()) return {detached:true, seen:seen};
     const st=first||await agtJobState(id,seen);
     first=null;
     if(!st) return {lost:true, seen:seen};
@@ -4895,42 +5012,40 @@ async function agtJobFollow(id, ui, initial){
 }
 /* Reprise au rechargement : une mission lancée juste avant la fermeture de
    l'app a continué sur la passerelle ; on la réaffiche et on l'enregistre. */
-/* Affiche une mission (reprise au chargement ou retour dans sa discussion) et
-   suit son avancée. `save` : cette page enregistre-t-elle la mission ?
-   Une seule page enregistre — les autres ne font qu'afficher, pour ne jamais
-   écrire deux fois le même échange. */
-async function agtShowMission(info, opt){
-  opt=opt||{};
-  const save=opt.save!==false;
-  const silent=!!opt.silent;      /* mission d'une autre discussion : on ne fait que suivre */
-  let first=opt.state||null;
-  if(!first){ first=await agtJobState(info.id); if(!first) return false; }
-  if(save) AGT_SAVER=info.id;
-  if(!save) AGT_JOB_OWN=info.id;
-  /* C'est une mission d'agent : on remet ce mode pour un affichage correct. */
+/* ---- attacher une mission en cours à sa discussion ---------------------
+   Une mission vit sur la passerelle : rouvrir sa discussion la montre en
+   direct, où qu'on soit et quel que soit l'appareil. Rien n'est réenregistré
+   ici — la passerelle écrit le résultat dans SA discussion (agtEnsureSaved
+   sert de repli si elle n'a pas pu). */
+async function agtAttachJob(info, cid){
+  if(!info||!info.id||!cid) return false;
+  if(AGT_JOB_OWN) return false;                 /* une seule mission affichée */
+  const st0=await agtJobState(info.id);
+  if(!st0){
+    /* La passerelle ne connaît plus cette mission : le marqueur ne doit pas
+       rester « en cours » pour toujours. */
+    agtJobDrop(cid);
+    const c0=(typeof chats!=="undefined")?chats.find(x=>x.id===cid):null;
+    if(c0&&c0.job){ c0.job=null; renderChatList(); }
+    return false;
+  }
+  const mission=String(info.mission||st0.mission||"(mission)");
+  AGT_JOB_OWN=info.id; AGT_JOB_CHAT=cid;
   if(typeof AGENT_ON!=="undefined"&&!AGENT_ON){
     AGENT_ON=true; try{ agtBtn.classList.add("on"); }catch(e){} agtSyncUI();
   }
-  let term=null, logEl=null, bubble=null, finalEl=null;
+  addUser(mission,"none",null,null);
+  const bubble=addAssistant();
+  const finalEl=document.createElement("div");
+  finalEl.className="agent-final";
+  bubble.appendChild(finalEl);
+  let term=null, logEl=null;
   const ensureTerm=()=>{
-    if(!term){ const built=agtTermEl(bubble, finalEl, false); term=built.term; logEl=built.log; }
+    if(!term){ const built=agtTermEl(bubble,finalEl,false); term=built.term; logEl=built.log; }
     return logEl;
   };
-  if(!silent){
-    addUser(info.mission||"(mission)", "none", null, null);
-    bubble=addAssistant();
-    finalEl=document.createElement("div");
-    finalEl.className="agent-final";
-    bubble.appendChild(finalEl);
-  }
   const stepsArr=[];
-  const r=await agtJobFollow(info.id, silent ? {
-    ensureTerm:()=>null,
-    onStep:(st,L)=>{
-      stepsArr.push({kind:(st.kind==="fetch")?"fetch":"bash", cmd:String(st.cmd||""), out:String(st.out||""),
-        err:String(st.err||""), exit:st.exit||0});
-    }
-  } : {
+  const r=await agtJobFollow(info.id,{
     ensureTerm:ensureTerm,
     onStep:(st,L)=>{
       const kind=(st.kind==="fetch")?"fetch":"bash";
@@ -4939,62 +5054,60 @@ async function agtShowMission(info, opt){
       stepsArr.push({kind:kind, cmd:String(st.cmd||""), out:String(st.out||""),
         err:String(st.err||""), exit:st.exit||0});
       agtSmart();
-    }
-  }, first);
-  if(save){ agtJobKeep(null); AGT_SAVER=null; }
-  let finalText=String(r.final||"");
-  if(r.error) finalText=(finalText?finalText+"\n\n":"")+"*("+r.error+")*";
-  if(!silent){
-    if(term) term.classList.add("folded");
-    finalEl.innerHTML=renderMarkdown(finalText||"(mission sans texte final)");
-    msgActions(bubble,{getMd:()=>agtTraceMd(stepsArr, finalText)});
-    try{
-      conv.push({role:"user",text:info.mission||""});
-      conv.push({role:"assistant",text:finalText});
-    }catch(e){}
-    agtSmart();
+    },
+    afterPoll:agtSmart,
+    detached:()=>AGT_DETACH
+  }, st0);
+  AGT_JOB_OWN=null; AGT_JOB_CHAT=null;
+  if(term) term.classList.add("folded");
+  agtSmart();
+  if(r.detached) return true;
+  const inf={id:info.id, chat:cid, mission:mission};
+  if(r.lost){
+    agtJobDrop(cid);
+    finalEl.innerHTML=renderMarkdown("*(mission interrompue : la passerelle ne la connaît plus)*");
+    await agtSetJobMark(cid, inf, "error");
+    return true;
   }
-  /* C'est la page qui enregistre qui écrit, une seule fois, dans LA discussion
-     d'origine — même si l'utilisateur regarde ailleurs. */
-  if(save&&typeof FB!=="undefined"&&FB.afterAgent){
-    try{ FB.afterAgent({userText:info.mission||"", steps:stepsArr, out:finalText, chatId:info.chat||null}); }catch(e){}
-  }
-  if(AGT_MISSION_VIEW===info.id) AGT_MISSION_VIEW=null;
+  const finalText=String(r.final||"")||(r.error?("*("+r.error+")*"):"(mission sans texte final)");
+  finalEl.innerHTML=renderMarkdown(finalText);
+  msgActions(bubble,{getMd:()=>agtTraceMd(stepsArr, finalText)});
+  try{ conv.push({role:"user",text:mission}); conv.push({role:"assistant",text:finalText}); }catch(e){}
+  if(r.done) await agtEnsureSaved(inf, mission, stepsArr, finalText);
   return true;
 }
-let AGT_MISSION_VIEW=null;   /* mission déjà affichée dans la discussion ouverte */
-let AGT_SAVER=null;         /* mission dont cette page est chargée de l'enregistrement */
-
-/* Reprise au rechargement : une mission lancée juste avant la fermeture de
-   l'app a continué sur la passerelle ; on la réaffiche et on l'enregistre. */
-async function agtResumeJob(){
-  const info=agtJobStored();
-  if(!info||!info.id||!agtLogged()) return;
-  /* Une mission tourne déjà dans cette page (ou est déjà en train d'être
-     enregistrée par elle) : on n'y touche pas. */
-  if(typeof AGENT_BUSY!=="undefined"&&AGENT_BUSY) return;
-  if((AGT_JOB_OWN&&info.id===AGT_JOB_OWN)||(AGT_SAVER&&info.id===AGT_SAVER)) return;
-  /* La discussion ouverte n'est pas celle de la mission : on la laisse finir
-     et s'enregistrer chez elle, sans l'afficher au mauvais endroit. */
-  const ailleurs=!!(info.chat&&typeof chatId!=="undefined"&&chatId&&chatId!==info.chat);
-  agtToast(ailleurs?"Mission récupérée : son résultat ira dans sa discussion."
-    :"Mission récupérée : elle tournait pendant que l'app était fermée.");
-  await agtShowMission(info, {save:true, silent:ailleurs});
-}
-
-/* Retour dans la discussion d'une mission en cours : on la réaffiche en direct
-   (sans réenregistrer : la discussion est écrite par la mission elle-même). */
+/* Ouvrir une discussion dont la mission tourne encore : on s'y raccroche. */
 function agtMissionBanner(cid){
-  const info=agtJobStored();
-  if(!info||!info.id||!cid||info.chat!==cid) return;
-  if(AGT_MISSION_VIEW===info.id) return;
-  if(AGT_JOB_OWN&&info.id===AGT_JOB_OWN) return;   /* déjà affichée par la page */
-  if(AGT_SAVER&&info.id===AGT_SAVER) return;       /* enregistrée par la page, sans affichage */
-  AGT_MISSION_VIEW=info.id;
-  agtToast("Mission en cours : elle continue sur la passerelle.");
-  agtShowMission(info, {save:false}).catch(()=>{ AGT_MISSION_VIEW=null; });
+  if(!cid||AGT_JOB_OWN) return;                 /* déjà affichée sur la page */
+  const c=(typeof chats!=="undefined")?chats.find(x=>x.id===cid):null;
+  if(!c) return;
+  const live=(c.job&&c.job.state==="run")
+    ? {id:c.job.id, chat:cid, mission:c.job.mission||"", model:c.job.model||""} : null;
+  const info=live||agtJobLocal(cid);
+  if(!info||!info.id) return;
+  agtAttachJob(info, cid).catch(e=>{
+    AGT_JOB_OWN=null; AGT_JOB_CHAT=null; console.warn("mission :", e);
+  });
 }
-
+/* De temps en temps, on rafraîchit les marqueurs « en cours » : une mission
+   peut s'être terminée pendant qu'on regardait ailleurs. */
+async function agtJobsRefresh(){
+  if(typeof FB==="undefined"||!FB_OK||!fbUser) return;
+  if(typeof document!=="undefined"&&document.hidden) return;
+  let change=false;
+  for(const c of chats.slice()){
+    if(!c.job||c.job.state!=="run") continue;
+    try{
+      const d=await chatsRef().doc(c.id).get();
+      const j=(d.data()||{}).job;
+      if(!j||j.state!=="run"){
+        c.job=j||null; change=true;
+        if(j&&j.state==="done") agtJobDrop(c.id);
+      }
+    }catch(e){}
+  }
+  if(change) renderChatList();
+}
 /* Nouvelle discussion depuis le mode agent : aucune mission ne tourne
    (AGENT_BUSY est vérifié), on remet juste l'interface à plat. */
 function agtNewConversation(){
@@ -6089,15 +6202,19 @@ function agtRenderMission(bubble, steps, finalText, folded){
 
 /* Au chargement, si une mission tournait quand l'app a été fermée, on s'y
    raccroche (quelques essais le temps que la connexion soit établie). */
-(function agtResumeTick(n){
+(function agtJobsTick(n){
   setTimeout(()=>{
     try{
       if(typeof agtLogged==="function"&&agtLogged()){
-        agtResumeJob();          /* une seule fois : la reprise ne se répète pas */
+        /* Plus de reprise « dans le vide » : une mission vivante s'affiche
+           quand on ouvre SA discussion (elle est marquée « en cours » dans la
+           liste). Ici on ne fait que rafraîchir ces marqueurs. */
+        agtJobsRefresh();
+        setInterval(()=>{ try{ agtJobsRefresh(); }catch(e){} }, 45000);
         return;
       }
     }catch(e){ /* pas encore connecté */ }
-    if(n<7) agtResumeTick(n+1);
+    if(n<7) agtJobsTick(n+1);
   }, 2000);
 })(0);
 
@@ -6263,34 +6380,33 @@ async function agentRun(text){
 
     /* --- Voie principale : la mission est exécutée par la passerelle, qui
        continue même si l'app est fermée. L'app ne fait que suivre l'avancée. */
-    let job=null;
+    let job=null, detached=false;
     let jobChat=(typeof chatId!=="undefined")?chatId:null;
     try{
-      /* La discussion est créée tout de suite : la mission lui est rattachée,
-         et son résultat ira chez elle même si l'on change de discussion. */
+      /* La discussion est créée AVANT la mission, et sans course : la mission
+         lui est rattachée pour de bon. Son résultat ira donc chez elle — même
+         si l'on change de discussion, même si l'on ferme l'application. */
       if(typeof FB!=="undefined"&&FB_OK&&fbUser&&!jobChat&&typeof ensureChat==="function"){
-        try{
-          /* Au plus 4 s : une sauvegarde lente ne doit jamais retarder la
-             mission (elle est confiée à la passerelle juste après). */
-          jobChat=await Promise.race([ensureChat(text),
-            new Promise(r=>setTimeout(()=>r(null),4000))]);
-        }catch(e){ jobChat=null; }
+        try{ jobChat=await ensureChat(text); }catch(e){ jobChat=null; }
       }
       const sr=await fetch(API_BASE+"/api/agent/job/start",{
         method:"POST",
         headers:agtHeaders({"Content-Type":"application/json"}),
         body:JSON.stringify({model:current.id, mission:text, intro:intro, rappel:rappel, hist:hist,
+          chat:jobChat||"", uid:(typeof fbUser!=="undefined"&&fbUser)?fbUser.uid:"",
           image:shot?(shot.small||shot.b64):WHITE_PX, image_kind:shot?"upload":"none",
           params:{temperature:0.2}})
       });
       const sj=await sr.json();
-      if(sj&&sj.job) job={id:String(sj.job), chat:jobChat,
+      if(sj&&sj.job) job={id:String(sj.job), chat:jobChat, deliver:!!sj.deliver,
         model:current.id, mission:text, at:Date.now(), durable:!!sj.durable};
     }catch(e){ /* passerelle sans missions : la boucle locale prend le relais */ }
+    /* La mission est notée dans SA discussion (marqueur « en cours », visible
+       de tout appareil) et dans le registre de cette page. */
+    if(job&&job.chat){ agtJobPut(job); try{ await agtSetJobMark(job.chat, job, "run"); }catch(e){} }
 
     if(job){
-      AGT_JOB_OWN=job.id;
-      agtJobKeep(job);
+      AGT_JOB_OWN=job.id; AGT_JOB_CHAT=job.chat||null;
       const follow=await agtJobFollow(job.id,{
         ensureTerm:ensureTerm,
         onStep:(st,L)=>{
@@ -6307,11 +6423,19 @@ async function agentRun(text){
             +(st.exit?"  [exit "+st.exit+"]":"")+"\n\n";
           agtSmart();
         },
-        afterPoll:agtSmart
+        afterPoll:agtSmart,
+        detached:()=>AGT_DETACH
       });
-      agtJobKeep(null);
-      if(follow.done || follow.lost) AGT_JOB_OWN=null;
-      if(follow.done){
+      AGT_JOB_OWN=null; AGT_JOB_CHAT=null;
+      if(follow.detached){
+        /* Lâchée : elle continue sur la passerelle, sa discussion porte le
+           marqueur « en cours », et l'on peut faire autre chose. */
+        detached=true;
+        if(term) term.classList.add("folded");
+        killWait();
+        agtSmart();
+        agtToast("Mission laissée en arrière-plan — son résultat arrivera dans sa discussion.");
+      }else if(follow.done){
         killWait();
         finalMd=String(follow.final||"");
         if(finalMd) finalEl.innerHTML=renderMarkdown(finalMd);
@@ -6325,7 +6449,7 @@ async function agentRun(text){
          recyclé) → la boucle locale ci-dessous reprend la mission. */
     }
 
-    while(steps<1000&&!done){   /* filet de sécurité très large, pas une limite pratique */
+    while(!detached&&steps<1000&&!done){   /* filet de sécurité très large, pas une limite pratique */
       const prompt=steps===0
         ? intro
           +(hist?"\n\n## Conversation précédente (contexte)\n"+hist:"")
@@ -6412,6 +6536,7 @@ async function agentRun(text){
       }
       steps++;
     }
+    if(detached) return;      /* la passerelle finit et enregistre : rien à faire ici */
     if(!done){
       killWait();
       finalMd=lastRaw||"";
@@ -6430,9 +6555,21 @@ async function agentRun(text){
     conv.push({role:"user",text});
     conv.push({role:"assistant",text:finalText});
     msgActions(bubble,{getMd:()=>savedText});   /* bouton copier uniquement */
-    if(typeof FB!=="undefined"&&FB.afterAgent){
+    /* Qui enregistre ? La passerelle, quand elle a la discussion : c'est ce
+       qui fait qu'une mission finie pendant que l'app est fermée est quand
+       même rangée au bon endroit. On vérifie qu'elle l'a fait ; sinon — et
+       seulement là — la page s'en charge. */
+    let savedHere=false;
+    if(job&&job.deliver&&job.chat){
+      try{ savedHere=await agtDelivered(job.chat); }catch(e){ savedHere=false; }
+    }
+    if(!savedHere&&typeof FB!=="undefined"&&FB.afterAgent){
       try{ FB.afterAgent({userText:text, steps:stepsArr, out:finalText, chatId:(job&&job.chat)||null}); }catch(e){}
-      if(job&&job.chat&&job.chat!==chatId){
+    }
+    if(job&&job.chat){
+      agtJobDrop(job.chat);
+      try{ await agtSetJobMark(job.chat, job, "done"); }catch(e){}
+      if(job.chat!==chatId){
         const c=(typeof chats!=="undefined")?chats.find(x=>x.id===job.chat):null;
         agtToast("Mission terminée — le résultat est dans « "+((c&&c.title)||"sa discussion")+" ».");
       }
