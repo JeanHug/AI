@@ -558,6 +558,73 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .agentbtn:active{transform:scale(.94)}
 .agentbtn.on{background:#111113;color:#fff;border-color:#111113;
   box-shadow:0 2px 10px rgba(17,17,19,.25);animation:agtPop .25s ease}
+/* --- Phase 69 : le mode de la discussion dans la zone noire ------------ */
+.agentbtn.mode{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;
+  background:#111113;color:#fff;border-color:#111113;padding:5px 12px;line-height:1.32;
+  max-width:min(58vw,470px);cursor:default}
+.agentbtn.mode:hover{background:#111113}
+.agentbtn.mode .mbmode{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.agentbtn.mode .mbmode svg{display:block;flex:none}
+.agentbtn.mode .mbnotice{max-width:100%;font-size:11px;font-weight:500;color:#c9c9cf;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* --- Paramètres : la liste des réglages ------------------------------- */
+.setrow{display:flex;align-items:center;gap:12px;width:100%;border:0;border-top:1px solid var(--line);
+  background:none;padding:12px 2px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.setsec .setrow:first-of-type{border-top:0}
+.setrow:hover{background:#fafafb}
+.setrow .sric{flex:none;width:38px;height:38px;border-radius:50%;overflow:hidden;display:flex;
+  align-items:center;justify-content:center;background:#f3f3f5;color:#111113}
+.setrow .sric .avat{width:38px;height:38px;font-size:15px}
+.setrow .srtx{flex:1 1 auto;min-width:0}
+.setrow .srtx b{display:block;font-size:14px;font-weight:600}
+.setrow .srtx span{display:block;font-size:12.5px;color:var(--ink-2);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.setrow .sra{flex:none;color:var(--ink-3);display:flex;align-items:center}
+.setback{margin-bottom:2px}
+/* --- Z-Canal : la liste des canaux (c'est ELLE qui défile, pas la page) */
+.canlist{display:flex;gap:10px;align-items:stretch;overflow-x:auto;overflow-y:hidden;
+  overscroll-behavior-x:contain;padding:2px 2px 12px;margin:0 -2px;scrollbar-width:thin}
+.canlist::-webkit-scrollbar{height:8px}
+.canlist::-webkit-scrollbar-thumb{background:#e2e2e6;border-radius:99px}
+.cancard{flex:0 0 auto;width:min(300px,76vw);border:1px solid var(--line);border-radius:12px;
+  background:#fff;padding:12px 13px}
+.cancard .cn{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;white-space:nowrap}
+.cancard .cn svg{flex:none}
+.cancard .cn span{overflow:hidden;text-overflow:ellipsis}
+.cancard .ctag{flex:none;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+.cancard .cid{display:flex;align-items:center;gap:8px;margin-top:9px}
+.cancard .cid code{font-family:var(--mono);font-size:12.5px;background:#f4f4f6;padding:.18em .45em;border-radius:5px}
+.cancard .cmeta{margin-top:8px;font-size:12px;color:var(--ink-3)}
+.copybtn{width:28px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink-2);cursor:pointer;padding:0}
+.copybtn:hover{border-color:var(--ink-3);color:var(--ink)}
+.copybtn.ok{color:#0a7d3c;border-color:#bfe3cd;background:#f4fbf6}
+/* --- Nouvelle discussion : le choix du mode --------------------------- */
+#newpop{position:fixed;inset:0;z-index:130;background:rgba(17,17,16,.45);display:flex;
+  align-items:center;justify-content:center;padding:20px;animation:fadein .18s both}
+#newpop[hidden]{display:none}
+#newpop .npc{position:relative;background:#fff;border-radius:16px;padding:20px 20px 18px;
+  width:min(440px,100%);max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.22);
+  animation:pop .2s ease-out both}
+#newpop h3{margin:0 0 4px;font-size:16px}
+#newpop .npd{margin:0 0 12px;font-size:13px;color:var(--ink-2);line-height:1.55}
+.modegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0 6px}
+.modepick{border:1px solid var(--line);border-radius:12px;background:#fff;padding:14px 6px 11px;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:9px;font-size:13px;
+  font-weight:600;color:var(--ink);transition:border-color .15s ease,transform .12s ease}
+.modepick:hover{border-color:#111113}
+.modepick:active{transform:scale(.97)}
+.modepick svg{display:block}
+.canfree{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.canfree .cn{flex:1;min-width:0;display:flex;align-items:center;gap:7px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.canfree code{font-family:var(--mono);font-size:12px;background:#f4f4f6;padding:.15em .4em;border-radius:5px}
+/* --- pastille « non lu » → « lu ! » ---------------------------------- */
+.luchip{display:inline-flex;align-items:center;gap:4px;margin-top:9px;font-size:10.5px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border:1px solid var(--line);
+  border-radius:999px;padding:2px 8px;background:#fff}
+.luchip.lu{color:#0a7d3c;border-color:#bfe3cd;background:#f4fbf6}
 @keyframes agtPop{0%{transform:scale(.85)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
 #agentPanel{position:fixed;inset:0;z-index:120;background:#fff;display:flex;flex-direction:column;
   animation:apIn .24s cubic-bezier(.2,.7,.3,1) both}
@@ -2074,6 +2141,7 @@ async function submit(){
      gardent leur propre voie, même quand le bouton « Agent » est allumé :
      sans cela, Arena et les générateurs d'images partaient dans une mission
      et le worker répondait « modèle inconnu ». */
+  if(CUR_CANAL&&CUR_CANAL!=="arena"){ await submitCanal(text); return; }
   if(current.family==="arena"){ await submitArena(text); return; }
   if(current.gen==="img"){ await submitImage(text); return; }
   if(current.gen==="live"){ await submitLive(text); return; }
@@ -3438,7 +3506,24 @@ function fileToImage(file){
 <div id="settings" class="modal" hidden>
   <div class="setcard">
     <button type="button" class="modalx" id="setclose" aria-label="Fermer">&times;</button>
-    <div class="setwrap">
+    <div class="setwrap" id="setlist">
+      <h2 class="settitle">Paramètres</h2>
+      <p class="setsub">Compte, canaux et sécurité</p>
+      <section class="setsec">
+        <button type="button" class="setrow" id="setgoaccount">
+          <span class="sric" id="setrowavatar"></span>
+          <span class="srtx"><b>Compte</b><span id="setrowmail">Photo, profil, sécurité</span></span>
+          <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
+        </button>
+        <button type="button" class="setrow" id="setgocanal">
+          <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 7.2h11.2M17.6 7.2 6.4 16.8M6.4 16.8h11.2"/><circle cx="3.4" cy="7.2" r="1.6"/><circle cx="20.6" cy="16.8" r="1.6"/></svg></span>
+          <span class="srtx"><b>Z-Canal</b><span>Relier un agent à l'application — un canal, une discussion</span></span>
+          <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
+        </button>
+      </section>
+    </div>
+    <div class="setwrap" id="setcompte" hidden>
+      <button type="button" class="linkbtn setback" id="setbackcompte">&#8249; Paramètres</button>
       <div id="setavatar" class="setavatar"></div>
       <button type="button" class="linkbtn" id="setphoto">Changer la photo de profil</button>
       <input type="file" id="setphotofile" accept="image/*" hidden>
@@ -3465,6 +3550,21 @@ function fileToImage(file){
       </section>
       <p class="autherr" id="seterr" hidden></p>
     </div>
+    <div class="setwrap" id="setcanal" hidden>
+      <button type="button" class="linkbtn setback" id="setbackcanal">&#8249; Paramètres</button>
+      <h2 class="settitle">Z-Canal</h2>
+      <p class="setsub">Un canal relie un agent — n'importe lequel — à l'application : il reçoit vos messages, répond, et si son mode est « agent », exécute des commandes sur la VM.</p>
+      <section class="setsec">
+        <h3>Mes canaux</h3>
+        <div class="canlist" id="canallist"></div>
+        <p class="setnote" id="setcanalnote">L'identifiant d'un canal (12 caractères) est la clé de son agent : copiez-le pour l'installer. Un canal ne sert qu'à une seule discussion, et son mode ne change plus.</p>
+      </section>
+      <section class="setsec">
+        <h3>Documentation</h3>
+        <div class="setrowline"><span class="setlab">Adresse</span><span class="setval"><a id="canaldoclink" href="https://api-ai.hugdu77777.workers.dev/canal" target="_blank" rel="noopener">https://api-ai.hugdu77777.workers.dev/canal</a></span></div>
+        <p class="setnote">Installer un agent : <code>curl -s "&lt;adresse&gt;/&lt;id&gt;/install"</code> — les formats <b>python</b>, <b>js</b>, <b>sh</b> et <b>ts</b> sont fournis, avec un fichier de documentation. <span id="setcanalcount">1 canal</span>.</p>
+      </section>
+    </div>
     <div id="setpop" class="setpop" hidden>
       <div class="setpopcard">
         <h3 id="setpoptitle"></h3>
@@ -3476,6 +3576,37 @@ function fileToImage(file){
         <p class="autherr" id="setpoperr" hidden></p>
       </div>
     </div>
+
+<div id="newpop" hidden>
+  <div class="npc">
+    <button type="button" class="modalx" id="newpclose" aria-label="Fermer">&times;</button>
+    <h3>Nouvelle discussion</h3>
+    <div id="npmodes">
+      <p class="npd">Choisissez le mode de cette discussion : il ne changera plus.</p>
+      <div class="modegrid">
+        <button type="button" class="modepick" id="pickchat"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12.4c0 4-3.8 7.2-8.5 7.2-1 0-2-.15-2.9-.43L4.2 20.6l1.3-3.5A6.9 6.9 0 0 1 3.5 12.4C3.5 8.4 7.3 5.2 12 5.2s8.5 3.2 8.5 7.2Z"/><path d="M8.6 12.3h.01M12 12.3h.01M15.4 12.3h.01"/></svg>Chat</button>
+        <button type="button" class="modepick" id="pickagent"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="7.6" width="17.6" height="12.4" rx="3"/><path d="M12 3.4v4.2M8.6 12.6l-1.4 1.6 1.4 1.6M15.4 12.6l1.4 1.6-1.4 1.6"/></svg>Agent</button>
+        <button type="button" class="modepick" id="pickcanal"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 7.2h11.2M17.6 7.2 6.4 16.8M6.4 16.8h11.2"/><circle cx="3.4" cy="7.2" r="1.6"/><circle cx="20.6" cy="16.8" r="1.6"/></svg>Z-Canal</button>
+      </div>
+      <p class="npd" id="npconn" hidden>Connectez-vous : les modes « agent » et « Z-Canal » s'enregistrent sur votre compte.</p>
+    </div>
+    <div id="npcanalform" hidden>
+      <p class="npd">Un canal relie un agent — n'importe lequel — à l'application. Son identifiant (12 caractères) est la clé de cet agent : aucun mot de passe.</p>
+      <label class="flab">Nom du canal<input id="canalname" placeholder="Mon agent" maxlength="40" autocomplete="off"></label>
+      <button type="button" class="pbtn" id="canalcreate">Créer le canal</button>
+      <div id="canalfree" hidden></div>
+      <p class="autherr" id="canalerr" hidden></p>
+      <p class="authalt"><button type="button" class="linkbtn" id="npcancel">Retour</button></p>
+    </div>
+    <div id="npcanalmode" hidden>
+      <p class="npd"></p>
+      <div class="setpoprow">
+        <button type="button" class="dbtn" id="canalchat">Chat</button>
+        <button type="button" class="pbtn" id="canalagent">Agent</button>
+      </div>
+    </div>
+  </div>
+</div>
   </div>
 </div>
 
@@ -3686,6 +3817,10 @@ async function loadChats(){
      si besoin, et les doublons éventuels sont écartés de la liste. */
   try{ const a=await arenaChat(); if(a) await arenaDedupe(a); }
   catch(e){ console.warn("canal arena :", e); }
+  /* Les canaux du compte, puis l'écoute de ceux qui sont reliés à une discussion. */
+  if(typeof canalLoad==="function"){
+    try{ await canalLoad(); canalWatchAll(); }catch(e){ console.warn("canaux :", e); }
+  }
   renderChatList();
 }
 async function loadChat(id){
@@ -3708,10 +3843,17 @@ async function loadChat(id){
        modèle par défaut : le canal ne passe plus que par la discussion épinglée. */
     if(mm && mm.family==="arena" && !c.arena){ selectModel(MODELS[0]); }
     else if(mm && mm!==current) selectModel(mm);
-    /* La discussion retrouve son mode : agent ou chat. */
+    /* La discussion retrouve son mode : chat, agent ou Z-Canal. */
     if(typeof AGENT_ON!=="undefined"){
       AGENT_ON=!!c.agent;
       agtBtn.classList.toggle("on",AGENT_ON);
+      if(typeof CUR_MODE!=="undefined"){
+        CUR_CANAL=(c.canal&&c.canal!=="arena")?c.canal:null;
+        CUR_MODE=c.canal?"canal":(c.agent?"agent":"chat");
+        if(c.canal){ const am=MODELS.find(m=>m.id==="arena"); if(am) selectModel(am); canalWatchOne(c.canal); }
+        if(c.dot){ c.dot=false; }
+        renderModeBadge();
+      }
       agtSyncUI();
     }
     let lastA=null, lastAMd="";
@@ -3769,6 +3911,7 @@ async function loadChat(id){
         conv.push(ent);
       }
     }
+    if(c.canal) canalChipsFromHistory(c);   /* pastilles « non lu » / « lu ! » */
     if(lastA) msgActions(lastA,{getMd:()=>lastAMd, regen:()=>rerunLastLoaded()});
     if(!snap.size) emptyState();
     renderChatList(); closeSide(); scrollDown();
@@ -4230,12 +4373,12 @@ async function arenaCommit(chat, docs){
 }
 /* Enregistrement « au mieux » : une panne de Firestore ne doit jamais empêcher
    d'envoyer un message ni bloquer l'application. */
-async function arenaSaveUser(text){
+async function arenaSaveUser(text, req){
   try{
     const chat=await arenaChat();
     if(!chat) return null;
     const now=Date.now();
-    await arenaCommit(chat, [{role:"user", text:String(text||""), kind:"none", modelName:"arena", order:now, createdAt:now, images:[]}]);
+    await arenaCommit(chat, [{role:"user", text:String(text||""), kind:"none", modelName:"arena", order:now, createdAt:now, images:[], req:String(req||"")}]);
     return chat;
   }catch(e){ console.warn("canal arena (enregistrement) :", e); return null; }
 }
@@ -4322,6 +4465,11 @@ function arenaWatch(){
        être refusée et donner l'impression que l'application ne répond plus). */
     ARENA_UNSUB=box.onSnapshot(snap=>{
       snap.docChanges().forEach(ch=>{
+        if(ch.type==="modified"){
+          const dm=ch.doc.data()||{};
+          if(dm.role==="user"&&typeof chipState==="function") chipState("arena", ch.doc.id, dm.state);
+          return;
+        }
         if(ch.type!=="added") return;
         const d=ch.doc.data()||{};
         if(d.role!=="arena"||d.state!=="new") return;
@@ -4349,9 +4497,10 @@ async function submitArena(text){
     b.innerHTML='<span class="gentxt">Envoi<i>.</i><i>.</i><i>.</i></span>';
     conv.push({role:"user", text:text});
     /* 1. l'enregistrement local (au mieux, jamais bloquant) puis l'envoi. */
-    const chat=await arenaSaveUser(text);
     const j=await arenaSend(text, "text", "", "");
     const dev=!!(j&&j.device);
+    const chat=await arenaSaveUser(text, (j&&j.id)||"");
+    if(j&&j.id&&typeof chipAttach==="function") chipAttach("arena", j.id);
     if(!j||!j.ok){
       b.innerHTML='<div class="err">Canal injoignable : '+esc((j&&j.error)||"raison inconnue")+'</div>';
     }else if(dev){
@@ -5175,25 +5324,23 @@ function pwPeek(input){
 }
 pwPeek(document.getElementById("authpass"));
 
-/* --- bouton Agent : compte connecté obligatoire --- */
-agtBtn.addEventListener("click",()=>{
+/* --- la zone noire (phase 69) : elle MONTRE le mode de la discussion ----
+   Fini l'interrupteur allumé/éteint : le mode se choisit à la création de la
+   discussion (chat, agent ou Z-Canal), et il ne change plus ensuite. Le clic
+   n'a donc qu'un rôle d'explication — sauf sur une discussion encore vierge,
+   où il rouvre le choix du mode. */
+function agtBtnModeClick(){
   if(typeof fbUser==="undefined"||!fbUser){
-    agtToast("Veuillez vous connecter pour utiliser le mode agent.");
+    agtToast("Veuillez vous connecter pour choisir un mode.");
     return;
   }
-  if(!agtLogged()){
-    agtToast("L'IA n'est pas disponible pour vous pour l'instant !");
-    return;
+  if(typeof busy!=="undefined"&&busy) return;
+  if(typeof conv!=="undefined"&&conv.length===0){
+    if(typeof openNewPop==="function"){ openNewPop(); return; }
   }
-  /* Ni pendant une exécution, ni au milieu d'une conversation :
-     le mode se choisit au départ, on est soit en chat, soit en agent. */
-  if(busy||AGENT_BUSY) return;
-  if(typeof conv!=="undefined"&&conv.length>0) return;
-  AGENT_ON=!AGENT_ON;
-  agtBtn.classList.toggle("on",AGENT_ON);
-  agtSyncUI();
-  agtToast(AGENT_ON?"Mode agent activé — chaque message devient une mission dans la VM.":"Mode agent désactivé.");
-});
+  agtToast((typeof modeBadgeInfo==="function")?modeBadgeInfo().label:"Mode");
+}
+agtBtn.addEventListener("click",agtBtnModeClick);
 agtFilesBtn.addEventListener("click",()=>agtOpenPanel());
 document.getElementById("attach").addEventListener("click",()=>agtSyncUI());
 
@@ -6587,6 +6734,696 @@ async function agentRun(text){
     busy=false; sendBtn.disabled=false; AGENT_BUSY=false; agtSmart();
   }
 }
+</script>
+<script>
+/* =====================================================================
+   Phase 69 — Z-Canal : les canaux, les modes de discussion, les réglages
+   ---------------------------------------------------------------------
+   Un canal relie un agent (n'importe lequel) à l'application. Le canal par
+   défaut s'appelle « arena » : c'est la discussion « Arena », épinglée en
+   tête de liste et impossible à supprimer. Les autres canaux se créent ici
+   et se relient à UNE discussion, dont le mode (agent ou chat) est figé.
+   ===================================================================== */
+
+/* --- les dessins SVG (aucune image, tout est vectoriel) ---------------- */
+function zIcon(px, kind, color){
+  const c = color || "#111113", p = px || 16;
+  const head = '<svg width="' + p + '" height="' + p + '" viewBox="0 0 24 24" fill="none" stroke="'
+    + c + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+  if (kind === "chat") {
+    return head + '<path d="M20.5 12.4c0 4-3.8 7.2-8.5 7.2-1 0-2-.15-2.9-.43L4.2 20.6l1.3-3.5A6.9 6.9 0 0 1 3.5 12.4C3.5 8.4 7.3 5.2 12 5.2s8.5 3.2 8.5 7.2Z"/><path d="M8.6 12.3h.01M12 12.3h.01M15.4 12.3h.01"/></svg>';
+  }
+  if (kind === "agent") {
+    return head + '<rect x="3.2" y="7.6" width="17.6" height="12.4" rx="3"/><path d="M12 3.4v4.2M8.6 12.6l-1.4 1.6 1.4 1.6M15.4 12.6l1.4 1.6-1.4 1.6"/></svg>';
+  }
+  /* « Z-Canal » : un Z dont les deux bouts sont des nœuds de connexion. */
+  return head + '<path d="M6.4 7.2h11.2M17.6 7.2 6.4 16.8M6.4 16.8h11.2"/><circle cx="3.4" cy="7.2" r="1.6"/><circle cx="20.6" cy="16.8" r="1.6"/></svg>';
+}
+const ZCANAL_MARK = zIcon(13, "canal", "#111113");
+try { MARKS.zcanal = ZCANAL_MARK; } catch (e) { /* MARKS absent */ }
+const CHEVRON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
+const COPYIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.4"/><path d="M6.2 15H5.4A1.4 1.4 0 0 1 4 13.6V5.4A1.4 1.4 0 0 1 5.4 4h8.2A1.4 1.4 0 0 1 15 5.4v.8"/></svg>';
+const CHECKIC = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.8 4.4 4.4L19 7.4"/></svg>';
+
+/* --- l'état : mes canaux, le canal de la discussion, le mode ---------- */
+let CANAUX = [];                 /* [{id,name,mode,chat,createdAt}] (doc du compte) */
+let CUR_CANAL = null;            /* canal de la discussion ouverte (null = aucune)  */
+let CUR_MODE = "chat";           /* « chat » | « agent » | « canal »                */
+let MODE_NOTICE = "";            /* 2e message de la zone noire (création de canal) */
+let MODE_NOTICE_T = null;
+const CANAL_DONE = new Set();    /* messages de canal déjà traités par cette page   */
+const CANAL_UNSUBS = {};         /* canaux écoutés en temps réel                    */
+const CHIP_REQ = {};             /* « non lu » → « lu ! » : pastilles vivantes      */
+
+function newCanalId(){
+  const S = "abcdefghijklmnopqrstuvwxyz0123456789", out = [];
+  try {
+    const a = new Uint8Array(12);
+    (window.crypto || {}).getRandomValues ? window.crypto.getRandomValues(a) : a.forEach(function(_, i){ a[i] = Math.floor(Math.random() * 256); });
+    for (let i = 0; i < 12; i++) out.push(S.charAt(a[i] % 36));
+  } catch (e) {
+    for (let i = 0; i < 12; i++) out.push(S.charAt(Math.floor(Math.random() * 36)));
+  }
+  return out.join("");
+}
+function canalById(id){ for (const c of CANAUX) if (c && c.id === id) return c; return null; }
+function canalName(id){ if (id === "arena") return "arena"; const c = canalById(id); return (c && c.name) || id; }
+function canalModeOf(id){ if (id === "arena") return "agent"; const c = canalById(id); return (c && c.mode) || "chat"; }
+/* Le canal par défaut « arena » existe toujours et ne peut pas être supprimé. */
+function canalListAll(){
+  const out = (CANAUX || []).filter(c => c && c.id).slice();
+  const i = out.findIndex(c => c.id === "arena");
+  const def = { id: "arena", name: "arena", mode: "agent", pinned: true, arena: true };
+  if (i < 0) out.unshift(def);
+  else out[i] = Object.assign({}, def, out[i], { pinned: true, mode: "agent" });
+  out.sort((a, b) => (a.id === "arena" ? -1 : b.id === "arena" ? 1 : (a.createdAt || 0) - (b.createdAt || 0)));
+  return out;
+}
+function canalMsgsOf(id){
+  if (!FB_OK || !fbDB) return null;
+  if (id === "arena") return fbDB.collection("chan").doc("main").collection("box");
+  return fbDB.collection("canaux").doc(id).collection("messages");
+}
+
+/* --- lire la liste des canaux du compte -------------------------------- */
+async function canalLoad(){
+  if (!FB_OK || !fbUser) return;
+  try {
+    const d = await fbDB.collection("users").doc(fbUser.uid).get();
+    const c = d.exists ? (d.data() || {}).canaux : null;
+    CANAUX = Array.isArray(c) ? c.filter(x => x && x.id) : [];
+  } catch (e) { console.warn("canaux :", e); }
+  renderCanalList();
+}
+async function canalSaveList(){
+  if (!FB_OK || !fbUser) return;
+  try {
+    await fbDB.collection("users").doc(fbUser.uid)
+      .set({ canaux: CANAUX.filter(c => c.id !== "arena"), updatedAt: Date.now() }, { merge: true });
+  } catch (e) { console.warn("canaux (écriture) :", e); }
+}
+/* --- créer un canal : enregistré sur le compte ------------------------- */
+async function canalCreate(name){
+  if (!FB_OK || !fbUser) throw new Error("Connectez-vous pour créer un canal.");
+  const id = newCanalId();
+  const clean = String(name || "").trim().slice(0, 40) || "Mon canal";
+  const now = Date.now();
+  await fbDB.collection("canaux").doc(id).set({
+    id: id, name: clean, mode: null, chat: null, owner: fbUser.uid,
+    createdAt: now, updatedAt: now,
+  });
+  CANAUX.push({ id: id, name: clean, mode: null, chat: null, createdAt: now });
+  await canalSaveList();
+  renderCanalList();
+  return { id: id, name: clean };
+}
+/* --- figer le mode du canal + relier UNE discussion --------------------- */
+async function canalFreeze(id, mode, chatId2){
+  const c = canalById(id);
+  try {
+    await fbDB.collection("canaux").doc(id).set(
+      { mode: mode, chat: chatId2, updatedAt: Date.now() }, { merge: true });
+  } catch (e) { console.warn("canal (mode) :", e); }
+  if (c) { c.mode = mode; c.chat = chatId2; }
+  else CANAUX.push({ id: id, name: id, mode: mode, chat: chatId2, createdAt: Date.now() });
+  await canalSaveList();
+  renderCanalList();
+}
+
+/* --- écrire dans un canal, au nom de l'utilisateur ---------------------- */
+async function canalSendUser(id, text, kind){
+  if (id === "arena") {
+    const j = await arenaSend(text, kind || "text", "", "");
+    return Object.assign({ }, j || { ok: false, error: "canal muet" });
+  }
+  if (!FB_OK || !fbUser) return { ok: false, error: "connectez-vous pour écrire dans un canal" };
+  const ref = canalMsgsOf(id);
+  if (!ref) return { ok: false, error: "canal indisponible" };
+  const now = Date.now();
+  try {
+    const r = await ref.add({ role: "user", text: String(text || ""), ts: now,
+      kind: kind || "text", state: "new", src: "app", createdAt: now });
+    return { ok: true, id: r.id };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+/* --- renvoyer le résultat d'une commande dans le canal ------------------ */
+async function canalSendResult(id, text, req){
+  if (id === "arena") return arenaSend(text, "tool", req || "", "résultat de commande");
+  const ref = canalMsgsOf(id); if (!ref) return;
+  const now = Date.now();
+  try {
+    await ref.add({ role: "tool", text: String(text || ""), ts: now, kind: "tool",
+      state: "done", src: "app", req: req || "", createdAt: now });
+  } catch (e) { console.warn("canal (résultat) :", e); }
+}
+async function canalMarkDone(id, docId){
+  if (id === "arena") return arenaMark(docId, "done");
+  const ref = canalMsgsOf(id); if (!ref) return;
+  try { await ref.doc(docId).set({ state: "done", doneAt: Date.now() }, { merge: true }); } catch (e) {}
+}
+/* --- pastilles « non lu » → « lu ! » ------------------------------------ */
+function chipMake(row, cid, reqId){
+  try {
+    let el = row.querySelector(".luchip");
+    if (!el) {
+      el = document.createElement("span");
+      el.className = "luchip";
+      const b = row.querySelector(".bubble") || row;
+      b.appendChild(el);
+    }
+    el.dataset.req = reqId || ""; el.dataset.cid = cid || "";
+    if (reqId) CHIP_REQ[cid + "/" + reqId] = el;
+    return el;
+  } catch (e) { return null; }
+}
+function chipAttach(cid, reqId){
+  try {
+    const rows = [].slice.call(log.querySelectorAll(".msg.user"));
+    const row = rows[rows.length - 1];
+    if (!row || !reqId) return;
+    const el = chipMake(row, cid, reqId);
+    if (el) { el.textContent = "non lu"; el.classList.remove("lu"); }
+  } catch (e) {}
+}
+function chipState(cid, reqId, state){
+  const el = CHIP_REQ[cid + "/" + reqId];
+  if (!el) return;
+  if (state && state !== "new") { el.textContent = "lu !"; el.classList.add("lu"); }
+  else { el.textContent = "non lu"; el.classList.remove("lu"); }
+}
+/* À l'ouverture d'une discussion : les pastilles des messages déjà envoyés. */
+async function canalChipsFromHistory(chat){
+  if (!chat || !chat.canal || !FB_OK || !fbUser) return;
+  const cid = chat.canal;
+  try {
+    const snap = await chatsRef().doc(chat.id).collection("messages").orderBy("order").get();
+    const rows = [].slice.call(log.querySelectorAll(".msg.user"));
+    let n = 0;
+    for (const d of snap.docs) {
+      const m = d.data() || {};
+      if (m.role !== "user") continue;
+      const row = rows[n++]; if (!row) break;
+      if (!m.req) continue;
+      const el = chipMake(row, cid, m.req);
+      if (!el) continue;
+      el.textContent = "non lu"; el.classList.remove("lu");
+      try {
+        const s = await canalMsgsOf(cid).doc(m.req).get();
+        const st = s.exists ? (s.data() || {}).state : "";
+        if (st && st !== "new") { el.textContent = "lu !"; el.classList.add("lu"); }
+      } catch (e) {}
+    }
+  } catch (e) { console.warn("pastilles :", e); }
+}
+/* --- l'agent parle : commande exécutée, ou réponse affichée ------------- */
+async function canalDeliver(cid, d, docId){
+  if (CANAL_DONE.has(docId)) return;
+  CANAL_DONE.add(docId);
+  try {
+    const chat = (chats || []).find(x => x.canal === cid) || null;
+    const open = !!(chat && chatId === chat.id);
+    const parsed = arenaParse(d.text);
+    const mode = canalModeOf(cid);
+    if (parsed.kind === "call" && parsed.call.action !== "final" && mode === "agent") {
+      const res = await arenaExecCall(parsed.call);
+      if (open) {
+        const b = addAssistant("arena");
+        agtRenderMission(b, [res.step], "", true);
+        scrollDown();
+      }
+      if (chat) await arenaSaveStep(chat, res.step, Number(d.ts) || 0);
+      await canalSendResult(cid, res.text, docId);
+      await canalMarkDone(cid, docId);
+      return;
+    }
+    const out = parsed.text || String(d.text || "");
+    if (!out) { await canalMarkDone(cid, docId); return; }
+    if (open && chat) {
+      const b = (ARENA_WAIT && ARENA_WAIT.isConnected) ? ARENA_WAIT : addAssistant("arena");
+      ARENA_WAIT = null;
+      b.innerHTML = renderMarkdown(out);
+      msgActions(b, { getMd: () => out });
+      conv.push({ role: "assistant", text: out });
+      scrollDown();
+      await arenaSaveReply(chat, out, Number(d.ts) || 0);
+    } else {
+      if (chat) await arenaSaveReply(chat, out, Number(d.ts) || 0);
+      if (chat && !chat.dot) { chat.dot = true; renderChatList(); }
+    }
+    await canalMarkDone(cid, docId);
+  } catch (e) { console.warn("canal :", e); }
+}
+function canalWatchOne(id){
+  if (id === "arena" || CANAL_UNSUBS[id] || !FB_OK || !fBDB_ok()) return;
+  const ref = canalMsgsOf(id); if (!ref) return;
+  try {
+    CANAL_UNSUBS[id] = ref.onSnapshot(function(snap){
+      snap.docChanges().forEach(function(ch){
+        const dm = ch.doc.data() || {};
+        if (ch.type === "modified") {
+          if (dm.role === "user") chipState(id, ch.doc.id, dm.state);
+          return;
+        }
+        if (ch.type !== "added") return;
+        if (dm.role !== "agent" || dm.state === "done") return;
+        canalDeliver(id, dm, ch.doc.id);
+      });
+    }, function(err){ console.warn("canal " + id + " :", err && err.message); });
+  } catch (e) { console.warn("canal " + id + " :", e); }
+}
+function fBDB_ok(){ return !!(FB_OK && fbDB); }
+function canalWatchAll(){
+  for (const c of (chats || [])) if (c && c.canal && c.canal !== "arena") canalWatchOne(c.canal);
+}
+
+/* --- envoyer un message dans le canal de la discussion ------------------ */
+async function submitCanal(text){
+  const cid = CUR_CANAL;
+  if (!cid) return;
+  busy = true; sendBtn.disabled = true;
+  try {
+    const chat = (chats || []).find(x => x.canal === cid) || null;
+    addUser(text, "none", null, null);
+    const b = addAssistant("arena");
+    ARENA_WAIT = b;
+    promptEl.value = ""; promptEl.style.height = "auto"; scrollDown();
+    b.innerHTML = '<span class="gentxt">Envoi<i>.</i><i>.</i><i>.</i></span>';
+    conv.push({ role: "user", text: text });
+    const j = await canalSendUser(cid, text, "text");
+    if (j && j.id) chipAttach(cid, j.id);
+    if (chat && j && j.id) {
+      try { await arenaCommit(chat, [{ role: "user", text: String(text || ""), kind: "none",
+        modelName: "arena", order: Date.now(), createdAt: Date.now(), images: [], req: j.id }]); } catch (e) {}
+    }
+    if (!j || !j.ok) {
+      b.innerHTML = '<div class="err">Canal injoignable : ' + esc((j && j.error) || "raison inconnue") + '</div>';
+    } else {
+      b.innerHTML = '<p style="color:var(--ink-2);font-size:13.5px">Message transmis au canal « '
+        + esc(canalName(cid)) + ' ». La réponse arrivera ici même, dès que l\'agent l\'aura lue.</p>';
+    }
+    if (chat) renderChatList();
+  } catch (err) {
+    try {
+      const b2 = addAssistant("arena");
+      b2.innerHTML = '<div class="err">Canal : ' + esc(String((err && err.message) || err)) + '</div>';
+    } catch (e) {}
+  } finally {
+    busy = false; sendBtn.disabled = !promptEl.value.trim(); scrollDown();
+  }
+}
+
+/* ==================== la zone noire : le mode de la discussion ========== */
+function modeBadgeInfo(){
+  const c = (chats || []).find(x => x.id === chatId) || null;
+  if (c && c.arena) return { label: "Agent · Arena", icon: zIcon(12, "agent", "#fff") };
+  if (CUR_MODE === "canal") {
+    const m = canalModeOf(CUR_CANAL);
+    return { label: "Z-Canal — " + (m === "agent" ? "agent" : "chat"), icon: zIcon(12, "canal", "#fff") };
+  }
+  if (CUR_MODE === "agent") return { label: "Agent", icon: zIcon(12, "agent", "#fff") };
+  return { label: "Chat", icon: zIcon(12, "chat", "#fff") };
+}
+function renderModeBadge(){
+  const b = document.getElementById("agentbtn");
+  if (!b) return;
+  const i = modeBadgeInfo();
+  let html = '<span class="mbmode">' + i.icon + '<span>' + esc(i.label) + '</span></span>';
+  if (MODE_NOTICE) html += '<span class="mbnotice">' + esc(MODE_NOTICE) + '</span>';
+  b.innerHTML = html;
+  b.classList.add("mode");
+  b.title = i.label + " — le mode se choisit à la création de la discussion.";
+}
+function setModeNotice(txt, ms){
+  MODE_NOTICE = String(txt || "");
+  renderModeBadge();
+  if (MODE_NOTICE_T) clearTimeout(MODE_NOTICE_T);
+  MODE_NOTICE_T = setTimeout(function(){ MODE_NOTICE = ""; renderModeBadge(); }, ms || 15000);
+}
+
+/* ==================== nouvelle discussion : le choix du mode ============ */
+function newPopEl(){ return document.getElementById("newpop"); }
+function newPopView(view){
+  const p = newPopEl(); if (!p) return;
+  ["npmodes", "npcanalform", "npcanalmode"].forEach(function(id){
+    const el = document.getElementById(id); if (el) el.hidden = (id !== view);
+  });
+}
+function openNewPop(){
+  if (busy) { alert("Attends la fin de la réponse en cours."); return; }
+  const p = newPopEl(); if (!p) return;
+  const err = document.getElementById("canalerr"); if (err) err.hidden = true;
+  const inp = document.getElementById("canalname"); if (inp) inp.value = "";
+  newPopView("npmodes");
+  fillFreeCanals();
+  const note = document.getElementById("npconn");
+  if (note) note.hidden = !!fbUser;
+  p.hidden = false;
+}
+function closeNewPop(){ const p = newPopEl(); if (p) p.hidden = true; }
+/* Choix « Chat » ou « Agent » : la discussion naît dans ce mode. */
+function pickMode(md){
+  if (md !== "chat" && (!(typeof fbUser !== "undefined") || !fbUser)) {
+    agtToast("Veuillez vous connecter pour ce mode.");
+    return;
+  }
+  closeNewPop();
+  CUR_CANAL = null; CUR_MODE = md;
+  AGENT_ON = (md === "agent");
+  try { agtBtn.classList.toggle("on", AGENT_ON); } catch (e) {}
+  newConversation(md);
+  if (typeof agtSyncUI === "function") agtSyncUI();
+  renderModeBadge();
+  if (md === "agent") agtToast("Discussion en mode agent — chaque message devient une mission dans la VM.");
+}
+/* Choix « Z-Canal » : on crée le canal, puis on fige son mode. */
+function pickCanal(){
+  if (!(typeof fbUser !== "undefined") || !fbUser) { agtToast("Veuillez vous connecter pour créer un canal."); return; }
+  CUR_MODE = "canal";
+  renderModeBadge();
+  newPopView("npcanalform");
+  fillFreeCanals();
+}
+function fillFreeCanals(){
+  const box = document.getElementById("canalfree"); if (!box) return;
+  const libres = canalListAll().filter(c => !c.arena && !c.chat);
+  if (!libres.length) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  let h = '<p class="npd">Ou relier un canal qui attend encore sa discussion :</p>';
+  for (const c of libres) {
+    h += '<div class="canfree"><span class="cn">' + zIcon(13, "canal", "#111113") + ' '
+      + esc(c.name) + '</span><code>' + esc(c.id) + '</code>'
+      + '<button type="button" class="setact" data-use="' + esc(c.id) + '">Utiliser</button></div>';
+  }
+  box.innerHTML = h;
+  [].slice.call(box.querySelectorAll("[data-use]")).forEach(function(btn){
+    btn.onclick = function(){ startCanalChat(btn.getAttribute("data-use"), null); };
+  });
+}
+async function canalCreateClick(){
+  const inp = document.getElementById("canalname");
+  const err = document.getElementById("canalerr");
+  const name = inp ? inp.value.trim() : "";
+  if (err) err.hidden = true;
+  if (busy) return;
+  busy = true;
+  try {
+    const c = await canalCreate(name);
+    /* 2e message de la zone noire : le canal est créé, voici son identifiant. */
+    setModeNotice("Canal créé — id " + c.id, 60000);
+    newPopView("npcanalmode");
+    const t = document.getElementById("npcanalmode");
+    if (t) {
+      const q = t.querySelector(".npd");
+      if (q) q.innerHTML = 'Le canal « ' + esc(c.name) + ' » est créé avec l\'id <code>' + esc(c.id)
+        + '</code>.<br>Cette discussion sera « agent » ou « chat » — et ce choix ne changera plus.';
+    }
+    const ba = document.getElementById("canalagent");
+    const bc = document.getElementById("canalchat");
+    if (ba) ba.onclick = function(){ startCanalChat(c.id, "agent"); };
+    if (bc) bc.onclick = function(){ startCanalChat(c.id, "chat"); };
+  } catch (e) {
+    if (err) { err.textContent = String((e && e.message) || e); err.hidden = false; }
+  } finally { busy = false; }
+}
+/* Relier la discussion au canal : le mode est FIGÉ, un canal = une discussion. */
+async function startCanalChat(id, mode){
+  const c = canalById(id) || { id: id, name: id };
+  if (c.chat && c.chat !== chatId) {
+    agtToast("Ce canal sert déjà à une autre discussion.");
+    return;
+  }
+  if (!mode) {   /* canal libre : on fige ici le mode de sa discussion */
+    const ba = document.getElementById("canalagent"), bc = document.getElementById("canalchat");
+    if (ba) ba.onclick = function(){ startCanalChat(id, "agent"); };
+    if (bc) bc.onclick = function(){ startCanalChat(id, "chat"); };
+    const q = document.querySelector("#npcanalmode .npd");
+    if (q) q.innerHTML = 'Le canal « ' + esc(c.name || id) + ' » (id <code>' + esc(id)
+      + '</code>) attend sa discussion : elle sera « agent » ou « chat » — et ce choix ne changera plus.';
+    newPopView("npcanalmode");
+    return;
+  }
+  closeNewPop();
+  CUR_CANAL = id; CUR_MODE = "canal";
+  AGENT_ON = (mode === "agent");
+  try { agtBtn.classList.toggle("on", AGENT_ON); } catch (e) {}
+  const cid = await canalCreateChat(id, c.name || id, mode);
+  await canalFreeze(id, mode, cid);
+  canalWatchOne(id);
+  renderModeBadge();
+  if (typeof agtSyncUI === "function") agtSyncUI();
+  setModeNotice("Canal « " + (c.name || id) + " » — id " + id, 60000);
+  agtToast("Discussion reliée au canal « " + (c.name || id) + " » (mode " + mode + ").");
+}
+/* La discussion d'un canal : créée tout de suite, titrée du nom du canal. */
+async function canalCreateChat(id, name, mode){
+  CUR_MODE = "canal"; CUR_CANAL = id;
+  const mid = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const now = Date.now();
+  const doc = { title: String(name || id), model: "arena", mode: "canal", canal: id,
+    agent: (mode === "agent"), createdAt: now, updatedAt: now };
+  conv = []; log.innerHTML = ""; emptyState(); updateHint();
+  chatId = mid; msgSeq = 0;
+  try {
+    await chatsRef().doc(mid).set(doc);
+    chats.unshift(Object.assign({ id: mid }, doc));
+  } catch (e) { console.warn("canal (discussion) :", e); }
+  const am = MODELS.find(m => m.id === "arena"); if (am) selectModel(am);
+  renderChatList(); renderModeBadge(); closeSide();
+  return mid;
+}
+
+/* ==================== l'écran des réglages : Z-Canal ==================== */
+function showSetView(view){
+  const l = document.getElementById("setlist"), a = document.getElementById("setcompte"),
+        c = document.getElementById("setcanal");
+  if (l) l.hidden = (view !== "list");
+  if (a) a.hidden = (view !== "compte");
+  if (c) c.hidden = (view !== "canal");
+  if (view === "canal") renderCanalList();
+}
+function renderCanalList(){
+  const box = document.getElementById("canallist"); if (!box) return;
+  const list = canalListAll();
+  let h = "";
+  for (const c of list) {
+    const md = c.arena ? "agent" : (c.mode || "");
+    const tag = c.arena ? "canal par défaut" : (md ? ("mode " + md) : "sans discussion");
+    const chat = c.chat ? ((chats || []).find(x => x.id === c.chat) || null) : null;
+    h += '<div class="cancard">'
+      + '<div class="cn">' + zIcon(14, "canal", "#111113") + '<span>' + esc(c.name || c.id) + '</span>'
+      + (c.arena ? '<span class="ctag pin">épinglé</span>' : '') + '</div>'
+      + '<div class="cid"><code>' + esc(c.id) + '</code>'
+      + '<button type="button" class="copybtn" data-copy="' + esc(c.id) + '" title="Copier l\'identifiant" aria-label="Copier l\'identifiant du canal">' + COPYIC + '</button></div>'
+      + '<div class="cmeta">' + esc(tag) + (chat ? ' · ' + esc(chat.title) : '') + '</div>'
+      + '</div>';
+  }
+  box.innerHTML = h;
+  [].slice.call(box.querySelectorAll("[data-copy]")).forEach(function(b){
+    b.onclick = function(){
+      agtCopyText(b.getAttribute("data-copy"));
+      b.innerHTML = CHECKIC; b.classList.add("ok"); b.title = "Copié !";
+      setTimeout(function(){ b.innerHTML = COPYIC; b.classList.remove("ok"); b.title = "Copier l'identifiant"; }, 1600);
+    };
+  });
+  const n = document.getElementById("setcanalcount");
+  if (n) n.textContent = String(list.length) + (list.length > 1 ? " canaux" : " canal");
+}
+
+/* ==================== les fonctions reprises (mode, liste, réglages) ==== */
+function openAccountSettings2(){
+  if (!fbUser) { openAuth(); return; }
+  fillSettings();
+  showSetView("list");
+  $fb("#settings").hidden = false;
+}
+function fillSettings2(){
+  $fb("#settitle").textContent = profileName();
+  $fb("#setsub").textContent = fbUser.email || "";
+  $fb("#setnameval").textContent = profileName();
+  $fb("#setemailval").textContent = fbUser.email || "(aucun)";
+  const hasG = (fbUser.providerData || []).some(p => p.providerId === "google.com");
+  $fb("#setgoogle").textContent = hasG ? "Ouvrir mon compte Google" : "Lier un compte Google";
+  $fb("#setgooglenote").textContent = hasG
+    ? "Compte Google lié à ce profil."
+    : "Permet de te connecter sans mot de passe, et ouvrira ton compte Google une fois lié.";
+  renderSetAvatar();
+  const ra = document.getElementById("setrowavatar");
+  if (ra) ra.innerHTML = avatarHTML(profileName(), userPhoto || fbUser.photoURL || "", 38);
+  const rm = document.getElementById("setrowmail");
+  if (rm) rm.textContent = fbUser.email || "Photo, sécurité, session";
+  setErr(""); hidePop();
+}
+function renderChatList2(){
+  const list = $fb("#chatlist");
+  list.innerHTML = "";
+  const note = document.createElement("p");
+  note.style.cssText = "font-size:12.5px;color:var(--ink-3);padding:12px 10px;line-height:1.5";
+  if (!fbUser) {
+    note.textContent = "Connecte-toi pour enregistrer tes discussions et les retrouver sur tous tes appareils.";
+    list.appendChild(note); return;
+  }
+  const shown = chats.filter(c => !c.hidden);
+  if (!shown.length) { note.textContent = "Aucune discussion enregistrée pour le moment."; list.appendChild(note); return; }
+  const ordered = shown.slice().sort((a, b) => (b.arena ? 1 : 0) - (a.arena ? 1 : 0));
+  for (const c of ordered) {
+    const row = document.createElement("div");
+    row.className = "chitem" + (c.id === chatId ? " sel" : "") + (c.arena ? " pinned" : "");
+    if (c.arena) {
+      const mk = document.createElement("span");
+      mk.className = "chmark"; mk.title = "Discussion Arena · canal direct";
+      mk.innerHTML = MARKS.arena;
+      row.appendChild(mk);
+    } else if (c.canal) {
+      /* Les autres discussions reliées à un canal portent le logo Z-Canal. */
+      const mk = document.createElement("span");
+      mk.className = "chmark";
+      mk.title = "Discussion reliée au canal « " + canalName(c.canal) + " » (" + canalModeOf(c.canal) + ")";
+      mk.innerHTML = ZCANAL_MARK;
+      row.appendChild(mk);
+    }
+    const t = document.createElement("button");
+    t.type = "button"; t.className = "cht"; t.textContent = c.title; t.title = c.title;
+    t.onclick = function(){ if (c.id !== chatId) loadChat(c.id); else closeSide(); };
+    row.appendChild(t);
+    if ((c.arena && ARENA_DOT) || c.dot) {
+      const dot = document.createElement("span");
+      dot.className = "chdot"; dot.title = "Nouveau message en attente";
+      row.appendChild(dot);
+    }
+    if (c.agent) {
+      const badge = document.createElement("span");
+      badge.className = "chbadge"; badge.textContent = c.canal ? "Z-Canal" : "Agent";
+      badge.title = "Discussion en mode " + (c.canal ? "Z-Canal" : "agent");
+      row.appendChild(badge);
+    }
+    if (c.job && c.job.state === "run") {
+      const jb = document.createElement("span");
+      jb.className = "chjob"; jb.title = "Mission en cours : elle avance toute seule, même app fermée";
+      jb.innerHTML = "<i></i>en cours";
+      row.appendChild(jb);
+    }
+    const more = document.createElement("button");
+    more.type = "button"; more.className = "chmore"; more.textContent = "•••";
+    more.setAttribute("aria-label", "Options : " + c.title);
+    more.onclick = function(e){ e.stopPropagation(); openChatPop2(more, c); };
+    row.appendChild(more);
+    list.appendChild(row);
+  }
+}
+function openChatPop2(anchor, c){
+  closeChatPop();
+  const pop = document.createElement("div"); pop.className = "chpop";
+  const ren = document.createElement("button"); ren.type = "button"; ren.textContent = "Renommer";
+  ren.onclick = function(){ closeChatPop(); renameChat(c); };
+  pop.appendChild(ren);
+  if (c.pinned || c.arena) {
+    /* La discussion « Arena » porte le canal par défaut : elle ne se supprime pas. */
+    const no = document.createElement("button");
+    no.type = "button"; no.className = "note";
+    no.textContent = "Épinglée — non supprimable";
+    no.disabled = true;
+    pop.appendChild(no);
+  } else {
+    const del = document.createElement("button"); del.type = "button"; del.className = "del"; del.textContent = "Supprimer";
+    del.onclick = function(){ closeChatPop(); deleteChat2(c); };
+    pop.appendChild(del);
+  }
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = Math.max(8, Math.min(r.bottom + 4, innerHeight - pop.offsetHeight - 8)) + "px";
+  pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + "px";
+  chatPop = pop;
+  setTimeout(function(){ document.addEventListener("click", function(){ closeChatPop(); }, { once: true }); }, 0);
+}
+async function deleteChat2(c){
+  if (!c || c.pinned || c.arena) { agtToast("La discussion « Arena » est épinglée : elle ne peut pas être supprimée."); return; }
+  if (!confirm("Supprimer définitivement « " + c.title + " » ?")) return;
+  /* La discussion d'un canal libère le canal : il pourra servir à une autre. */
+  if (c.canal) {
+    const ch = canalById(c.canal);
+    if (ch) { ch.chat = null; await canalFreeze(c.canal, ch.mode, null); }
+  }
+  chats = chats.filter(x => x.id !== c.id);
+  if (chatId === c.id) { chatId = null; msgSeq = 0; CUR_CANAL = null; CUR_MODE = "chat"; renderModeBadge(); }
+  renderChatList();
+  if (FB_OK && fbUser) { try { await purgeChat(c.id); } catch (e) { console.warn("delete :", e); } }
+}
+async function ensureChat2(firstText){
+  if (chatId) return chatId;
+  chatId = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  msgSeq = 0;
+  const now = Date.now();
+  const title = (firstText || "").replace(/\s+/g, " ").trim().slice(0, 38) || "Nouvelle discussion";
+  const md = (CUR_MODE === "agent") ? "agent" : "chat";
+  const ag = md === "agent";
+  try {
+    await chatsRef().doc(chatId).set({ title: title, model: current.id, agent: ag, mode: md, createdAt: now, updatedAt: now });
+    chats.unshift({ id: chatId, title: title, model: current.id, agent: ag, mode: md, createdAt: now, updatedAt: now });
+    renderChatList();
+  } catch (e) { console.warn("ensureChat :", e); }
+  return chatId;
+}
+function newConversation2(md){
+  CUR_MODE = (md === "agent" || md === "canal") ? md : "chat";
+  if (CUR_MODE !== "canal") { CUR_CANAL = null; AGENT_ON = (CUR_MODE === "agent"); }
+  try { agtBtn.classList.toggle("on", !!AGENT_ON); } catch (e) {}
+  conv = []; log.innerHTML = ""; emptyState(); updateHint();
+  if (typeof FB !== "undefined" && FB.onNewChat) FB.onNewChat();
+  if (typeof agtNewConversation === "function") agtNewConversation();
+  renderModeBadge();
+}
+function agtSyncUI2(){
+  const ok = agtLogged();
+  if (AGENT_ON && !ok) { AGENT_ON = false; }
+  agtFilesBtn.hidden = !(AGENT_ON && ok);
+  /* La « nouvelle discussion » reste toujours accessible : c'est elle qui
+     choisit le mode (chat, agent ou Z-Canal). */
+  const ms = document.getElementById("menushare");
+  if (ms) ms.hidden = !(AGENT_ON && ok);
+  renderModeBadge();
+}
+
+/* ==================== câblage ------------------------------------------- */
+function canalWire(){
+  const g = function(id){ return document.getElementById(id); };
+  /* le bouton « nouvelle discussion » ouvre le choix du mode */
+  if (typeof clearBtn !== "undefined" && clearBtn) clearBtn.onclick = openNewPop;
+  const p = newPopEl();
+  if (p) {
+    const close = g("newpclose"); if (close) close.onclick = closeNewPop;
+    p.addEventListener("click", function(e){ if (e.target === p) closeNewPop(); });
+    const c1 = g("pickchat"); if (c1) c1.onclick = function(){ pickMode("chat"); };
+    const c2 = g("pickagent"); if (c2) c2.onclick = function(){ pickMode("agent"); };
+    const c3 = g("pickcanal"); if (c3) c3.onclick = function(){ pickCanal(); };
+    const bk = g("npcancel"); if (bk) bk.onclick = function(){ newPopView("npmodes"); fillFreeCanals(); };
+    const cr = g("canalcreate"); if (cr) cr.onclick = canalCreateClick;
+    const cname = g("canalname");
+    if (cname) cname.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); canalCreateClick(); } });
+  }
+  /* les réglages : la liste, puis « Compte » et « Z-Canal » */
+  const sc = g("setclose");
+  if (sc && !sc.dataset.wired2) { sc.dataset.wired2 = "1"; sc.addEventListener("click", function(){ showSetView("list"); }); }
+  const ga = g("setgoaccount"); if (ga) ga.onclick = function(){ showSetView("compte"); };
+  const gc = g("setgocanal"); if (gc) gc.onclick = function(){ showSetView("canal"); };
+  const b1 = g("setbackcompte"); if (b1) b1.onclick = function(){ showSetView("list"); };
+  const b2 = g("setbackcanal"); if (b2) b2.onclick = function(){ showSetView("list"); };
+  const dl = g("canaldoclink");
+  if (dl) { dl.textContent = API_BASE + "/canal"; dl.href = API_BASE + "/canal"; }
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeNewPop(); });
+  renderModeBadge();
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", canalWire);
+else canalWire();
+/* Les noms d'origine pointent sur les versions « mode » : tout le reste de
+   l'application (menu, liste, chargement, missions) en profite sans changer. */
+openAccountSettings = openAccountSettings2;
+fillSettings = fillSettings2;
+renderChatList = renderChatList2;
+openChatPop = openChatPop2;
+deleteChat = deleteChat2;
+ensureChat = ensureChat2;
+newConversation = newConversation2;
+agtSyncUI = agtSyncUI2;
 </script>
 </body>
 </html>
