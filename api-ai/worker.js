@@ -1620,15 +1620,17 @@ async function canalMarkRead(env, id, msgs) {
     catch (e) { /* on réessaiera au prochain /wait */ }
   }
 }
-/* L'attente : on interroge toutes les 2,5 s, jamais plus de 25 s d'un coup. */
+/* L'attente : on interroge la requête filtrée toutes les 5 s, jamais plus de
+   25 s d'un coup. La requête ne rend que les messages non lus : quand il n'y en
+   a pas, elle ne coûte aucune lecture. */
 async function canalWait(env, id, timeoutMs) {
   const t0 = Date.now();
   for (;;) {
     const u = await canalUnread(env, id);
     if (!u.ok) return u;
     if (u.messages.length) { await canalMarkRead(env, id, u.messages); return u; }
-    if (Date.now() - t0 + 2500 > timeoutMs) return { ok: true, messages: [], unread: 0, total: u.total };
-    await new Promise((r) => setTimeout(r, 2500));
+    if (Date.now() - t0 + 5000 > timeoutMs) return { ok: true, messages: [], unread: 0, total: u.total };
+    await new Promise((r) => setTimeout(r, 5000));
   }
 }
 /* Vue publique d'un message : le texte, jamais rien d'autre. */
