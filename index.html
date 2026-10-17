@@ -3603,7 +3603,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P83</p>
+      <p class="setver">Version P84</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3977,6 +3977,10 @@ async function canalHistoryLoad(cid){
   const ouvrir = function () {
     if (cur) return cur;
     const b = addAssistant("arena");
+    /* addAssistant pose l'indicateur « Generating… » : il ne fait pas partie du
+       message et ne doit pas revenir à l'ouverture (c'est ce qui rallumait
+       l'animation sur tous les messages avec une commande). */
+    const sp = b.querySelector(".gentxt"); if (sp) sp.remove();
     const built = agtTermEl(b, null, true);
     cur = { bubble: b, log: built.log };
     return cur;
