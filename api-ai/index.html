@@ -3603,7 +3603,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P79</p>
+      <p class="setver">Version P80</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -7057,8 +7057,8 @@ async function canalDeliver(cid, d, docId){
   if (CANAL_DONE.has(docId)) return;
   CANAL_DONE.add(docId);
   try {
-    const chat = (chats || []).find(x => x.canal === cid) || null;
-    const open = !!(chat && chatId === chat.id);
+    const duCanal = chatsOfCanal(cid);
+    const open = duCanal.some(x => x.id === chatId);
     const parsed = arenaParse(d.text);
     const mode = canalModeOf(cid);
     if (parsed.kind === "call" && parsed.call.action !== "final" && mode === "agent") {
@@ -7068,24 +7068,24 @@ async function canalDeliver(cid, d, docId){
         agtRenderMission(b, [res.step], "", true);
         scrollDown();
       }
-      if (chat) await arenaSaveStep(chat, res.step, Number(d.ts) || 0);
+      for (const ch of duCanal) await arenaSaveStep(ch, res.step, Number(d.ts) || 0);
       await canalSendResult(cid, res.text, docId);
       await canalMarkDone(cid, docId);
       return;
     }
     const out = parsed.text || String(d.text || "");
     if (!out) { await canalMarkDone(cid, docId); return; }
-    if (open && chat) {
+    if (open) {
       const b = (ARENA_WAIT && ARENA_WAIT.isConnected) ? ARENA_WAIT : addAssistant("arena");
       ARENA_WAIT = null;
       b.innerHTML = renderMarkdown(out);
       msgActions(b, { getMd: () => out });
       conv.push({ role: "assistant", text: out });
       scrollDown();
-      await arenaSaveReply(chat, out, Number(d.ts) || 0);
-    } else {
-      if (chat) await arenaSaveReply(chat, out, Number(d.ts) || 0);
-      if (chat && !chat.dot) { chat.dot = true; renderChatList(); }
+    }
+    for (const ch of duCanal) {
+      await arenaSaveReply(ch, out, Number(d.ts) || 0);
+      if (!open && !ch.dot) { ch.dot = true; renderChatList(); }
     }
     await canalMarkDone(cid, docId);
   } catch (e) { console.warn("canal :", e); }
@@ -7114,23 +7114,44 @@ function canalWatchAll(){
 }
 
 /* --- envoyer un message dans le canal de la discussion ------------------ */
+/* Les discussions d'un même canal sont identiques : tout ce qui lui arrive
+   s'enregistre dans CHACUNE d'elles (et la discussion ouverte reste prioritaire
+   pour l'affichage). Avant, on prenait « la première discussion du canal », ce
+   qui rangeait les messages dans une autre quand deux discussions partageaient
+   le canal. */
+function chatsOfCanal(cid){
+  return (chats || []).filter(x => x && x.canal === cid);
+}
 async function submitCanal(text){
   const cid = CUR_CANAL;
   if (!cid) return;
   busy = true; sendBtn.disabled = true;
   try {
-    const chat = (chats || []).find(x => x.canal === cid) || null;
+    const duCanal = chatsOfCanal(cid);
+    /* la discussion ouverte d'abord ; sinon la première du canal */
+    const chat = duCanal.find(x => x.id === chatId) || duCanal[0] || null;
+    /* les pièces jointes n'ont pas de place dans le canal : leurs notes
+       (nom du fichier, contenu texte) voyagent avec le message */
+    const notes = (typeof collectFileNotes === "function") ? collectFileNotes() : "";
+    const envoi = String(text || "") + notes;
     addUser(text, "none", null, null);
     const b = addAssistant("arena");
     ARENA_WAIT = b;
     promptEl.value = ""; promptEl.style.height = "auto"; scrollDown();
     b.innerHTML = '<span class="gentxt">Envoi<i>.</i><i>.</i><i>.</i></span>';
     conv.push({ role: "user", text: text });
-    const j = await canalSendUser(cid, text, "text");
+    if (typeof pendingFiles !== "undefined") pendingFiles = [];
+    const j = await canalSendUser(cid, envoi, "text");
     if (j && j.id) chipAttach(cid, j.id);
-    if (chat && j && j.id) {
-      try { await arenaCommit(chat, [{ role: "user", text: String(text || ""), kind: "none",
-        modelName: "arena", order: Date.now(), createdAt: Date.now(), images: [], req: j.id }]); } catch (e) {}
+    if (j && j.id) {
+      /* le message de l'utilisateur est enregistré dans TOUTES les discussions
+         du canal : elles restent identiques */
+      for (const ch of duCanal) {
+        try {
+          await arenaCommit(ch, [{ role: "user", text: String(text || ""), kind: "none",
+            modelName: "arena", order: Date.now(), createdAt: Date.now(), images: [], req: j.id }]);
+        } catch (e) {}
+      }
     }
     if (!j || !j.ok) {
       b.innerHTML = '<div class="err">Canal injoignable : ' + esc((j && j.error) || "raison inconnue") + '</div>';
@@ -7153,8 +7174,9 @@ async function submitCanal(text){
 function modeBadgeInfo(){
   const c = (chats || []).find(x => x.id === chatId) || null;
   /* Le logo de gauche est toujours celui de Z-Canal : c'est lui qui dit d'où
-     vient la discussion. Le texte, lui, reste court — un mot, jamais l'id. */
-  const logo = (typeof ZCANAL_MARK !== "undefined") ? ZCANAL_MARK : zIcon(12, "canal", "#fff");
+     vient la discussion. Il est dessiné en BLANC — la version des réglages est
+     noire, et du noir sur le badge noir ne se voyait pas (juste du noir). */
+  const logo = zIcon(12, "canal", "#fff");
   if (c && c.arena) return { label: "Arena", icon: logo };
   if (CUR_MODE === "canal") return { label: "Z-Canal", icon: logo };
   if (CUR_MODE === "agent") return { label: "Agent", icon: zIcon(12, "agent", "#fff") };
@@ -7621,10 +7643,11 @@ function currentChat(){ try { return (chats || []).find(x => x.id === chatId) ||
 function agtSyncUI2(){
   const ok = agtLogged();
   const md = currentMode();
-  /* Le mode de la discussion commande tout : les missions d'agent n'existent
-     qu'en mode agent (jamais dans une discussion de canal, qui travaille par
-     le canal), et l'interrupteur interne suit le mode. */
-  AGENT_ON = (md === "agent");
+  /* Le mode de la discussion commande tout. Un canal dont le mode est « agent »
+     travaille avec un agent : son panneau (écran de la VM + fichiers) est donc
+     là, comme dans une discussion d'agent. */
+  const canalAgent = (md === "canal") && (canalModeOf(CUR_CANAL) === "agent");
+  AGENT_ON = (md === "agent") || canalAgent;
   agtFilesBtn.hidden = !(AGENT_ON && ok);
   /* La poubelle (nouvelle discussion) est là dans tous les modes : c'est elle
      qui ouvre le choix du mode. Seule exception, la discussion « Arena » :
