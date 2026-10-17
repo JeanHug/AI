@@ -3603,7 +3603,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P82</p>
+      <p class="setver">Version P83</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3936,6 +3936,13 @@ async function loadChats(){
      si besoin, et les doublons éventuels sont écartés de la liste. */
   try{ const a=await arenaChat(); if(a) await arenaDedupe(a); }
   catch(e){ console.warn("canal arena :", e); }
+  /* Réparation : une discussion de canal masquée par l'ancien dédoublonnage
+     revient dans la liste (elle n'a jamais été un doublon). */
+  for(const c of chats){
+    if(!c.canal || c.hidden!==true) continue;
+    c.hidden=false;
+    try{ await chatsRef().doc(c.id).set({hidden:false},{merge:true}); }catch(e){}
+  }
   /* Les canaux du compte, puis l'écoute de ceux qui sont reliés à une discussion. */
   if(typeof canalLoad==="function"){
     try{ await canalLoad(); canalWatchAll(); }catch(e){ console.warn("canaux :", e); }
@@ -3964,46 +3971,51 @@ async function canalHistoryLoad(cid){
     msgs = snap.docs.map((d) => Object.assign({}, d.data() || {}));
     CANAL_HIST[cid] = { at: Date.now(), msgs: msgs };
   }
-  let n = 0, log2 = null;
+  /* UN message par échange : les commandes et leurs sorties s'empilent dans la
+     même bulle, et le texte de l'agent la termine — comme en direct. */
+  let n = 0, cur = null;
+  const ouvrir = function () {
+    if (cur) return cur;
+    const b = addAssistant("arena");
+    const built = agtTermEl(b, null, true);
+    cur = { bubble: b, log: built.log };
+    return cur;
+  };
   for (const m of msgs) {
     const txt = String(m.text || "");
     if (m.role === "user") {
       if (!txt) continue;
       addUser(txt, "none", null, null);
       conv.push({ role: "user", text: txt });
-      n++; log2 = null; continue;
+      n++; cur = null; continue;
     }
     if (m.role === "agent") {
       const p = arenaParse(txt);
       const act = p && p.call ? String(p.call.action || "").toLowerCase() : "";
       if (p.kind === "call" && p.call && act !== "final") {
-        /* une commande : la zone terminale, comme au moment où elle a tourné */
         const kind = (act === "fetch") ? "fetch" : "bash";
         const cmd = (kind === "fetch") ? String(p.call.url || "") : String(p.call.command || "");
-        const b = addAssistant("arena");
-        /* La commande seule : sa sortie arrivera avec le message « tool » qui
-           la suit (sinon on afficherait « aucune sortie » à tort). */
-        const built = agtTermEl(b, null, true);
-        agtStepEl(built.log, cmd, kind);
-        log2 = built.log;
+        agtStepEl(ouvrir().log, cmd, kind);
         n++; continue;
       }
-      const out = (p && p.text) ? p.text : txt;
+      const out = (p && p.text) ? p.text : (p.kind === "call" ? "" : txt);
       if (!out) continue;
-      const b = addAssistant("arena");
-      b.innerHTML = renderMarkdown(out);
-      msgActions(b, { getMd: () => out });
+      if (cur) {
+        const fin = document.createElement("div"); fin.className = "agent-final";
+        fin.innerHTML = renderMarkdown(out);
+        cur.bubble.appendChild(fin);
+        msgActions(cur.bubble, { getMd: () => out });
+      } else {
+        const b = addAssistant("arena");
+        b.innerHTML = renderMarkdown(out);
+        msgActions(b, { getMd: () => out });
+      }
       conv.push({ role: "assistant", text: out });
-      n++; log2 = null; continue;
+      n++; cur = null; continue;
     }
     if (m.role === "tool" && txt) {
-      /* La sortie d'une commande se range dans la zone terminale de l'appel. */
-      if (!log2) {
-        const b = addAssistant("arena");
-        const built = agtRenderMission(b, [], "", true);
-        log2 = (built && built.log) ? built.log : null;
-      }
-      if (!log2) continue;
+      /* La sortie d'une commande se range dans la bulle de l'échange. */
+      const lg = ouvrir().log;
       const lines = txt.split("\n");
       let cmd = "", exit = null, out = txt;
       if (/^\$ /.test(lines[0] || "")) {
@@ -4013,9 +4025,9 @@ async function canalHistoryLoad(cid){
         if (ex) { exit = ex[1]; i++; }
         out = lines.slice(i).join("\n");
       }
-      if (cmd) agtStepEl(log2, cmd, "bash");
-      if (typeof agtOutEl === "function") agtOutEl(log2, out, "", (exit === null ? 0 : (Number(exit) || 0)));
-      else { const dv = document.createElement("div"); dv.className = "agent-out"; dv.textContent = out; log2.appendChild(dv); }
+      if (cmd) agtStepEl(lg, cmd, "bash");
+      if (typeof agtOutEl === "function") agtOutEl(lg, out, "", (exit === null ? 0 : (Number(exit) || 0)));
+      else { const dv = document.createElement("div"); dv.className = "agent-out"; dv.textContent = out; lg.appendChild(dv); }
       n++;
     }
   }
@@ -4037,6 +4049,7 @@ async function loadChat(id){
     const snap=parCanal?{docs:[],size:0}:await chatsRef().doc(id).collection("messages").orderBy("order").get();
     const mref=chatsRef().doc(id).collection("messages");
     conv=[]; log.innerHTML=""; chatId=id; msgSeq=0;
+  CANAL_MISSION=null; ARENA_WAIT=null;
     /* Ouvrir la discussion « Arena » efface son point : on a vu le message. */
     if(c.arena && ARENA_DOT){ ARENA_DOT=false; renderChatList(); }
     const mm=MODELS.find(m=>m.id===c.model);
@@ -4411,6 +4424,11 @@ let ARENA_DOT=false;
 /* La bulle « Envoi… » de la discussion Arena : la réponse d'Arena la remplace
    au lieu d'en ajouter une troisième. */
 let ARENA_WAIT=null;
+/* Le message unique d'un échange de canal : toutes les commandes de l'agent
+   s'empilent dans le MÊME message, et ce message ne se termine que lorsque
+   l'agent écrit du texte (ou que l'utilisateur envoie autre chose) —
+   exactement comme une mission d'agent classique. */
+let CANAL_MISSION=null;
 /* Le plus grand numéro d'ordre déjà écrit dans la discussion Arena : deux
    messages ne peuvent jamais partager le même, sinon le second écraserait le
    premier (l'identifiant du document en découle). */
@@ -4553,7 +4571,11 @@ async function arenaChat(){
    dans Firestore). */
 async function arenaDedupe(main){
   if(!main) return;
-  const extra=chats.filter(c=>c!==main&&(c.arena===true||c.model==="arena"));
+  /* Une discussion de CANAL n'est jamais un doublon de la discussion Arena :
+     elle a son propre contenu (le canal). Les anciennes portaient encore le
+     modèle « arena » et se faisaient donc masquer — elles disparaissaient de
+     la liste à la fermeture de l'application. */
+  const extra=chats.filter(c=>c!==main && !c.canal && (c.arena===true||c.model==="arena"));
   if(!extra.length) return;
   let change=false;
   for(const c of extra){
@@ -7144,6 +7166,69 @@ async function canalChipsFromHistory(chat){
     }
   } catch (e) { console.warn("pastilles :", e); }
 }
+/* --- le message d'agent d'un canal : un seul, qui grandit ---------------- */
+function canalMissionBubble(){
+  let m=CANAL_MISSION;
+  if(m && m.chatId===chatId && m.bubble.isConnected) return m;
+  let b=(ARENA_WAIT && ARENA_WAIT.isConnected)?ARENA_WAIT:addAssistant("arena");
+  ARENA_WAIT=null;
+  const g=b.querySelector(".gentxt"); if(g) g.remove();
+  const built=agtTermEl(b, null, true);
+  m=CANAL_MISSION={chatId:chatId, bubble:b, log:built.log};
+  return m;
+}
+function canalMissionStep(step){
+  if(!step) return;
+  const m=canalMissionBubble();
+  agtStepEl(m.log, step.cmd, step.kind);
+  agtOutEl(m.log, step.out, step.err, (step.kind==="fetch"?0:step.exit));
+  scrollDown();
+}
+/* Le texte de l'agent termine le message : il s'ajoute SOUS la zone
+   terminale, dans la même bulle. */
+function canalMissionText(out){
+  const m=CANAL_MISSION;
+  let b=null;
+  if(m && m.chatId===chatId && m.bubble.isConnected) b=m.bubble;
+  else if(ARENA_WAIT && ARENA_WAIT.isConnected) b=ARENA_WAIT;
+  if(!b) b=addAssistant("arena");
+  ARENA_WAIT=null;
+  const dansMission=!!(m && b===m.bubble);
+  CANAL_MISSION=null;
+  const g=b.querySelector(".gentxt"); if(g) g.remove();
+  if(dansMission){
+    const fin=document.createElement("div"); fin.className="agent-final";
+    fin.innerHTML=renderMarkdown(out);
+    b.appendChild(fin);
+    msgActions(b, {getMd:()=>out});
+  }else{
+    b.innerHTML=renderMarkdown(out);
+    msgActions(b, {getMd:()=>out});
+  }
+  conv.push({role:"assistant", text:out});
+  scrollDown();
+}
+/* « Attente de lecture… » : dès que le canal marque le message lu (état
+   différent de « new »), l'animation redevient celle de tous les jours. */
+function canalWatchRead(cid, mid, b){
+  let n=0;
+  (function tick(){
+    if(!b || !b.isConnected) return;
+    const ref=canalMsgsOf(cid);
+    if(!ref){ return; }
+    ref.doc(mid).get().then(function(s){
+      if(!b.isConnected) return;
+      const st=(s && s.exists) ? String((s.data()||{}).state || "") : "";
+      const g=b.querySelector(".gentxt");
+      if(st && st!=="new"){
+        if(g) g.innerHTML='Generating<i>.</i><i>.</i><i>.</i>';
+        return;
+      }
+      if(!g || ++n>240) return;
+      setTimeout(tick, 2500);
+    }).catch(function(){ if(++n<20) setTimeout(tick, 5000); });
+  })();
+}
 /* --- l'agent parle : commande exécutée, ou réponse affichée ------------- */
 async function canalDeliver(cid, d, docId){
   if (CANAL_DONE.has(docId)) return;
@@ -7157,26 +7242,18 @@ async function canalDeliver(cid, d, docId){
     const mode = canalModeOf(cid);
     if (parsed.kind === "call" && parsed.call.action !== "final" && mode === "agent") {
       const res = await arenaExecCall(parsed.call);
-      if (open) {
-        const b = addAssistant("arena");
-        agtRenderMission(b, [res.step], "", true);
-        scrollDown();
-      }
+      /* Chaque commande s'ajoute au MÊME message, qui reste ouvert. */
+      if (open) canalMissionStep(res.step);
       /* la commande et sa sortie sont déjà dans le canal (canalSendResult) */
       await canalSendResult(cid, res.text, docId);
       await canalMarkDone(cid, docId);
       return;
     }
-    const out = parsed.text || String(d.text || "");
+    let out = parsed.text || "";
+    if (!out && parsed.kind !== "call") out = String(d.text || "");
     if (!out) { await canalMarkDone(cid, docId); return; }
-    if (open) {
-      const b = (ARENA_WAIT && ARENA_WAIT.isConnected) ? ARENA_WAIT : addAssistant("arena");
-      ARENA_WAIT = null;
-      b.innerHTML = renderMarkdown(out);
-      msgActions(b, { getMd: () => out });
-      conv.push({ role: "assistant", text: out });
-      scrollDown();
-    }
+    /* Un texte termine le message : il s'ajoute dans la même bulle. */
+    if (open) canalMissionText(out);
     /* La réponse reste dans le canal : la discussion la relira en s'ouvrant.
        Seul le point « non lu » est tenu à jour, ici, tout de suite. */
     for (const ch of duCanal) {
@@ -7230,6 +7307,9 @@ async function submitCanal(text){
        (nom du fichier, contenu texte) voyagent avec le message */
     const notes = (typeof collectFileNotes === "function") ? collectFileNotes() : "";
     const envoi = String(text || "") + notes;
+    /* Un nouveau message ferme la mission précédente : le message d'agent en
+       cours s'arrête ici, comme en mode agent classique. */
+    CANAL_MISSION = null;
     addUser(text, "none", null, null);
     const b = addAssistant("arena");
     ARENA_WAIT = b;
@@ -7250,8 +7330,11 @@ async function submitCanal(text){
     if (!j || !j.ok) {
       b.innerHTML = '<div class="err">Canal injoignable : ' + esc((j && j.error) || "raison inconnue") + '</div>';
     } else {
-      b.innerHTML = '<p style="color:var(--ink-2);font-size:13.5px">Message transmis au canal « '
-        + esc(canalName(cid)) + ' ». La réponse arrivera ici même, dès que l\'agent l\'aura lue.</p>';
+      /* Pas de phrase de confirmation : l'animation dit tout. « Envoi… »,
+         puis « Attente de lecture… », puis l'animation classique dès que
+         l'agent a lu le message. */
+      b.innerHTML = '<span class="gentxt">Attente de lecture<i>.</i><i>.</i><i>.</i></span>';
+      canalWatchRead(cid, j.id, b);
     }
     if (chat) renderChatList();
   } catch (err) {
