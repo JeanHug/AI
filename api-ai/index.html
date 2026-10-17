@@ -3603,7 +3603,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P81</p>
+      <p class="setver">Version P82</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3942,6 +3942,85 @@ async function loadChats(){
   }
   renderChatList();
 }
+/* ================= l'historique d'une discussion de canal ================
+   Une discussion de canal n'enregistre RIEN à elle : ni ses messages, ni des
+   copies. Tout vit dans le canal (Firebase), et la discussion s'ouvre depuis
+   lui. Elle se retrouve donc entière sur n'importe quel appareil, même après
+   une fermeture complète de l'application — et deux discussions du même canal
+   racontent forcément la même chose. */
+const CANAL_HIST = {};          /* dernier historique lu, par canal */
+async function canalHistoryLoad(cid){
+  const ref = canalMsgsOf(cid);
+  if (!ref) return 0;
+  /* Le même historique est relu à chaque ouverture : on le garde en mémoire
+     trois minutes (les nouveaux messages, eux, arrivent en direct). */
+  let msgs = null;
+  const c = CANAL_HIST[cid];
+  if (c && Date.now() - c.at < 180000) msgs = c.msgs;
+  if (!msgs) {
+    let snap = null;
+    try { snap = await ref.orderBy("ts", "asc").limit(120).get(); }
+    catch (e) { console.warn("canal (historique) :", e); return 0; }
+    msgs = snap.docs.map((d) => Object.assign({}, d.data() || {}));
+    CANAL_HIST[cid] = { at: Date.now(), msgs: msgs };
+  }
+  let n = 0, log2 = null;
+  for (const m of msgs) {
+    const txt = String(m.text || "");
+    if (m.role === "user") {
+      if (!txt) continue;
+      addUser(txt, "none", null, null);
+      conv.push({ role: "user", text: txt });
+      n++; log2 = null; continue;
+    }
+    if (m.role === "agent") {
+      const p = arenaParse(txt);
+      const act = p && p.call ? String(p.call.action || "").toLowerCase() : "";
+      if (p.kind === "call" && p.call && act !== "final") {
+        /* une commande : la zone terminale, comme au moment où elle a tourné */
+        const kind = (act === "fetch") ? "fetch" : "bash";
+        const cmd = (kind === "fetch") ? String(p.call.url || "") : String(p.call.command || "");
+        const b = addAssistant("arena");
+        /* La commande seule : sa sortie arrivera avec le message « tool » qui
+           la suit (sinon on afficherait « aucune sortie » à tort). */
+        const built = agtTermEl(b, null, true);
+        agtStepEl(built.log, cmd, kind);
+        log2 = built.log;
+        n++; continue;
+      }
+      const out = (p && p.text) ? p.text : txt;
+      if (!out) continue;
+      const b = addAssistant("arena");
+      b.innerHTML = renderMarkdown(out);
+      msgActions(b, { getMd: () => out });
+      conv.push({ role: "assistant", text: out });
+      n++; log2 = null; continue;
+    }
+    if (m.role === "tool" && txt) {
+      /* La sortie d'une commande se range dans la zone terminale de l'appel. */
+      if (!log2) {
+        const b = addAssistant("arena");
+        const built = agtRenderMission(b, [], "", true);
+        log2 = (built && built.log) ? built.log : null;
+      }
+      if (!log2) continue;
+      const lines = txt.split("\n");
+      let cmd = "", exit = null, out = txt;
+      if (/^\$ /.test(lines[0] || "")) {
+        cmd = lines[0].slice(2);
+        let i = 1;
+        const ex = /^\[exit\]\s*(.*)$/.exec(lines[i] || "");
+        if (ex) { exit = ex[1]; i++; }
+        out = lines.slice(i).join("\n");
+      }
+      if (cmd) agtStepEl(log2, cmd, "bash");
+      if (typeof agtOutEl === "function") agtOutEl(log2, out, "", (exit === null ? 0 : (Number(exit) || 0)));
+      else { const dv = document.createElement("div"); dv.className = "agent-out"; dv.textContent = out; log2.appendChild(dv); }
+      n++;
+    }
+  }
+  return n;
+}
 async function loadChat(id){
   if(!FB_OK||!fbUser) return;
   const c=chats.find(x=>x.id===id); if(!c) return;
@@ -3952,7 +4031,10 @@ async function loadChat(id){
   }
   closeChatPop();
   try{
-    const snap=await chatsRef().doc(id).collection("messages").orderBy("order").get();
+    /* Une discussion de canal n'a pas de messages à elle : inutile d'aller en
+       chercher (une lecture économisée à chaque ouverture). */
+    const parCanal=!!(c.canal && c.canal!=="arena");
+    const snap=parCanal?{docs:[],size:0}:await chatsRef().doc(id).collection("messages").orderBy("order").get();
     const mref=chatsRef().doc(id).collection("messages");
     conv=[]; log.innerHTML=""; chatId=id; msgSeq=0;
     /* Ouvrir la discussion « Arena » efface son point : on a vu le message. */
@@ -3974,6 +4056,16 @@ async function loadChat(id){
         renderModeBadge();
       }
       agtSyncUI();
+    }
+    /* Discussion de canal : son contenu EST le canal. On l'affiche depuis
+       Firebase, sans rien relire dans la discussion (elle n'en garde aucune
+       copie). */
+    if(c.canal && c.canal!=="arena"){
+      const n=await canalHistoryLoad(c.canal);
+      if(!n) emptyState();
+      renderChatList(); closeSide(); scrollDown();
+      if(typeof agtMissionBanner==="function") agtMissionBanner(id);
+      return;
     }
     let lastA=null, lastAMd="";
     for(const d of snap.docs){
@@ -7056,6 +7148,8 @@ async function canalChipsFromHistory(chat){
 async function canalDeliver(cid, d, docId){
   if (CANAL_DONE.has(docId)) return;
   CANAL_DONE.add(docId);
+  /* un message arrive : l'historique gardé en mémoire n'est plus à jour */
+  try { delete CANAL_HIST[cid]; } catch (e) {}
   try {
     const duCanal = chatsOfCanal(cid);
     const open = duCanal.some(x => x.id === chatId);
@@ -7068,7 +7162,7 @@ async function canalDeliver(cid, d, docId){
         agtRenderMission(b, [res.step], "", true);
         scrollDown();
       }
-      for (const ch of duCanal) await arenaSaveStep(ch, res.step, Number(d.ts) || 0);
+      /* la commande et sa sortie sont déjà dans le canal (canalSendResult) */
       await canalSendResult(cid, res.text, docId);
       await canalMarkDone(cid, docId);
       return;
@@ -7083,9 +7177,11 @@ async function canalDeliver(cid, d, docId){
       conv.push({ role: "assistant", text: out });
       scrollDown();
     }
+    /* La réponse reste dans le canal : la discussion la relira en s'ouvrant.
+       Seul le point « non lu » est tenu à jour, ici, tout de suite. */
     for (const ch of duCanal) {
-      await arenaSaveReply(ch, out, Number(d.ts) || 0);
       if (!open && !ch.dot) { ch.dot = true; renderChatList(); }
+      try { await chatsRef().doc(ch.id).update({ updatedAt: Date.now() }); } catch (e) {}
     }
     await canalMarkDone(cid, docId);
   } catch (e) { console.warn("canal :", e); }
@@ -7144,13 +7240,11 @@ async function submitCanal(text){
     const j = await canalSendUser(cid, envoi, "text");
     if (j && j.id) chipAttach(cid, j.id);
     if (j && j.id) {
-      /* le message de l'utilisateur est enregistré dans TOUTES les discussions
-         du canal : elles restent identiques */
+      try { delete CANAL_HIST[cid]; } catch (e) {}
+      /* Rien à recopier : le message vit DANS le canal, et la discussion le
+         relira de là à sa prochaine ouverture (c'est le canal qui fait foi). */
       for (const ch of duCanal) {
-        try {
-          await arenaCommit(ch, [{ role: "user", text: String(text || ""), kind: "none",
-            modelName: "arena", order: Date.now(), createdAt: Date.now(), images: [], req: j.id }]);
-        } catch (e) {}
+        try { await chatsRef().doc(ch.id).update({ updatedAt: Date.now() }); } catch (e) {}
       }
     }
     if (!j || !j.ok) {
@@ -7340,14 +7434,24 @@ async function canalCreateChat(id, name, mode){
   CUR_MODE = "canal"; CUR_CANAL = id;
   const mid = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const now = Date.now();
-  const doc = { title: String(name || id), model: "arena", mode: "canal", canal: id,
+  /* La discussion d'un canal ne garde que son NOM et son MODE (plus le canal
+     auquel elle est reliée) : aucun message, aucune copie. Son contenu se
+     relit dans le canal. */
+  const doc = { title: String(name || id), mode: "canal", canal: id,
     agent: (mode === "agent"), createdAt: now, updatedAt: now };
   conv = []; log.innerHTML = ""; emptyState(); updateHint();
   chatId = mid; msgSeq = 0;
-  try {
-    await chatsRef().doc(mid).set(doc);
-    chats.unshift(Object.assign({ id: mid }, doc));
-  } catch (e) { console.warn("canal (discussion) :", e); }
+  let écrit = false;
+  for (let essai = 1; essai <= 2 && !écrit; essai++) {
+    try {
+      await chatsRef().doc(mid).set(doc);
+      écrit = true;
+    } catch (e) {
+      console.warn("canal (discussion) :", e);
+      if (essai === 2) agtToast("La discussion n'a pas pu être enregistrée : " + ((e && e.message) || e));
+    }
+  }
+  if (écrit) chats.unshift(Object.assign({ id: mid }, doc));
   const am = MODELS.find(m => m.id === "arena"); if (am) selectModel(am);
   renderChatList(); renderModeBadge(); closeSide();
   return mid;
