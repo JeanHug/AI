@@ -22,9 +22,11 @@ const NAME = "__NAME__";
 const MODE = "__MODE__";
 const HOLD = 25, GAP = 5000;
 
-async function call(path, data) {
+async function call(path, data, timeoutMs) {
   const url = BASE + "/" + ID + path;
   const opt = { headers: { "User-Agent": "z-canal/1.0" } };
+  /* une attente de resultat peut depasser la minute : on la borne */
+  if (timeoutMs) opt.signal = AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
   if (data !== undefined) {
     opt.method = "POST";
     opt.headers["Content-Type"] = "application/json";
@@ -67,13 +69,26 @@ async function cmdRead(n) {
 async function cmdWrite(args) {
   if (!args.length) { console.log("rien a ecrire (texte, ou --json <objet>)"); return 1; }
   let data;
+  let attente = 0;
   if (args[0] === "--json") {
     let o; try { o = JSON.parse(args.slice(1).join(" ")); } catch (e) { console.log("JSON invalide : " + e.message); return 1; }
     data = { text: JSON.stringify(o), kind: "call" };
+    /* une commande : on demande a la passerelle d'attendre son resultat */
+    attente = Number(process.env.ZCANAL_WAIT || 20);
+    data.wait = attente;
   } else data = { text: args.join(" "), kind: "text" };
-  const rep = await call("/write", data);
+  const rep = await call("/write", data, 60000 + attente * 1000);
   if (!rep.ok) { console.log("ecriture impossible : " + (rep.error || "?")); return 1; }
   console.log("ecrit dans le canal : " + (rep.id || "?"));
+  if (rep.tool) {
+    console.log("");
+    console.log("resultat de la commande :");
+    show(rep.tool);
+    return 0;
+  }
+  if (data.kind === "call" && attente) {
+    console.log("(aucun resultat : l'application est-elle ouverte, et la discussion en mode agent ?)");
+  }
   return 0;
 }
 async function cmdState() {

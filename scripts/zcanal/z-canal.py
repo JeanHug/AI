@@ -116,13 +116,23 @@ def cmd_write(args):
             print("le JSON doit etre un objet")
             return 1
         data = {"text": json.dumps(payload, ensure_ascii=False), "kind": "call"}
+        # une commande : la passerelle attend son execution et rend le resultat
+        data["wait"] = 20
     else:
         data = {"text": " ".join(args), "kind": "text"}
-    rep = call("/write", data)
+    rep = call("/write", data, timeout=90)
     if not rep.get("ok"):
         print("ecriture impossible : %s" % rep.get("error", "raison inconnue"))
         return 1
     print("ecrit dans le canal : %s" % rep.get("id", "?"))
+    if rep.get("tool"):
+        outil = rep["tool"]
+        print("")
+        print("resultat de la commande :")
+        print("  " + str(outil.get("text") or "").replace("\n", "\n  "))
+        return 0
+    if data.get("kind") == "call":
+        print("(aucun resultat : l'application est-elle ouverte, et la discussion en mode agent ?)")
     return 0
 
 
