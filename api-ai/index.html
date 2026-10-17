@@ -566,14 +566,14 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .agentbtn.on{background:#111113;color:#fff;border-color:#111113;
   box-shadow:0 2px 10px rgba(17,17,19,.25);animation:agtPop .25s ease}
 /* --- Phase 69 : le mode de la discussion dans la zone noire ------------ */
-.agentbtn.mode{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;cursor:default;
-  background:#111113;color:#fff;border-color:#111113;padding:5px 12px;line-height:1.32;
-  max-width:min(58vw,470px);cursor:default}
+.agentbtn.mode{display:inline-flex;flex-direction:row;align-items:center;gap:6px;cursor:default;
+  background:#111113;color:#fff;border-color:#111113;padding:5px 12px;line-height:1.25;
+  max-width:min(52vw,260px)}
 .agentbtn.mode:hover{background:#111113}
 .agentbtn.mode .mbmode{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
 .agentbtn.mode .mbmode svg{display:block;flex:none}
-.agentbtn.mode .mbnotice{max-width:100%;font-size:11px;font-weight:500;color:#c9c9cf;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Plus de deuxième ligne dans le badge : l'identifiant s'annonce par un toast. */
+.agentbtn.mode .mbnotice{display:none}
 /* --- Paramètres : des zones en grisé, comme de vrais réglages --------- */
 .setsec{background:#f5f5f7;border-radius:14px;padding:5px 6px;margin:0 0 14px;border-top:0}
 .setsec h3{margin:2px 0 7px;padding:0 8px;font-size:11.5px;letter-spacing:.08em;
@@ -3603,7 +3603,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P78</p>
+      <p class="setver">Version P79</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -7152,11 +7152,11 @@ async function submitCanal(text){
 /* ==================== la zone noire : le mode de la discussion ========== */
 function modeBadgeInfo(){
   const c = (chats || []).find(x => x.id === chatId) || null;
-  if (c && c.arena) return { label: "Agent · Arena", icon: zIcon(12, "agent", "#fff") };
-  if (CUR_MODE === "canal") {
-    const m = canalModeOf(CUR_CANAL);
-    return { label: "Z-Canal — " + (m === "agent" ? "agent" : "chat"), icon: zIcon(12, "canal", "#fff") };
-  }
+  /* Le logo de gauche est toujours celui de Z-Canal : c'est lui qui dit d'où
+     vient la discussion. Le texte, lui, reste court — un mot, jamais l'id. */
+  const logo = (typeof ZCANAL_MARK !== "undefined") ? ZCANAL_MARK : zIcon(12, "canal", "#fff");
+  if (c && c.arena) return { label: "Arena", icon: logo };
+  if (CUR_MODE === "canal") return { label: "Z-Canal", icon: logo };
   if (CUR_MODE === "agent") return { label: "Agent", icon: zIcon(12, "agent", "#fff") };
   return { label: "Chat", icon: zIcon(12, "chat", "#fff") };
 }
@@ -7164,17 +7164,17 @@ function renderModeBadge(){
   const b = document.getElementById("agentbtn");
   if (!b) return;
   const i = modeBadgeInfo();
-  let html = '<span class="mbmode">' + i.icon + '<span>' + esc(i.label) + '</span></span>';
-  if (MODE_NOTICE) html += '<span class="mbnotice">' + esc(MODE_NOTICE) + '</span>';
-  b.innerHTML = html;
+  /* Une seule ligne, courte : le logo puis le nom. Rien d'autre. */
+  b.innerHTML = '<span class="mbmode">' + i.icon + '<span>' + esc(i.label) + '</span></span>';
   b.classList.add("mode");
   b.title = i.label + " — le mode se choisit à la création de la discussion.";
 }
-function setModeNotice(txt, ms){
-  MODE_NOTICE = String(txt || "");
+/* L'annonce (création d'un canal, id, mode) ne grossit plus le badge : elle
+   s'affiche trois secondes dans le toast, en bas, et disparaît toute seule. */
+function setModeNotice(txt){
+  MODE_NOTICE = "";
   renderModeBadge();
-  if (MODE_NOTICE_T) clearTimeout(MODE_NOTICE_T);
-  MODE_NOTICE_T = setTimeout(function(){ MODE_NOTICE = ""; renderModeBadge(); }, ms || 15000);
+  if (typeof agtToast === "function" && txt) agtToast(String(txt));
 }
 
 /* ==================== nouvelle discussion : le choix du mode ============ */
