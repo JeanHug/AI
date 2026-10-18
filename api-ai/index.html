@@ -1106,6 +1106,8 @@ const MODELS = [
   /* ModelScope — génération d'image (crédits gratuits de la plateforme) */
   {id:"qwen-image-2-1", label:"Qwen Image 2.1", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
    sc:null, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Servi par ModelScope."},
+  {id:"qwen-image-2-1-turbo", label:"Qwen Image 2.1 Turbo", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
+   sc:null, desc:"La version rapide de Qwen Image 2.1 : même famille, génération en quelques secondes au lieu de vingt — idéale pour essayer plusieurs idées de suite. Servie par ModelScope."},
   {id:"wan-2-2-t2i", label:"Wan 2.2 T2I", vendor:"modelscope", family:"msimg", gen:"img", via:"ModelScope",
    sc:null, desc:"Wan 2.2 (Tongyi Wanxiang, Alibaba) en version texte→image, servi par ModelScope — crédits gratuits de la plateforme."},
   {id:"flux-2-klein-9b", label:"FLUX.2 [klein] 9B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-9b",
@@ -3618,7 +3620,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P92</p>
+      <p class="setver">Version P93</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
