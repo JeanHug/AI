@@ -641,7 +641,11 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .mopt-tx b{display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em;line-height:1.55}
 .mopt-tx .mopt-sub{display:block;font-size:12px;color:var(--ink-3);margin-top:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mopt-tx .mopt-badge{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.02em;
+.mopt-tx .setinput{display:block;width:100%;margin:14px 0 0;padding:11px 13px;border:1px solid var(--line);
+  border-radius:12px;background:#fff;font:inherit;font-size:13px;color:var(--ink)}
+.setinput:focus{outline:none;border-color:var(--ink-3)}
+.setinput::placeholder{color:var(--ink-3)}
+.mopt-badge{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.02em;
   color:#1f7a4d;background:#e8f4ee;border-radius:999px;padding:2px 8px;margin-left:8px;
   vertical-align:1.5px;line-height:1.5}
 .mopt-tick{flex:none;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);
@@ -3073,6 +3077,20 @@ function wanPosterModel(){
   try{ v=localStorage.getItem("wan_poster")||""; }catch(e){}
   return MODELS.some(m=>m.id===v && m.gen==="img") ? v : WAN_POSTER_DEFAULT;
 }
+/* Jeton Hugging Face facultatif : il ne quitte pas cet appareil, sauf pour
+   l'appel au Space qui anime la vidéo. */
+function hfTokenGet(){ try{ return localStorage.getItem("hf_token")||""; }catch(e){ return ""; } }
+function hfTokenSet(v){
+  const t=String(v||"").trim();
+  try{ if(t) localStorage.setItem("hf_token", t); else localStorage.removeItem("hf_token"); }catch(e){}
+  const nt=document.getElementById("hftokenote"), tg=document.getElementById("hftag");
+  const ok=/^hf_[A-Za-z0-9]{10,}$/.test(t);
+  if(tg){ tg.textContent = !t ? "" : (ok ? "jeton enregistré" : "format inattendu"); tg.className = "ctag" + (!t ? "" : (ok ? " crok" : " crko")); }
+  if(nt) nt.textContent = !t
+    ? "Sans jeton : quota anonyme, environ une vidéo par jour."
+    : (ok ? "Jeton enregistré sur cet appareil. Il ne part qu’avec la demande de vidéo."
+          : "Un jeton Hugging Face commence par « hf_ ». Vérifie la copie.");
+}
 function setWanPosterModel(id){
   try{ localStorage.setItem("wan_poster", id); }catch(e){}
   const nt=document.getElementById("wanposternote");
@@ -3114,6 +3132,12 @@ function renderWanModels(){
     for(let i=0;i<all.length;i++) all[i].setAttribute("aria-selected", all[i]===b ? "true" : "false");
   };
   setWanPosterModel(cur);
+  const ti=document.getElementById("hftoken");
+  if(ti){
+    ti.value=hfTokenGet();
+    ti.onchange=function(){ hfTokenSet(ti.value); };
+    hfTokenSet(ti.value);
+  }
 }
 let VID_SEQ=0; const VID_STORE={};
 function vidWaitHTML(fromUser){
@@ -3151,18 +3175,29 @@ function renderGenVideo(bubble, j, text, regen, pre, isRegen){
    vient du relais (elle est déjà faite), seule l'animation est rejouée. */
 const HF_VID = { host:"https://prithivmlmods-wan2-2-fast.hf.space", api:"generate_video" };
 async function hfVideoLocal(poster, posterMime, prompt, dur){
+  const tok=hfTokenGet();
+  const hdrs={"Content-Type":"application/json"};
+  if(tok) hdrs.Authorization="Bearer "+tok;
   const r=await fetch(HF_VID.host+"/gradio_api/call/"+HF_VID.api,{
-    method:"POST", headers:{"Content-Type":"application/json"},
+    method:"POST", headers:hdrs,
     body:JSON.stringify({data:["data:"+(posterMime||"image/png")+";base64,"+poster, prompt, "4", "", Number(dur||4), 4.0, 3.0, 0, true]}),
   });
   let ev=null;
   try{ ev=(await r.json()).event_id; }catch(e){}
   if(!ev) throw new Error("le Space vidéo n'a pas répondu (HTTP "+r.status+")");
-  const sse=await (await fetch(HF_VID.host+"/gradio_api/call/"+HF_VID.api+"/"+ev)).text();
+  const sse=await (await fetch(HF_VID.host+"/gradio_api/call/"+HF_VID.api+"/"+ev,
+    tok?{headers:{Authorization:"Bearer "+tok}}:{})).text();
   const du=sse.match(/data:video\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=]+)/i);
   if(!du){
     const e=sse.match(/"error"\s*:\s*"([^"]{1,260})"/);
-    throw new Error(e ? e[1] : "aucune vidéo dans la réponse du Space");
+    const raw=e ? e[1] : "";
+    if(/ZeroGPU quota|exceeded your/i.test(raw)){
+      const t2=raw.match(/Try again in ([0-9:]+)/i);
+      throw new Error("Quota gratuit Hugging Face épuisé pour ton adresse"
+        + (t2 ? " — il se rouvre dans "+t2[1] : "")
+        + ". Colle un jeton Hugging Face dans Paramètres ▸ Modèles ▸ Wan 2.2 pour un quota bien plus large.");
+    }
+    throw new Error(raw || "aucune vidéo dans la réponse du Space");
   }
   return {video:du[1], mime:"video/mp4", poster:poster, posterMime:posterMime||"image/png"};
 }
@@ -3203,13 +3238,18 @@ async function submitVideo(text){
   const clock=startImgClock(bubble);
   const spec={model:current.id, prompt:text, duration:cleanParams(current.id).duration||4,
     posterModel:wanPosterModel()};
+  if(hfTokenGet()) spec.hfToken=hfTokenGet();
   if(snapshot){ spec.image=snapshot.b64; spec.imageMime=snapshot.mime||"image/png"; }
   try{
     const j=await videoWithFallback(spec);
     stopImgClock(clock);
     /* Voie gratuite : le Space anime une image tirée du prompt — on le dit. */
+    /* On dit d'où vient l'image de départ : c'est le maillon qui manquait
+       pour comprendre ce que la vidéo a réellement animé. */
+    const pm=MODELS.find(x=>x.id===wanPosterModel());
     const pre=(j.via==="hf"||j.local)
-      ? (snapshot ? "" : '<p class="viafb"><em>wan 2.2 · image de départ</em></p>')
+      ? (snapshot ? '<p class="viafb"><em>wan 2.2 · ton image</em></p>'
+                  : '<p class="viafb"><em>wan 2.2 · image de départ : '+esc(pm?pm.label:"FLUX.2 [klein] 4B")+'</em></p>')
       : "";
     const rid=renderGenVideo(bubble, j, text, (b)=>regenVideo(spec,b,pre), pre);
     if(typeof FB!=="undefined"&&FB.afterVideo) FB.afterVideo({userText:text, id:rid, via:j.via});
@@ -3864,7 +3904,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P98</p>
+      <p class="setver">Version P99</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3901,7 +3941,14 @@ function fileToImage(file){
         <h3>Wan 2.2</h3>
         <p class="setnote">Wan 2.2 ne part pas du texte : il part d’une image, puis il la fait bouger. Le modèle choisi ici fabrique cette image de départ quand tu n’en joins pas une. FLUX.2 [klein] 4B est le plus rapide et ses images s’animent très bien — c’est le réglage par défaut.</p>
         <div class="mopts" id="wanposterlist" role="listbox" aria-label="Modèle de l’image de départ"></div>
-        <p class="setnote" id="wanposternote" style="margin-top:12px"></p>
+        <p class="setnote" id="wanposternote" style="margin-top:14px"></p>
+      </section>
+
+      <section class="setsec">
+        <h3>Quota Hugging Face <span class="ctag" id="hftag"></span></h3>
+        <p class="setnote">La vidéo gratuite tourne sur ZeroGPU, qui donne environ deux minutes de GPU par jour et par adresse IP — soit une seule vidéo. Un jeton Hugging Face, même sur un compte gratuit, augmente nettement ce quota. Le jeton reste sur cet appareil : il n’est envoyé qu’au Space qui anime la vidéo, jamais enregistré ailleurs.</p>
+        <input type="password" class="setinput" id="hftoken" placeholder="hf_… (facultatif)" autocomplete="off" spellcheck="false">
+        <p class="setnote" id="hftokenote" style="margin-top:10px"></p>
       </section>
     </div>
     <div class="setwrap" id="setcredits" hidden>
