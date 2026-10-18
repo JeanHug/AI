@@ -129,6 +129,7 @@ async function hfImage(cfg, ib, env) {
   if (!evId) return json({ error: "pas d'event_id renvoyé par le Space HF" }, 502);
 
   let sse;
+  HFV_STAGE = "ouverture du flux";
   try {
     sse = await fetch(`${cfg.host}/gradio_api/call/${cfg.api}/${evId}`, { headers: env && env.HF_TOKEN ? { Authorization: "Bearer " + String(env.HF_TOKEN).trim() } : {} });
   } catch (err) {
@@ -162,9 +163,11 @@ async function hfImage(cfg, ib, env) {
 }
 
 /* Fabrique une vidéo Wan 2.2 : image de départ (gratuite) puis animation. */
+let HFV_STAGE = "départ";
 async function hfVideo(env, prompt, dur) {
   const cfg = HF_VID_MODELS["wan-2-2-t2v"];
   let poster = "", posterMime = "image/png", posterErr = "";
+  HFV_STAGE = "image de départ";
   try {
     const r1 = await hfImage(HF_IMG_MODELS["hf-flux-2-klein-4b"], { prompt, params: { width: 768, height: 768 } }, env);
     const j1 = await r1.json();
@@ -182,6 +185,7 @@ async function hfVideo(env, prompt, dur) {
   }
   if (!poster) return { error: "aucune image de départ n'a pu être produite (" + posterErr + ")" };
 
+  HFV_STAGE = "envoi au Space";
   const payload = ["data:" + posterMime + ";base64," + poster, prompt, "4", "", String(dur), 4.0, 3.0, 0, true];
   const hfHeaders = { "Content-Type": "application/json" };
   if (env && env.HF_TOKEN) hfHeaders.Authorization = "Bearer " + String(env.HF_TOKEN).trim();
@@ -202,6 +206,7 @@ async function hfVideo(env, prompt, dur) {
     });
   } catch (err) { return { error: `flux SSE vidéo injoignable : ${String((err && err.message) || err)}`, poster, posterMime }; }
   let txt = "";
+  HFV_STAGE = "lecture du flux";
   try {
     txt = await sse.text();
   } catch (err) {
@@ -228,6 +233,7 @@ async function hfVideo(env, prompt, dur) {
     }
     return { error: msg.slice(0, 320), poster, posterMime };
   }
+  HFV_STAGE = "analyse de la réponse";
   /* la vidéo arrive soit en data-URI base64, soit en fichier téléchargeable */
   const du = txt.match(/data:video\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=]+)/i);
   if (du) return { video: du[1], mime: "video/mp4", poster, posterMime, duration: dur };
@@ -254,7 +260,7 @@ async function hfVideoSafe(env, prompt, dur) {
   try {
     return await hfVideo(env, prompt, dur);
   } catch (e) {
-    return { error: "Space vidéo : " + String((e && e.message) || e) };
+    return { error: "Space vidéo [" + HFV_STAGE + "] : " + String((e && e.message) || e) };
   }
 }
 
