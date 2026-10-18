@@ -865,7 +865,9 @@ async function secretTest(env, name) {
       return fin(r, false, "Jeton refusé (HTTP " + r.status + ") : " + why);
     }
     if (name === "MODELSCOPE_API_KEY") {
-      const r = await fetch("https://api-inference.modelscope.ai/v1/models", {
+      /* page_size=1 : la liste complète met une trentaine de secondes, un
+         seul élément répond en une seconde — on ne teste que l'authentification. */
+      const r = await fetch("https://api-inference.modelscope.ai/v1/models?page_size=1", {
         headers: { "Authorization": "Bearer " + v, "User-Agent": BROWSER_UA } });
       const txt = await r.text();
       if (r.ok) return fin(r, true, "Jeton accepté — l’API d’inférence répond.");
