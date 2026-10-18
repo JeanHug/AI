@@ -621,6 +621,12 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .setbackbtn:hover{border-color:var(--ink-3);color:var(--ink)}
 .setbackbtn:active{transform:scale(.94)}
 .setver{font-size:11.5px;color:var(--ink-3);text-align:center;margin:26px 0 6px}
+/* --- Mission en cours : le bouton qui l'arrête, sous le message ---------- */
+.mstop{margin:0 0 14px;padding:8px 13px;border:1px solid var(--line);border-radius:10px;
+  background:#fff;color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer;
+  transition:border-color .15s ease,color .15s ease,transform .12s ease}
+.mstop:hover{border-color:#cfcfd6;color:var(--ink)}
+.mstop:active{transform:scale(.98)}
 /* --- Réglages : la liste arrive en douceur ---------------------------- */
 .setlistsec .setrow{animation:setrow .26s ease-out both}
 .setlistsec .setrow:nth-of-type(2){animation-delay:.05s}
@@ -3904,7 +3910,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P100</p>
+      <p class="setver">Version P101</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -5701,6 +5707,25 @@ function agtJobDrop(chat){
   if(m[chat]){ delete m[chat]; agtJobsSave(m); }
 }
 function agtJobLocal(chat){ const m=agtJobsLoad(); return (chat&&m[chat])?m[chat]:null; }
+/* Les missions que cet appareil a lancées se déclarent à la passerelle : une
+   tâche née avant le registre devient ainsi listable — donc arrêtable — même
+   si l'app ne la suit plus. */
+async function agtJobsDeclare(){
+  let jobs=[];
+  try{
+    const m=agtJobsLoad();
+    jobs=Object.keys(m).map(function(k){ return m[k]; })
+      .filter(function(j){ return !!(j&&j.id); })
+      .map(function(j){ return {id:String(j.id), chat:String(j.chat||""), model:String(j.model||""),
+        mission:String(j.mission||""), at:Number(j.at||0)||0, state:"run"}; });
+  }catch(e){ return; }
+  if(!jobs.length) return;
+  try{
+    await fetch(API_BASE+"/api/agent/jobs/sync",{method:"POST",
+      headers:agtHeaders({"Content-Type":"application/json"}),
+      body:JSON.stringify({jobs:jobs})});
+  }catch(e){}
+}
 /* Lâcher la mission affichée : elle continue sur la passerelle et son résultat
    arrivera dans sa discussion. */
 async function agtDetachNow(){
@@ -5793,6 +5818,22 @@ async function agtJobFollow(id, ui, initial){
    direct, où qu'on soit et quel que soit l'appareil. Rien n'est réenregistré
    ici — la passerelle écrit le résultat dans SA discussion (agtEnsureSaved
    sert de repli si elle n'a pas pu). */
+/* Arrêter une mission : la passerelle tranche tout de suite (l'étape en
+   cours, elle, ne s'interrompt pas — mais elle ne sera plus jamais suivie). */
+async function agtStopJob(id, cid){
+  if(!id) return;
+  if(!confirm("Arrêter cette mission ?")) return;
+  let ok=false;
+  try{
+    const r=await fetch(API_BASE+"/api/agent/job/stop?id="+encodeURIComponent(id),{method:"POST",headers:agtHeaders()});
+    const j=await r.json().catch(()=>({}));
+    ok=!!(j&&j.ok);
+  }catch(e){}
+  agtJobDrop(cid||AGT_JOB_CHAT||"");
+  agtSetJobMark(cid||AGT_JOB_CHAT,null,"done").catch(()=>{});
+  agtToast(ok?"Mission arrêtée.":"Arrêt impossible : la passerelle n'a pas répondu.");
+}
+
 async function agtAttachJob(info, cid){
   if(!info||!info.id||!cid) return false;
   if(AGT_JOB_OWN) return false;                 /* une seule mission affichée */
@@ -5815,6 +5856,10 @@ async function agtAttachJob(info, cid){
   }
   addUser(mission,"none",null,null);
   const bubble=addAssistant();
+  const stopBtn=document.createElement("button");
+  stopBtn.type="button"; stopBtn.className="mstop"; stopBtn.textContent="Arrêter la mission";
+  stopBtn.onclick=function(){ agtStopJob(info.id, cid); };
+  bubble.appendChild(stopBtn);
   const finalEl=document.createElement("div");
   finalEl.className="agent-final";
   bubble.appendChild(finalEl);
@@ -8383,6 +8428,8 @@ function canalWire(){
   const crc = g("crpollclaim");
   if (crc) crc.onclick = function(){ window.open("https://enter.pollinations.ai", "_blank", "noopener"); };
   const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView(SET_VIEW === "wan" ? "models" : "list"); };
+  /* les missions connues de cet appareil se déclarent (une fois, en douceur) */
+  setTimeout(function(){ try{ agtJobsDeclare(); }catch(e){} }, 1200);
   /* les adresses de l'écran Z-Canal sont remplies (et copiables) d'un coup */
   if (typeof renderCanalList === "function") renderCanalList();
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeNewPop(); });
