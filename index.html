@@ -670,6 +670,9 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .npbtn:hover{border-color:var(--ink-3);background:#fafafb}
 .npbtn:active{transform:scale(.97)}
 .ctag{float:right;font-size:11.5px;letter-spacing:0;text-transform:none;color:var(--ink-3)}
+/* Pastilles de la page Crédits : vert quand le tuyau est ouvert, rouge quand il est fermé. */
+.ctag.crok{color:#1f7a4d}
+.ctag.crko{color:#a33131}
 /* --- Z-Canal : l'installation, adresses entières ------------------------ */
 .urlbox{border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;margin:10px 0;background:#fff}
 .urlhead{display:flex;align-items:center;gap:8px}
@@ -3597,13 +3600,18 @@ function fileToImage(file){
           <span class="srtx"><b>Compte</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
+        <button type="button" class="setrow" id="setgocredits">
+          <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.2 9.4c0-1 1.2-1.7 2.8-1.7s2.8.7 2.8 1.7c0 2.6-5.6 1.4-5.6 4 0 1 1.2 1.7 2.8 1.7s2.8-.7 2.8-1.7"/></svg></span>
+          <span class="srtx"><b>Crédits</b></span>
+          <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+        </button>
         <button type="button" class="setrow" id="setgocanal">
           <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 7.2h11.2M17.6 7.2 6.4 16.8M6.4 16.8h11.2"/><circle cx="3.4" cy="7.2" r="1.6"/><circle cx="20.6" cy="16.8" r="1.6"/></svg></span>
           <span class="srtx"><b>Z-Canal</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P86</p>
+      <p class="setver">Version P87</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3631,6 +3639,31 @@ function fileToImage(file){
         <button type="button" class="dangerbtn wide" id="setdelete">Supprimer définitivement mon compte</button>
       </section>
       <p class="autherr" id="seterr" hidden></p>
+    </div>
+    <div class="setwrap" id="setcredits" hidden>
+      <h2 class="settitle">Crédits</h2>
+      <p class="setsub">Ce qui reste dans chaque compte, et ce qui bloque quand un modèle refuse. Rien n'est jamais envoyé à personne d'autre.</p>
+
+      <section class="setsec">
+        <h3>Pollinations <span class="ctag" id="crpolltag"></span></h3>
+        <p class="setnote" id="crpollnote">Lecture du solde…</p>
+        <div class="setnote" id="crpollquest" hidden></div>
+        <button type="button" class="linkbtn" id="crpollclaim" hidden>Ouvrir le tableau de bord pour réclamer les crédits</button>
+      </section>
+
+      <section class="setsec">
+        <h3>ModelScope <span class="ctag" id="crmsstag"></span></h3>
+        <p class="setnote" id="crmsnote">Lecture…</p>
+        <div class="setnote" id="crdrift" hidden></div>
+      </section>
+
+      <section class="setsec">
+        <h3>Roboflow <span class="ctag" id="crrftag"></span></h3>
+        <p class="setnote" id="crrfnote">Lecture…</p>
+      </section>
+
+      <button type="button" class="linkbtn" id="crrefresh">Actualiser</button>
+      <p class="setnote" id="crstamp"></p>
     </div>
     <div class="setwrap" id="setcanal" hidden>
       <h2 class="settitle">Z-Canal</h2>
@@ -7546,12 +7579,96 @@ async function canalCreateChat(id, name, mode){
 }
 
 /* ==================== l'écran des réglages : Z-Canal ==================== */
+/* ---- Crédits : soldes et pannes, lus une fois par ouverture ---------- */
+function crTag(id, texte, ton){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = texte || "";
+  el.hidden = !texte;
+  el.className = "ctag" + (ton ? " cr" + ton : "");
+}
+function creditsShow(d){
+  const p = (d && d.pollinations) || {};
+  const ms = (d && d.modelscope) || {};
+  const rf = (d && d.roboflow) || {};
+  /* Pollinations */
+  const pn = document.getElementById("crpollnote");
+  if (p.ok) {
+    const ab = p.account || {};
+    const tot = (ab.total != null) ? ab.total : p.balance;
+    crTag("crpolltag", (Number(tot) > 0 ? "disponible" : "épuisé"), (Number(tot) > 0 ? "ok" : "ko"));
+    let t = "Solde : " + (tot != null ? (Math.round(Number(tot) * 1000) / 1000) : "?") + " Pollen";
+    if (ab.tier != null || ab.paid != null)
+      t += " — dont Quest (gratuit) " + (ab.tier != null ? ab.tier : "?") + " et payant " + (ab.paid != null ? ab.paid : "?");
+    if (pn) pn.textContent = t + ".";
+  } else {
+    crTag("crpolltag", "clé " + (p.cle || "inconnue"), "ko");
+    if (pn) pn.textContent = p.error || "Pollinations injoignable.";
+  }
+  const q = p.quests, qe = document.getElementById("crpollquest"), qb = document.getElementById("crpollclaim");
+  if (qe && qb) {
+    if (q && q.disponibles > 0) {
+      qe.hidden = false;
+      qe.textContent = q.disponibles + " quête" + (q.disponibles > 1 ? "s" : "") + " à réclamer, soit environ "
+        + q.gain + " Pollen. La réclamation se fait dans le tableau de bord : l'API de Pollinations l'interdit.";
+      qb.hidden = false;
+    } else {
+      qe.hidden = true; qb.hidden = true;
+    }
+  }
+  /* ModelScope */
+  const mn = document.getElementById("crmsnote");
+  const tok = ms.token || "inconnu";
+  crTag("crmsstag", (tok === "valide" ? "jeton valide" : "jeton " + tok), (tok === "valide" ? "ok" : "ko"));
+  if (mn) {
+    if (tok === "valide") {
+      let t = "Jeton accepté";
+      if (ms.identity) t += " (" + ms.identity + ")";
+      if (ms.balance && ms.balance.available != null) t += " — crédits disponibles : " + ms.balance.available;
+      mn.textContent = t + ".";
+    } else {
+      mn.textContent = (ms.error || "Jeton refusé.") + " Il faut remplacer le secret MODELSCOPE_API_KEY du Worker par un jeton neuf.";
+    }
+  }
+  const dr = document.getElementById("crdrift");
+  const cat = ms.catalogue || {};
+  if (dr) {
+    const abs = cat.absents || [];
+    if (abs.length) {
+      dr.hidden = false;
+      dr.textContent = abs.length + " modèle" + (abs.length > 1 ? "s" : "") + " configuré" + (abs.length > 1 ? "s" : "")
+        + " n'existe" + (abs.length > 1 ? "nt" : "") + " plus dans le catalogue ModelScope : "
+        + abs.map(function(x){ return x.modele + " (" + x.id + ")"; }).join(", ") + ".";
+    } else dr.hidden = true;
+  }
+  /* Roboflow */
+  const rn = document.getElementById("crrfnote");
+  const nj = Number(rf.jetons || 0);
+  crTag("crrftag", nj ? nj + " jeton" + (nj > 1 ? "s" : "") : "aucun jeton", nj ? "ok" : "ko");
+  if (rn) rn.textContent = "Les appels passent par " + nj + " jeton" + (nj > 1 ? "s" : "")
+    + " en rotation. Le solde, lui, se règle dans l'espace de travail Roboflow : quand il est épuisé, tous les modèles qui en dépendent répondent « credit_cap_exceeded ».";
+}
+async function creditsLoad(){
+  const stamp = document.getElementById("crstamp");
+  if (stamp) stamp.textContent = "Lecture…";
+  try {
+    const r = await fetch(API_BASE + "/api/credits", { headers: agtHeaders(), cache: "no-store" });
+    const d = await r.json();
+    if (!d || !d.ok) throw new Error((d && d.error) || ("HTTP " + r.status));
+    creditsShow(d);
+    if (stamp) stamp.textContent = "Lu à " + new Date().toLocaleTimeString("fr-FR") + (d.cache ? " (en cache une minute)" : "") + ".";
+  } catch (e) {
+    if (stamp) stamp.textContent = "Lecture impossible : " + (e && e.message ? e.message : e);
+  }
+}
+
 function showSetView(view){
   const l = document.getElementById("setlist"), a = document.getElementById("setcompte"),
-        c = document.getElementById("setcanal");
+        c = document.getElementById("setcanal"), r = document.getElementById("setcredits");
   if (l) l.hidden = (view !== "list");
   if (a) a.hidden = (view !== "compte");
   if (c) c.hidden = (view !== "canal");
+  if (r) r.hidden = (view !== "credits");
   /* Le bouton « revenir » est un frère de la croix, dans le panneau : les deux
      sont donc posés au même endroit, à la même hauteur, quoi qu'il arrive. */
   const b = document.getElementById("setback");
@@ -7890,6 +8007,10 @@ function canalWire(){
   if (sc && !sc.dataset.wired2) { sc.dataset.wired2 = "1"; sc.addEventListener("click", function(){ showSetView("list"); }); }
   const ga = g("setgoaccount"); if (ga) ga.onclick = function(){ showSetView("compte"); };
   const gc = g("setgocanal"); if (gc) gc.onclick = function(){ showSetView("canal"); };
+  const gr = g("setgocredits"); if (gr) gr.onclick = function(){ showSetView("credits"); creditsLoad(); };
+  const crr = g("crrefresh"); if (crr) crr.onclick = creditsLoad;
+  const crc = g("crpollclaim");
+  if (crc) crc.onclick = function(){ window.open("https://enter.pollinations.ai", "_blank", "noopener"); };
   const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView("list"); };
   /* les adresses de l'écran Z-Canal sont remplies (et copiables) d'un coup */
   if (typeof renderCanalList === "function") renderCanalList();
