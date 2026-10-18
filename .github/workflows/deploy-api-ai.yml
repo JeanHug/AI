@@ -61,6 +61,7 @@ jobs:
           FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
           # Jeton Hugging Face (facultatif) : lève le quota ZeroGPU anonyme des
           # Spaces d'image (Ideogram notamment). Absent : rien ne change.
+          HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           WORKER_NAME: api-ai
         run: node scripts/deploy-api-ai.cjs

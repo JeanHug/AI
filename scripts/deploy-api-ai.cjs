@@ -42,7 +42,7 @@ const tokenSecrets = named.concat(['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3'])
    n'est écrite dans le dépôt ni affichée). NVIDIA_NIM_API_KEY et
    MODELSCOPE_API_KEY : clés réservées à des modèles qui seront ajoutés plus
    tard (aucun modèle n'est activé par la simple présence de ces clés). */
-const otherSecrets = ['NVIDIA_NIM_API_KEY', 'MODELSCOPE_API_KEY', 'FIREBASE_EMAIL', 'FIREBASE_PASSWORD', 'HF_TOKEN']
+const otherSecrets = ['NVIDIA_NIM_API_KEY', 'MODELSCOPE_API_KEY', 'FIREBASE_EMAIL', 'FIREBASE_PASSWORD', 'HUGGINGFACE_TOKEN', 'HF_TOKEN']
   .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
   .filter((t) => t.text.length > 0);
 
