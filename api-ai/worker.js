@@ -851,6 +851,9 @@ function secretValue(env, name) {
   let v = String((env && env[name]) || "").trim();
   /* Ancien nom, encore lu : un jeton posé sous HF_TOKEN n'est pas perdu. */
   if (!v && name === "HUGGINGFACE_TOKEN") v = String((env && env.HF_TOKEN) || "").trim();
+  /* Le jeton historique — celui qui n'a pas de numéro — EST le numéro 4 : on
+     l'affiche à sa place au lieu de laisser un trou dans la liste. */
+  if (!v && name === "ROBOFLOW_API_KEY_4") v = String((env && env.ROBOFLOW_API_KEY) || "").trim();
   return v;
 }
 function secretFin(v) { return v ? v.slice(-4) : ""; }
@@ -1609,8 +1612,11 @@ function roboflowTokens(env) {
      L'ancien nom (ROBOFLOW_API_KEY) et les RF_TOKEN_* restent lus en secours,
      pour qu'aucun déploiement ne perde un jeton au passage. */
   const order = [];
-  for (let i = 1; i <= 8; i++) order.push(env["ROBOFLOW_API_KEY_" + i]);
-  order.push(env.ROBOFLOW_API_KEY, env.RF_TOKEN_1, env.RF_TOKEN_2, env.RF_TOKEN_3);
+  for (let i = 1; i <= 8; i++) {
+    /* _4 : numéroté s'il existe, sinon le jeton historique (même clé). */
+    order.push(env["ROBOFLOW_API_KEY_" + i] || (i === 4 ? env.ROBOFLOW_API_KEY : ""));
+  }
+  order.push(env.RF_TOKEN_1, env.RF_TOKEN_2, env.RF_TOKEN_3);
   const out = [];
   for (const t of order) {
     const k = String(t || "").trim();
