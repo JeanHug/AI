@@ -3618,7 +3618,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P88</p>
+      <p class="setver">Version P89</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -7650,12 +7650,13 @@ function creditsShow(d){
   const dr = document.getElementById("crdrift");
   const cat = ms.catalogue || {};
   if (dr) {
-    const abs = cat.absents || [];
-    if (abs.length) {
+    const hors = cat.horsListe || [];
+    if (hors.length) {
       dr.hidden = false;
-      dr.textContent = abs.length + " modèle" + (abs.length > 1 ? "s" : "") + " configuré" + (abs.length > 1 ? "s" : "")
-        + " n'existe" + (abs.length > 1 ? "nt" : "") + " plus dans le catalogue ModelScope : "
-        + abs.map(function(x){ return x.modele + " (" + x.id + ")"; }).join(", ") + ".";
+      dr.textContent = hors.length + " modèle" + (hors.length > 1 ? "s" : "") + " configuré" + (hors.length > 1 ? "s" : "")
+        + " ne figure" + (hors.length > 1 ? "nt" : "") + " pas dans la liste publique /v1/models ("
+        + hors.map(function(x){ return x.modele; }).join(", ")
+        + "). Ce n'est pas une preuve qu'ils manquent : cette liste est partielle et un modèle absent répond très bien quand on l'appelle.";
     } else dr.hidden = true;
   }
   /* Roboflow */
