@@ -593,7 +593,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .setrow{border-radius:10px}
 .setrow:hover{background:#fff}
 /* --- Paramètres : la liste des réglages ------------------------------- */
-#setlist,#setcompte,#setcanal,#setmodels,#setcredits{animation:setview .22s ease both}
+#setlist,#setcompte,#setcanal,#setmodels,#setwan,#setcredits{animation:setview .22s ease both}
 @keyframes setview{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 .setrow{display:flex;align-items:center;gap:13px;width:100%;border:1px solid transparent;
   border-radius:13px;background:none;padding:12px 13px;cursor:pointer;text-align:left;
@@ -641,7 +641,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .mopt-tx b{display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em;line-height:1.55}
 .mopt-tx .mopt-sub{display:block;font-size:12px;color:var(--ink-3);margin-top:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mopt-tx .setinput{display:block;width:100%;margin:14px 0 0;padding:11px 13px;border:1px solid var(--line);
+.mopt-tx .setinput,.setsec .setinput{display:block;width:100%;margin:14px 0 0;padding:11px 13px;border:1px solid var(--line);
   border-radius:12px;background:#fff;font:inherit;font-size:13px;color:var(--ink)}
 .setinput:focus{outline:none;border-color:var(--ink-3)}
 .setinput::placeholder{color:var(--ink-3)}
@@ -3904,7 +3904,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P99</p>
+      <p class="setver">Version P100</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3935,10 +3935,21 @@ function fileToImage(file){
     </div>
     <div class="setwrap" id="setmodels" hidden>
       <h2 class="settitle">Modèles</h2>
-      <p class="setsub">Les réglages qui ne tiennent pas dans un seul modèle : ils concernent une chaîne entière, du premier trait au dernier.</p>
+      <p class="setsub">Chaque modèle qui a ses propres réglages a sa ligne. Ouvre-la pour les régler.</p>
+      <section class="setsec setlistsec">
+        <button type="button" class="setrow" id="setgowan">
+          <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.2" y="6.4" width="12.6" height="11.2" rx="2.6"/><path d="m15.8 12 5-3.2v6.4l-5-3.2Z"/></svg></span>
+          <span class="srtx"><b>Wan 2.2</b><span>Image de départ · quota Hugging Face</span></span>
+          <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
+        </button>
+      </section>
+    </div>
+    <div class="setwrap" id="setwan" hidden>
+      <h2 class="settitle">Wan 2.2</h2>
+      <p class="setsub">Le modèle qui anime l’image, et le quota qui le laisse tourner.</p>
 
       <section class="setsec">
-        <h3>Wan 2.2</h3>
+        <h3>Image de départ</h3>
         <p class="setnote">Wan 2.2 ne part pas du texte : il part d’une image, puis il la fait bouger. Le modèle choisi ici fabrique cette image de départ quand tu n’en joins pas une. FLUX.2 [klein] 4B est le plus rapide et ses images s’animent très bien — c’est le réglage par défaut.</p>
         <div class="mopts" id="wanposterlist" role="listbox" aria-label="Modèle de l’image de départ"></div>
         <p class="setnote" id="wanposternote" style="margin-top:14px"></p>
@@ -8014,16 +8025,19 @@ async function creditsLoad(){
   }
 }
 
+var SET_VIEW = "list";
 function showSetView(view){
   const l = document.getElementById("setlist"), a = document.getElementById("setcompte"),
         c = document.getElementById("setcanal"), r = document.getElementById("setcredits"),
-        md = document.getElementById("setmodels");
+        md = document.getElementById("setmodels"), w = document.getElementById("setwan");
+  SET_VIEW = view;
   if (l) l.hidden = (view !== "list");
   if (a) a.hidden = (view !== "compte");
   if (c) c.hidden = (view !== "canal");
   if (r) r.hidden = (view !== "credits");
   if (md) md.hidden = (view !== "models");
-  if (view === "models") renderWanModels();
+  if (w) w.hidden = (view !== "wan");
+  if (view === "wan") renderWanModels();
   /* Le bouton « revenir » est un frère de la croix, dans le panneau : les deux
      sont donc posés au même endroit, à la même hauteur, quoi qu'il arrive. */
   const b = document.getElementById("setback");
@@ -8364,10 +8378,11 @@ function canalWire(){
   const gc = g("setgocanal"); if (gc) gc.onclick = function(){ showSetView("canal"); };
   const gr = g("setgocredits"); if (gr) gr.onclick = function(){ showSetView("credits"); creditsLoad(); };
   const gm = g("setgomodels"); if (gm) gm.onclick = function(){ showSetView("models"); };
+  const gw = g("setgowan"); if (gw) gw.onclick = function(){ showSetView("wan"); };
   const crr = g("crrefresh"); if (crr) crr.onclick = creditsLoad;
   const crc = g("crpollclaim");
   if (crc) crc.onclick = function(){ window.open("https://enter.pollinations.ai", "_blank", "noopener"); };
-  const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView("list"); };
+  const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView(SET_VIEW === "wan" ? "models" : "list"); };
   /* les adresses de l'écran Z-Canal sont remplies (et copiables) d'un coup */
   if (typeof renderCanalList === "function") renderCanalList();
   document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeNewPop(); });
