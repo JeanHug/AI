@@ -1109,8 +1109,8 @@ const MODELS = [
    sc:null, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Servi par ModelScope."},
   {id:"qwen-image-2-1-turbo", label:"Qwen Image 2.1 Turbo", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
    sc:null, desc:"La version rapide de Qwen Image 2.1 : même famille, génération en quelques secondes au lieu de vingt — idéale pour essayer plusieurs idées de suite. Servie par ModelScope."},
-  {id:"wan-2-2-t2v", label:"Wan 2.2 T2V", vendor:"modelscope", family:"msvid", gen:"vid", via:"Wan 2.2",
-   sc:null, desc:"Wan 2.2 (Alibaba) en version texte→vidéo : décris une scène, l'application en produit un court plan animé de quelques secondes. Génération gratuite, une minute environ."},
+  {id:"wan-2-2-t2v", label:"Wan 2.2", vendor:"modelscope", family:"msvid", gen:"vid", via:"Wan 2.2",
+   sc:null, desc:"Wan 2.2 (Alibaba) transforme une image en court plan animé de quelques secondes. Sans image jointe, l'application fabrique d'abord l'image de départ avec le modèle choisi dans Paramètres ▸ Modèles ▸ Wan 2.2 (FLUX.2 klein 4B par défaut), puis l'anime."},
   {id:"flux-2-klein-9b", label:"FLUX.2 [klein] 9B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-9b",
    sc:null, desc:"Modèle de génération d'images de Black Forest Labs (9 milliards de paramètres), hébergé gratuitement par Cloudflare Workers AI. Texte→image de haute qualité, rapide."},
   {id:"flux-2-klein-4b", label:"FLUX.2 [klein] 4B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-4b",
@@ -1781,7 +1781,7 @@ function selectModel(m){
   updateHint();
   const imgGen = m.gen==="img";
   const vidGen = m.gen==="vid";
-  attachBtn.style.display = ((imgGen && m.id!=="po-gpt-image-2") || vidGen) ? "none" : "";
+  attachBtn.style.display = (imgGen && m.id!=="po-gpt-image-2") ? "none" : "";
   imgMenu.hidden = true;
   promptEl.placeholder = vidGen ? "Décris la scène à animer…"
     : (imgGen ? "Décris l’image à générer…" : "Demandez à l’IA…");
@@ -3029,10 +3029,40 @@ async function regenImage(spec, b, pre){
 }
 
 /* --- génération de vidéo (Wan 2.2) ----------------------------------- */
+/* Modèle qui fabrique l'image de départ de Wan 2.2 — réglé dans
+   Paramètres ▸ Modèles ▸ Wan 2.2. Défaut : FLUX.2 [klein] 4B, rapide et
+   facile à animer. */
+const WAN_POSTER_DEFAULT = "flux-2-klein-4b";
+function wanPosterModel(){
+  let v="";
+  try{ v=localStorage.getItem("wan_poster")||""; }catch(e){}
+  return MODELS.some(m=>m.id===v && m.gen==="img") ? v : WAN_POSTER_DEFAULT;
+}
+function setWanPosterModel(id){
+  try{ localStorage.setItem("wan_poster", id); }catch(e){}
+  const nt=document.getElementById("wanposternote");
+  if(nt){
+    const m=MODELS.find(x=>x.id===id);
+    nt.textContent = m ? "Image de départ : " + m.label + " · " + (m.via||""): "";
+  }
+}
+/* Panneau Paramètres ▸ Modèles ▸ Wan 2.2 : la liste des modèles d'image,
+   avec le réglage courant coché. */
+function renderWanModels(){
+  const sel=document.getElementById("wanpostersel");
+  if(!sel) return;
+  const cur=wanPosterModel();
+  sel.innerHTML=MODELS.filter(m=>m.gen==="img" && !m.hidden)
+    .map(m=>'<option value="'+esc(m.id)+'"'+(m.id===cur?" selected":"")+'>'+esc(m.label)+' — '+esc(m.via||"")+'</option>').join("");
+  sel.onchange=function(){ setWanPosterModel(sel.value); };
+  setWanPosterModel(cur);
+}
 let VID_SEQ=0; const VID_STORE={};
-function vidWaitHTML(){
+function vidWaitHTML(fromUser){
   return '<div class="imgwait"><span class="clock">'+IC_CLOCK+'<span class="t">0,0 s</span></span></div>'
-    +'<p class="vidnote">Wan 2.2 prépare une image de départ, puis l’anime — compte une minute environ.</p>';
+    +'<p class="vidnote">'+(fromUser
+      ? "Wan 2.2 anime ton image — compte une minute environ."
+      : "Wan 2.2 prépare une image de départ, puis l’anime — compte une minute environ.")+'</p>';
 }
 function renderGenVideo(bubble, j, text, regen, pre, isRegen){
   const mime=j.mime||"video/mp4";
@@ -3104,17 +3134,25 @@ async function videoWithFallback(spec){
 }
 async function submitVideo(text){
   busy=true; sendBtn.disabled=true;
-  addUser(text, "none", null, null);
+  /* Une image jointe devient la première image de la vidéo : Wan 2.2 l'anime
+     telle quelle au lieu d'en fabriquer une. */
+  const snapshot = pendingImage || null;
+  const kind = snapshot ? "upload" : "none";
+  addUser(text, kind, snapshot, null);
   const bubble=addAssistant();
   promptEl.value=""; promptEl.style.height="auto"; scrollDown();
-  bubble.innerHTML=vidWaitHTML();
+  bubble.innerHTML=vidWaitHTML(snapshot);
   const clock=startImgClock(bubble);
-  const spec={model:current.id, prompt:text, duration:cleanParams(current.id).duration||4};
+  const spec={model:current.id, prompt:text, duration:cleanParams(current.id).duration||4,
+    posterModel:wanPosterModel()};
+  if(snapshot){ spec.image=snapshot.b64; spec.imageMime=snapshot.mime||"image/png"; }
   try{
     const j=await videoWithFallback(spec);
     stopImgClock(clock);
     /* Voie gratuite : le Space anime une image tirée du prompt — on le dit. */
-    const pre=(j.via==="hf"||j.local) ? '<p class="viafb"><em>wan 2.2 · image de départ</em></p>' : "";
+    const pre=(j.via==="hf"||j.local)
+      ? (snapshot ? "" : '<p class="viafb"><em>wan 2.2 · image de départ</em></p>')
+      : "";
     const rid=renderGenVideo(bubble, j, text, (b)=>regenVideo(spec,b,pre), pre);
     if(typeof FB!=="undefined"&&FB.afterVideo) FB.afterVideo({userText:text, id:rid, via:j.via});
   }catch(err){
@@ -3126,6 +3164,7 @@ async function submitVideo(text){
       : msg)+'</div>';
     msgActions(bubble,{regen:(b)=>regenVideo(spec,b,"")});
   }
+  clearAttachments();
   busy=false; sendBtn.disabled=!promptEl.value.trim(); scrollDown();
 }
 async function regenVideo(spec, b, pre){
@@ -3756,13 +3795,18 @@ function fileToImage(file){
           <span class="srtx"><b>Crédits</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
         </button>
+        <button type="button" class="setrow" id="setgomodels">
+          <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6 20 8v8l-8 4.4L4 16V8l8-4.4Z"/><path d="M12 12.2 20 8M12 12.2v8.2M12 12.2 4 8"/></svg></span>
+          <span class="srtx"><b>Modèles</b></span>
+          <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
+        </button>
         <button type="button" class="setrow" id="setgocanal">
           <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 7.2h11.2M17.6 7.2 6.4 16.8M6.4 16.8h11.2"/><circle cx="3.4" cy="7.2" r="1.6"/><circle cx="20.6" cy="16.8" r="1.6"/></svg></span>
           <span class="srtx"><b>Z-Canal</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P96</p>
+      <p class="setver">Version P97</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3790,6 +3834,18 @@ function fileToImage(file){
         <button type="button" class="dangerbtn wide" id="setdelete">Supprimer définitivement mon compte</button>
       </section>
       <p class="autherr" id="seterr" hidden></p>
+    </div>
+    <div class="setwrap" id="setmodels" hidden>
+      <h2 class="settitle">Modèles</h2>
+      <p class="setsub">Les réglages qui ne tiennent pas dans un seul modèle : ils concernent une chaîne entière, du premier trait au dernier.</p>
+
+      <section class="setsec">
+        <h3>Wan 2.2</h3>
+        <p class="setnote">Wan 2.2 ne part pas du texte : il part d’une image, puis il la fait bouger. Choisis ici le modèle qui fabrique cette image de départ quand tu ne joins pas la tienne. FLUX.2 [klein] 4B est le plus rapide et ses images s’animent très bien — c’est le réglage par défaut.</p>
+        <label class="flab"><span>Modèle de l’image de départ</span>
+          <select id="wanpostersel"></select></label>
+        <p class="setnote" id="wanposternote"></p>
+      </section>
     </div>
     <div class="setwrap" id="setcredits" hidden>
       <h2 class="settitle">Crédits</h2>
@@ -7856,11 +7912,14 @@ async function creditsLoad(){
 
 function showSetView(view){
   const l = document.getElementById("setlist"), a = document.getElementById("setcompte"),
-        c = document.getElementById("setcanal"), r = document.getElementById("setcredits");
+        c = document.getElementById("setcanal"), r = document.getElementById("setcredits"),
+        md = document.getElementById("setmodels");
   if (l) l.hidden = (view !== "list");
   if (a) a.hidden = (view !== "compte");
   if (c) c.hidden = (view !== "canal");
   if (r) r.hidden = (view !== "credits");
+  if (md) md.hidden = (view !== "models");
+  if (view === "models") renderWanModels();
   /* Le bouton « revenir » est un frère de la croix, dans le panneau : les deux
      sont donc posés au même endroit, à la même hauteur, quoi qu'il arrive. */
   const b = document.getElementById("setback");
@@ -8200,6 +8259,7 @@ function canalWire(){
   const ga = g("setgoaccount"); if (ga) ga.onclick = function(){ showSetView("compte"); };
   const gc = g("setgocanal"); if (gc) gc.onclick = function(){ showSetView("canal"); };
   const gr = g("setgocredits"); if (gr) gr.onclick = function(){ showSetView("credits"); creditsLoad(); };
+  const gm = g("setgomodels"); if (gm) gm.onclick = function(){ showSetView("models"); };
   const crr = g("crrefresh"); if (crr) crr.onclick = creditsLoad;
   const crc = g("crpollclaim");
   if (crc) crc.onclick = function(){ window.open("https://enter.pollinations.ai", "_blank", "noopener"); };
