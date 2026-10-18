@@ -8105,8 +8105,9 @@ function dispoMark(name, val){
   const row = b.closest(".disrow");
   const em = row ? row.querySelector(".dismain em") : null;
   const x = DISPO.list.filter(function (y) { return y.name === name; })[0] || {};
-  if (em) em.textContent = (val.ok ? "fonctionne" : "en échec") + (val.ms ? " · " + val.ms + " ms" : "")
-    + (x.present ? " · …" + (x.fin || "") : "");
+  if (em) em.textContent = x.present === false ? "absent du worker"
+    : (val.ok ? "fonctionne" : "en échec") + (val.ms ? " · " + val.ms + " ms" : "")
+      + (x.present ? " · …" + (x.fin || "") : "");
 }
 async function dispoTestOne(name){
   dispoMark(name, { running: true });
