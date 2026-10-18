@@ -831,6 +831,30 @@ function jobPublic(j, since) {
     error: j.error || "", final: j.finalMd || "", updatedAt: j.updatedAt, step: j.step };
 }
 
+/* Registre des missions : un objet durable unique (« index ») garde la liste
+   de ce qui a été lancé, avec sa discussion et son état. C'est ce qui permet
+   de LISTER les tâches actives — un Durable Object, lui, ne s'énumère pas. */
+async function jobIndexPut(env, entry) {
+  if (!env || !env.MISSION || !entry || !entry.id) return false;
+  try {
+    const stub = env.MISSION.get(env.MISSION.idFromName("index"));
+    const r = await stub.fetch("https://mission/reg", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    });
+    return !!(r && r.ok);
+  } catch (e) { return false; }
+}
+async function jobIndexList(env) {
+  if (!env || !env.MISSION) return [];
+  try {
+    const stub = env.MISSION.get(env.MISSION.idFromName("index"));
+    const r = await stub.fetch("https://mission/list");
+    const jr = await r.json().catch(() => ({}));
+    return (jr && jr.jobs) || [];
+  } catch (e) { return []; }
+}
+
 /* Une étape : construire le prompt, appeler le modèle, exécuter ce qu'il
    demande, mémoriser le tout. */
 async function jobStep(env, j) {
@@ -1550,6 +1574,18 @@ export class MissionJob {
     }));
   }
 
+  /* Le registre ne grossit pas sans fin : on ne garde que les 300 missions
+     les plus récentes. */
+  async pruneIndex() {
+    if (!this.ctx.storage.list || !this.ctx.storage.delete) return;
+    const m = await this.ctx.storage.list({ prefix: "job:" });
+    const arr = [];
+    if (m && typeof m.forEach === "function") m.forEach((v, k) => arr.push([k, v]));
+    if (arr.length <= 300) return;
+    arr.sort((a, b) => ((b[1].at || 0) - (a[1].at || 0)));
+    for (const [k] of arr.slice(300)) { try { await this.ctx.storage.delete(k); } catch (e) {} }
+  }
+
   async fetch(request) {
     const path = new URL(request.url).pathname;
     const st = await this.load();
@@ -1595,16 +1631,57 @@ export class MissionJob {
       const em = await this.ctx.storage.get("alias:" + key);
       return json({ ok: !!em, email: em || "" });
     }
+    /* Tenue du registre : une ligne par mission, pour pouvoir les LISTER. */
+    if (path === "/reg") {
+      let b = {};
+      try { b = await request.json(); } catch { /* corps illisible */ }
+      const jid = String(b.id || "");
+      if (!jid) return json({ ok: false, error: "identifiant manquant" }, 400);
+      const prev = (await this.ctx.storage.get("job:" + jid)) || {};
+      const entry = {
+        id: jid,
+        chat: String(b.chat || prev.chat || ""),
+        model: String(b.model || prev.model || ""),
+        mission: String(b.mission || prev.mission || "").slice(0, 180),
+        at: Number(b.at || prev.at || Date.now()),
+        state: String(b.state || prev.state || "run"),
+        updatedAt: Date.now(),
+      };
+      await this.ctx.storage.put("job:" + jid, entry);
+      await this.pruneIndex();
+      return json({ ok: true, id: jid });
+    }
+    if (path === "/list") {
+      const jobs = [];
+      if (this.ctx.storage.list) {
+        const m = await this.ctx.storage.list({ prefix: "job:" });
+        if (m && typeof m.forEach === "function") m.forEach((v) => jobs.push(v));
+      }
+      jobs.sort((a, b) => (b.at || 0) - (a.at || 0));
+      return json({ ok: true, jobs: jobs.slice(0, 120) });
+    }
     if (path === "/stop") {
-      if (st && !st.done) {
+      const force = new URL(request.url).searchParams.get("force") === "1";
+      if (!st) return json({ ok: false, error: "mission inconnue" }, 404);
+      if (!st.done) {
         st.stop = true;
         st.updatedAt = Date.now();
-        /* Une étape est peut-être en cours : c'est elle qui posera le motif en
-           finissant. Sinon, on le pose tout de suite. */
-        if (!st.running && !st.error) { st.error = "mission arrêtée à la demande"; st.done = true; }
+        /* Une étape est peut-être en cours : sans « force », c'est elle qui
+           posera le motif en finissant. Avec « force », on tranche tout de
+           suite : plus aucune alarme, plus aucune étape, la mission est dite
+           arrêtée même si un appel réseau traîne encore. */
+        if (force) {
+          st.done = true; st.running = false;
+          if (!st.error) st.error = "mission arrêtée à la demande";
+        } else if (!st.running && !st.error) {
+          st.error = "mission arrêtée à la demande"; st.done = true;
+        }
         await this.save();
       }
-      return json({ ok: true });
+      if (force) {
+        try { if (this.ctx.storage.deleteAlarm) await this.ctx.storage.deleteAlarm(); } catch (e) {}
+      }
+      return json({ ok: true, forced: force, done: !!st.done });
     }
     return json({ ok: false, error: "route inconnue" }, 404);
   }
@@ -1636,12 +1713,22 @@ export class MissionJob {
       return;
     }
     if (st.running) { await this.ctx.storage.setAlarm(Date.now() + 500); return; }
-    st.running = true;
+    st.running = true; st.updatedAt = Date.now();
+    await this.save();          /* une étape en cours se voit depuis /stop */
     try {
       await jobStep(this.env, st);
     } catch (e) {
       st.error = String(e && e.message ? e.message : e);
       st.done = true;
+    }
+    /* Un arrêt forcé a pu être écrit sur le disque pendant l'étape (l'appel
+       au modèle, lui, ne s'interrompt pas). S'il dit « terminée », il gagne :
+       on jette le résultat de cette étape et on n'écrit rien par-dessus. */
+    const disk = await this.ctx.storage.get("job");
+    if (disk && disk.done && disk.stop) {
+      this.state = disk;
+      try { if (this.ctx.storage.deleteAlarm) await this.ctx.storage.deleteAlarm(); } catch (e) {}
+      return;
     }
     st.running = false;
     if (!st.done) {
@@ -2848,7 +2935,11 @@ async function msDrift() {
                 body: JSON.stringify(payload),
               });
               const jr = await r.json().catch(() => ({}));
-              if (jr && jr.ok) return json({ ok: true, job: id, durable: true, deliver: !!payload.chat });
+              if (jr && jr.ok) {
+                await jobIndexPut(env, { id: id, chat: payload.chat, model: payload.model,
+                  mission: payload.mission, at: Date.now(), state: "run" });
+                return json({ ok: true, job: id, durable: true, deliver: !!payload.chat });
+              }
             } catch (e) { /* on retombe sur le moteur en mémoire */ }
           }
           /* Secours : moteur en mémoire (liaison absente ou Durable Object
@@ -2857,6 +2948,8 @@ async function msDrift() {
           const j = Object.assign({ steps: [], tr: "", finalMd: "", error: "", stop: false,
             step: 0, done: false, running: false, startedAt: Date.now(), updatedAt: Date.now() }, payload);
           JOBS.set(j.id, j);
+          try { await jobIndexPut(env, { id: j.id, chat: j.chat, model: j.model,
+            mission: j.mission, at: j.startedAt, state: "run" }); } catch (e) {}
           if (ctx && typeof ctx.waitUntil === "function") {
             ctx.waitUntil(jobRun(env, j).catch((e) => { j.error = String(e && e.message ? e.message : e); j.done = true; }));
           } else {
@@ -2871,7 +2964,20 @@ async function msDrift() {
               const stub = env.MISSION.get(env.MISSION.idFromName(id));
               const r = await stub.fetch("https://mission/state?since="
                 + encodeURIComponent(url.searchParams.get("since") || "0"));
-              if (r.status !== 404) return new Response(r.body, { status: r.status, headers: { "Content-Type": "application/json", ...corsH } });
+              if (r.status !== 404) {
+                const jr = await r.json().catch(() => null);
+                const jb = jr && jr.job;
+                if (jb && jb.id) {
+                  /* Une mission suivie par l'app se déclare d'elle-même : même
+                     lancée avant l'existence du registre, elle devient listable. */
+                  const reg = jobIndexPut(env, { id: jb.id, chat: jb.chat, model: jb.model,
+                    mission: jb.mission, at: jb.updatedAt || Date.now(),
+                    state: jb.done ? "done" : "run" });
+                  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(reg);
+                  else await reg;
+                }
+                return json(jr || {}, r.status);
+              }
             } catch (e) { /* on retombe sur la mémoire */ }
           }
           const j = JOBS.get(id);
@@ -2883,20 +2989,59 @@ async function msDrift() {
           }
           return json({ ok: true, job: jobPublic(j, url.searchParams.get("since")) });
         }
+        /* La liste des tâches : le registre donne les missions connues, puis
+           chacune est interrogée en direct — un état « en cours » n'est donc
+           jamais une supposition. */
+        if (sub === "jobs" && request.method === "GET") {
+          const entries = await jobIndexList(env);
+          const jobs = [];
+          for (const e of entries) {
+            let live = null;
+            if (env.MISSION) {
+              try {
+                const stub = env.MISSION.get(env.MISSION.idFromName(String(e.id)));
+                const r = await stub.fetch("https://mission/state?since=" + String(1e9));
+                if (r.status !== 404) {
+                  const jr = await r.json().catch(() => null);
+                  live = (jr && jr.job) || null;
+                }
+              } catch (err) { /* la fiche du registre suffit */ }
+            }
+            const j2 = JOBS.get(String(e.id)) || null;
+            jobs.push({
+              id: String(e.id), chat: e.chat || "", model: e.model || "",
+              mission: e.mission || "", at: e.at || 0,
+              state: live ? (live.done ? "done" : "run") : (e.state || "inconnu"),
+              done: live ? !!live.done : (e.state === "done"),
+              step: live ? (live.step || 0) : null,
+              steps: live ? (live.stepsTotal || 0) : null,
+              updatedAt: (live && live.updatedAt) || e.updatedAt || e.at || 0,
+              local: !!j2,
+            });
+          }
+          jobs.sort((a, b) => (b.at || 0) - (a.at || 0));
+          const actives = jobs.filter((x) => !x.done);
+          return json({ ok: true, total: jobs.length, actives: actives.length, jobs: jobs });
+        }
         if (sub === "job/stop" && request.method === "POST") {
           const id = url.searchParams.get("id") || "";
           let stopped = false;
           if (env.MISSION && id) {
             try {
               const stub = env.MISSION.get(env.MISSION.idFromName(id));
-              const r = await stub.fetch("https://mission/stop", { method: "POST" });
+              const force = url.searchParams.get("force");
+              const r = await stub.fetch("https://mission/stop"
+                + (force === "0" ? "" : "?force=1"), { method: "POST" });
               const jr = await r.json().catch(() => ({}));
               stopped = !!(jr && jr.ok);
             } catch (e) { /* on retombe sur la mémoire */ }
           }
           const j = JOBS.get(id);
           if (j) { j.stop = true; j.done = true; j.updatedAt = Date.now(); stopped = true; }
-          return json({ ok: stopped });
+          if (stopped && id) {
+            try { await jobIndexPut(env, { id: id, state: "done" }); } catch (e) {}
+          }
+          return json({ ok: stopped, forced: url.searchParams.get("force") !== "0" });
         }
         if (sub === "docs/restore") {
           const res = await ensureAgentDocs(env);
