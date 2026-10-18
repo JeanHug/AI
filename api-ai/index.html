@@ -3058,6 +3058,50 @@ function renderGenVideo(bubble, j, text, regen, pre, isRegen){
     +'</div>';
   return id;
 }
+/* Appel direct du Space vidéo depuis l'appareil : quand le relais a épuisé
+   son quota ZeroGPU, l'adresse de l'utilisateur a le sien. L'image de départ
+   vient du relais (elle est déjà faite), seule l'animation est rejouée. */
+const HF_VID = { host:"https://prithivmlmods-wan2-2-fast.hf.space", api:"generate_video" };
+async function hfVideoLocal(poster, posterMime, prompt, dur){
+  const r=await fetch(HF_VID.host+"/gradio_api/call/"+HF_VID.api,{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({data:["data:"+(posterMime||"image/png")+";base64,"+poster, prompt, "4", "", String(dur||4), 4.0, 3.0, 0, true]}),
+  });
+  let ev=null;
+  try{ ev=(await r.json()).event_id; }catch(e){}
+  if(!ev) throw new Error("le Space vidéo n'a pas répondu (HTTP "+r.status+")");
+  const sse=await (await fetch(HF_VID.host+"/gradio_api/call/"+HF_VID.api+"/"+ev)).text();
+  const du=sse.match(/data:video\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=]+)/i);
+  if(!du){
+    const e=sse.match(/"error"\s*:\s*"([^"]{1,260})"/);
+    throw new Error(e ? e[1] : "aucune vidéo dans la réponse du Space");
+  }
+  return {video:du[1], mime:"video/mp4", poster:poster, posterMime:posterMime||"image/png"};
+}
+async function videoCall(spec){
+  const r=await fetch(API_BASE+"/api/video",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
+    body:JSON.stringify(spec),
+  });
+  let j={}; try{ j=await r.json(); }catch(e){}
+  if(r.ok) return j;
+  const err=new Error(j.error || ("HTTP "+r.status+" "+r.statusText));
+  err.poster=j.poster||null; err.posterMime=j.posterMime||"image/png";
+  throw err;
+}
+/* Relais d'abord ; si son quota est épuisé, on rejoue l'animation depuis
+   l'adresse de l'appareil avec l'image de départ que le relais a produite. */
+async function videoWithFallback(spec){
+  try{
+    return await videoCall(spec);
+  }catch(err){
+    if(!err.poster) throw err;
+    const v=await hfVideoLocal(err.poster, err.posterMime, spec.prompt, spec.duration);
+    v.local=true;
+    return v;
+  }
+}
 async function submitVideo(text){
   busy=true; sendBtn.disabled=true;
   addUser(text, "none", null, null);
@@ -3067,16 +3111,10 @@ async function submitVideo(text){
   const clock=startImgClock(bubble);
   const spec={model:current.id, prompt:text, duration:cleanParams(current.id).duration||4};
   try{
-    const r=await fetch(API_BASE+"/api/video",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
-      body:JSON.stringify(spec),
-    });
-    let j={}; try{ j=await r.json(); }catch(e){}
-    if(!r.ok) throw new Error(j.error || ("HTTP "+r.status+" "+r.statusText));
+    const j=await videoWithFallback(spec);
     stopImgClock(clock);
     /* Voie gratuite : le Space anime une image tirée du prompt — on le dit. */
-    const pre=(j.via==="hf") ? '<p class="viafb"><em>wan 2.2 · image de départ</em></p>' : "";
+    const pre=(j.via==="hf"||j.local) ? '<p class="viafb"><em>wan 2.2 · image de départ</em></p>' : "";
     const rid=renderGenVideo(bubble, j, text, (b)=>regenVideo(spec,b,pre), pre);
     if(typeof FB!=="undefined"&&FB.afterVideo) FB.afterVideo({userText:text, id:rid, via:j.via});
   }catch(err){
@@ -3095,13 +3133,7 @@ async function regenVideo(spec, b, pre){
   b.innerHTML=vidWaitHTML();
   const clock=startImgClock(b);
   try{
-    const r=await fetch(API_BASE+"/api/video",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
-      body:JSON.stringify(spec),
-    });
-    let j={}; try{ j=await r.json(); }catch(e){}
-    if(!r.ok) throw new Error(j.error || ("HTTP "+r.status+" "+r.statusText));
+    const j=await videoWithFallback(spec);
     stopImgClock(clock);
     renderGenVideo(b, j, spec.prompt, (bb)=>regenVideo(spec,bb,pre), pre, true);
   }catch(err){
