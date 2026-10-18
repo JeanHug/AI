@@ -3065,7 +3065,7 @@ const HF_VID = { host:"https://prithivmlmods-wan2-2-fast.hf.space", api:"generat
 async function hfVideoLocal(poster, posterMime, prompt, dur){
   const r=await fetch(HF_VID.host+"/gradio_api/call/"+HF_VID.api,{
     method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({data:["data:"+(posterMime||"image/png")+";base64,"+poster, prompt, "4", "", String(dur||4), 4.0, 3.0, 0, true]}),
+    body:JSON.stringify({data:["data:"+(posterMime||"image/png")+";base64,"+poster, prompt, "4", "", Number(dur||4), 4.0, 3.0, 0, true]}),
   });
   let ev=null;
   try{ ev=(await r.json()).event_id; }catch(e){}
