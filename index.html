@@ -593,7 +593,7 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .setrow{border-radius:10px}
 .setrow:hover{background:#fff}
 /* --- Paramètres : la liste des réglages ------------------------------- */
-#setlist,#setcompte,#setcanal,#setmodels,#setwan,#settasks,#setcredits{animation:setview .22s ease both}
+#setlist,#setcompte,#setcanal,#setmodels,#setwan,#settasks,#setdispo{animation:setview .22s ease both}
 @keyframes setview{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 .setrow{display:flex;align-items:center;gap:13px;width:100%;border:1px solid transparent;
   border-radius:13px;background:none;padding:12px 13px;cursor:pointer;text-align:left;
@@ -621,6 +621,35 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
 .setbackbtn:hover{border-color:var(--ink-3);color:var(--ink)}
 .setbackbtn:active{transform:scale(.94)}
 .setver{font-size:11.5px;color:var(--ink-3);text-align:center;margin:26px 0 6px}
+/* --- Paramètres ▸ Disponibilité : un secret par ligne, testé pour de vrai - */
+.disrow{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.disrow:first-of-type{border-top:0;padding-top:2px}
+.dismain{flex:1 1 auto;min-width:0}
+.dismain b{display:block;font-size:12.8px;font-weight:600;letter-spacing:-.005em;word-break:break-all}
+.dismain em{display:block;font-style:normal;font-size:11.5px;color:var(--ink-3);margin-top:3px}
+.disbtn{flex:none;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#fff;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
+  color:var(--ink-2);transition:border-color .15s ease,transform .12s ease}
+.disbtn:hover{border-color:#cfcfd6;transform:scale(1.04)}
+.disbtn svg{display:block;width:14px;height:14px}
+.disbtn.ok{background:#e8f4ee;border-color:#bfe0cd;color:#1f7a4d}
+.disbtn.ko{background:#fdf0f0;border-color:#ecc9c9;color:#a33030}
+.disbtn.run{background:#f5f5f7;border-color:var(--line);color:var(--ink-3)}
+.disspin{width:14px;height:14px;border-radius:50%;border:1.8px solid #d6d6dc;border-top-color:#111113;
+  animation:disspin .8s linear infinite}
+@keyframes disspin{to{transform:rotate(360deg)}}
+.dismeta{font-size:11.5px;color:var(--ink-3);margin:14px 0 0;text-align:center}
+#dispop{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(17,17,16,.55);animation:lbin .16s ease}
+#dispop[hidden]{display:none !important}
+.dispo-card{background:#fff;border-radius:16px;max-width:420px;width:100%;padding:20px 20px 16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.18)}
+.dispo-card h1{font-size:14px;font-weight:650;margin:0 0 10px;word-break:break-all}
+.dispo-card p{font-size:13px;line-height:1.55;color:var(--ink-2);margin:0 0 16px;white-space:pre-wrap}
+.dispo-act{display:flex;gap:8px;justify-content:flex-end}
+.dispo-act button{font:inherit;font-size:12.5px;padding:8px 14px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--line);background:#fff;color:var(--ink-2)}
+.dispo-act button.prim{background:#111113;border-color:#111113;color:#fff}
 /* --- Paramètres ▸ Tâches : une mission par ligne, avec son état --------- */
 .taskrow{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-top:1px solid var(--line)}
 .taskrow:first-child{border-top:0;padding-top:2px}
@@ -3895,6 +3924,17 @@ function fileToImage(file){
   </div>
 </div>
 
+<div id="dispop" hidden>
+  <div class="dispo-card" role="dialog" aria-modal="true" aria-labelledby="dispo-title">
+    <h1 id="dispo-title"></h1>
+    <p id="dispo-msg"></p>
+    <div class="dispo-act">
+      <button type="button" id="dispo-copy">Copier</button>
+      <button type="button" id="dispo-close" class="prim">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div id="settings" class="modal" hidden>
   <div class="setcard">
     <button type="button" class="setbackbtn" id="setback" title="Retour" aria-label="Revenir aux paramètres" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
@@ -3908,11 +3948,6 @@ function fileToImage(file){
           <span class="srtx"><b>Compte</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
-        <button type="button" class="setrow" id="setgocredits">
-          <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.2 9.4c0-1 1.2-1.7 2.8-1.7s2.8.7 2.8 1.7c0 2.6-5.6 1.4-5.6 4 0 1 1.2 1.7 2.8 1.7s2.8-.7 2.8-1.7"/></svg></span>
-          <span class="srtx"><b>Crédits</b></span>
-          <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
-        </button>
         <button type="button" class="setrow" id="setgomodels">
           <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6 20 8v8l-8 4.4L4 16V8l8-4.4Z"/><path d="M12 12.2 20 8M12 12.2v8.2M12 12.2 4 8"/></svg></span>
           <span class="srtx"><b>Modèles</b></span>
@@ -3923,13 +3958,18 @@ function fileToImage(file){
           <span class="srtx"><b>Tâches</b><span>Missions en cours et terminées</span></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
+        <button type="button" class="setrow" id="setgodispo">
+          <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.4 5.2 6v5.4c0 4 2.9 7.3 6.8 8.6 3.9-1.3 6.8-4.6 6.8-8.6V6L12 3.4Z"/><path d="m9 11.8 2.1 2.1 4-4.2"/></svg></span>
+          <span class="srtx"><b>Disponibilité</b><span>Les secrets et leur état, testés pour de vrai</span></span>
+          <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+        </button>
         <button type="button" class="setrow" id="setgocanal">
           <span class="sric"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.4 7.2h11.2M17.6 7.2 6.4 16.8M6.4 16.8h11.2"/><circle cx="3.4" cy="7.2" r="1.6"/><circle cx="20.6" cy="16.8" r="1.6"/></svg></span>
           <span class="srtx"><b>Z-Canal</b></span>
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P102</p>
+      <p class="setver">Version P103</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -3997,30 +4037,15 @@ function fileToImage(file){
         <button type="button" class="linkbtn" id="taskrefresh">Rafraîchir</button>
       </section>
     </div>
-    <div class="setwrap" id="setcredits" hidden>
-      <h2 class="settitle">Crédits</h2>
-      <p class="setsub">Ce qui reste dans chaque compte, et ce qui bloque quand un modèle refuse. Rien n'est jamais envoyé à personne d'autre.</p>
-
-      <section class="setsec">
-        <h3>Pollinations <span class="ctag" id="crpolltag"></span></h3>
-        <p class="setnote" id="crpollnote">Lecture du solde…</p>
-        <div class="setnote" id="crpollquest" hidden></div>
-        <button type="button" class="linkbtn" id="crpollclaim" hidden>Ouvrir le tableau de bord pour réclamer les crédits</button>
+    <div class="setwrap" id="setdispo" hidden>
+      <h2 class="settitle">Disponibilité</h2>
+      <p class="setsub">Les secrets du relais, groupés par API. Chaque ▶ lance un vrai appel avec la clé du worker : la réponse dit si elle fonctionne encore.</p>
+      <section class="setsec" id="dissecs">
+        <h3>Secrets</h3>
+        <div id="dislist"><p class="setnote">Lecture…</p></div>
+        <p class="setnote" id="distamp" style="margin-top:14px"></p>
+        <button type="button" class="linkbtn" id="distestall" style="margin-top:6px">Tout tester</button>
       </section>
-
-      <section class="setsec">
-        <h3>ModelScope <span class="ctag" id="crmsstag"></span></h3>
-        <p class="setnote" id="crmsnote">Lecture…</p>
-        <div class="setnote" id="crdrift" hidden></div>
-      </section>
-
-      <section class="setsec">
-        <h3>Roboflow <span class="ctag" id="crrftag"></span></h3>
-        <p class="setnote" id="crrfnote">Lecture…</p>
-      </section>
-
-      <button type="button" class="linkbtn" id="crrefresh">Actualiser</button>
-      <p class="setnote" id="crstamp" style="text-align:center;margin-top:10px"></p>
     </div>
     <div class="setwrap" id="setcanal" hidden>
       <h2 class="settitle">Z-Canal</h2>
@@ -8005,98 +8030,138 @@ async function canalCreateChat(id, name, mode){
 }
 
 /* ==================== l'écran des réglages : Z-Canal ==================== */
-/* ---- Crédits : soldes et pannes, lus une fois par ouverture ---------- */
-function crTag(id, texte, ton){
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = texte || "";
-  el.hidden = !texte;
-  el.className = "ctag" + (ton ? " cr" + ton : "");
+/* ---- Disponibilité : les secrets du relais, testés pour de vrai -------- */
+let DISPO = { list: [], res: {}, busy: false };
+const DIS_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 5.4v13.2L19 12 8.6 5.4Z"/></svg>';
+const DIS_TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.2 12.6 4.2 4.2 9.4-9.6"/></svg>';
+const DIS_X    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6.6 6.6l10.8 10.8M17.4 6.6 6.6 17.4"/></svg>';
+
+function dispoLoad(){
+  const box = document.getElementById("dislist");
+  const stamp = document.getElementById("distamp");
+  if (!box) return;
+  fetch(API_BASE + "/api/secrets", { headers: agtHeaders(), cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) throw new Error((d && d.error) || "réponse illisible");
+      DISPO.list = d.secrets || [];
+      dispoRender();
+      if (stamp) stamp.textContent = DISPO.list.length + " secrets · " + DISPO.list.filter(function (x) { return x.present; }).length + " présents.";
+    })
+    .catch(function (e) {
+      if (stamp) stamp.textContent = "Lecture impossible : " + String((e && e.message) || e);
+      box.innerHTML = '<p class="setnote">La passerelle n’a pas répondu.</p>';
+    });
 }
-function creditsShow(d){
-  const p = (d && d.pollinations) || {};
-  const ms = (d && d.modelscope) || {};
-  const rf = (d && d.roboflow) || {};
-  /* Pollinations */
-  const pn = document.getElementById("crpollnote");
-  if (p.ok) {
-    const ab = p.account || {};
-    const tot = (ab.total != null) ? ab.total : p.balance;
-    crTag("crpolltag", (Number(tot) > 0 ? "disponible" : "épuisé"), (Number(tot) > 0 ? "ok" : "ko"));
-    let t = "Solde : " + (tot != null ? (Math.round(Number(tot) * 1000) / 1000) : "?") + " Pollen";
-    if (ab.tier != null || ab.paid != null)
-      t += " — dont Quest (gratuit) " + (ab.tier != null ? ab.tier : "?") + " et payant " + (ab.paid != null ? ab.paid : "?");
-    if (pn) pn.textContent = t + ".";
-  } else {
-    crTag("crpolltag", "clé " + (p.cle || "inconnue"), "ko");
-    if (pn) pn.textContent = p.error || "Pollinations injoignable.";
+/* Un bouton par secret : ▶ au repos, un cercle qui tourne pendant l’essai,
+   puis une fiche verte ou une croix rouge. Cliquer sur le résultat ouvre
+   le détail, avec de quoi le copier. */
+function dispoBtn(html, cls, title){
+  return '<button type="button" class="disbtn ' + cls + '" title="' + esc(title) + '">' + html + '</button>';
+}
+function dispoRender(){
+  const box = document.getElementById("dislist");
+  if (!box) return;
+  const groups = {};
+  const order = [];
+  for (const x of DISPO.list) {
+    if (!groups[x.api]) { groups[x.api] = []; order.push(x.api); }
+    groups[x.api].push(x);
   }
-  const q = p.quests, qe = document.getElementById("crpollquest"), qb = document.getElementById("crpollclaim");
-  if (qe && qb) {
-    if (q && q.disponibles > 0) {
-      /* Ce qui rapporte le plus en premier : c'est la seule liste qui dise
-         exactement quoi faire pour récupérer des crédits gratuits. */
-      let h = '<div class="crqhead">' + q.disponibles + " quête" + (q.disponibles > 1 ? "s" : "")
-        + " à réclamer, soit environ " + q.gain + " Pollen. La réclamation se fait dans le tableau de bord : l'API de Pollinations l'interdit.</div>";
-      const lst = q.liste || [];
-      for (const it of lst) {
-        h += '<div class="crqrow"><span class="crqtx">' + esc(it.titre) + '</span>'
-           + '<span class="crqgn">' + (it.gain ? ("+" + it.gain) : "") + '</span></div>';
-      }
-      if (q.disponibles > lst.length && lst.length)
-        h += '<div class="crqmore">… et ' + (q.disponibles - lst.length) + " autre" + ((q.disponibles - lst.length) > 1 ? "s" : "") + ".</div>";
-      qe.innerHTML = h;
-      qe.hidden = false;
-      qb.hidden = false;
-    } else {
-      qe.hidden = true; qb.hidden = true;
+  let h = "";
+  for (const api of order) {
+    h += '<h3 style="margin:18px 0 4px">' + esc(api) + '</h3>';
+    for (const x of groups[api]) {
+      const r = DISPO.res[x.name];
+      let cls = "", inner = DIS_PLAY, title = "Tester " + x.name;
+      if (r && r.running) { cls = "run"; inner = '<span class="disspin"></span>'; title = "Test en cours…"; }
+      else if (r && r.ok) { cls = "ok"; inner = DIS_TICK; title = "Fonctionne — voir le détail"; }
+      else if (r && r.ok === false) { cls = "ko"; inner = DIS_X; title = "Échec — voir le détail"; }
+      else if (x.present === false) { cls = "run"; inner = DIS_PLAY; title = "Secret absent (essai possible, mais il dira pourquoi)"; }
+      const sub = x.present ? ("…" + (x.fin || "") + (r && r.ms ? " · " + r.ms + " ms" : "")) : "absent du worker";
+      h += '<div class="disrow" data-name="' + esc(x.name) + '">'
+        + '<div class="dismain"><b>' + esc(x.name) + '</b><em>' + esc(sub) + '</em></div>'
+        + '<button type="button" class="disbtn ' + cls + '" data-test="' + esc(x.name) + '" title="' + esc(title) + '">' + inner + '</button>'
+        + '</div>';
     }
   }
-  /* ModelScope */
-  const mn = document.getElementById("crmsnote");
-  const tok = ms.token || "inconnu";
-  crTag("crmsstag", (tok === "valide" ? "jeton valide" : "jeton " + tok), (tok === "valide" ? "ok" : "ko"));
-  if (mn) {
-    if (tok === "valide") {
-      let t = "Jeton accepté";
-      if (ms.identity) t += " (" + ms.identity + ")";
-      if (ms.balance && ms.balance.available != null) t += " — crédits disponibles : " + ms.balance.available;
-      mn.textContent = t + ".";
-    } else {
-      mn.textContent = (ms.error || "Jeton refusé.") + " Il faut remplacer le secret MODELSCOPE_API_KEY du Worker par un jeton neuf.";
-    }
-  }
-  const dr = document.getElementById("crdrift");
-  const cat = ms.catalogue || {};
-  if (dr) {
-    const hors = cat.horsListe || [];
-    if (hors.length) {
-      dr.hidden = false;
-      dr.textContent = hors.length + " modèle" + (hors.length > 1 ? "s" : "") + " configuré" + (hors.length > 1 ? "s" : "")
-        + " ne figure" + (hors.length > 1 ? "nt" : "") + " pas dans la liste publique /v1/models ("
-        + hors.map(function(x){ return x.modele; }).join(", ")
-        + "). Ce n'est pas une preuve qu'ils manquent : cette liste est partielle et un modèle absent répond très bien quand on l'appelle.";
-    } else dr.hidden = true;
-  }
-  /* Roboflow */
-  const rn = document.getElementById("crrfnote");
-  const nj = Number(rf.jetons || 0);
-  crTag("crrftag", nj ? nj + " jeton" + (nj > 1 ? "s" : "") : "aucun jeton", nj ? "ok" : "ko");
-  if (rn) rn.textContent = "Les appels passent par " + nj + " jeton" + (nj > 1 ? "s" : "")
-    + " en rotation. Le solde, lui, se règle dans l'espace de travail Roboflow : quand il est épuisé, tous les modèles qui en dépendent répondent « credit_cap_exceeded ».";
+  box.innerHTML = h || '<p class="setnote">Aucun secret configuré.</p>';
+  [].slice.call(box.querySelectorAll("[data-test]")).forEach(function (b) {
+    b.onclick = function () {
+      const name = b.getAttribute("data-test");
+      const r = DISPO.res[name];
+      if (r && !r.running && r.ok !== undefined) dispoDetail(name, r);
+      else dispoTestOne(name);
+    };
+  });
 }
-async function creditsLoad(){
-  const stamp = document.getElementById("crstamp");
-  if (stamp) stamp.textContent = "Lecture…";
+function dispoMark(name, val){
+  DISPO.res[name] = val;
+  const b = document.querySelector('[data-test="' + name + '"]');
+  if (!b) return;
+  if (val.running) { b.className = "disbtn run"; b.innerHTML = '<span class="disspin"></span>'; return; }
+  b.className = "disbtn " + (val.ok ? "ok" : "ko");
+  b.innerHTML = val.ok ? DIS_TICK : DIS_X;
+  const row = b.closest(".disrow");
+  const em = row ? row.querySelector(".dismain em") : null;
+  const x = DISPO.list.filter(function (y) { return y.name === name; })[0] || {};
+  if (em) em.textContent = (val.ok ? "fonctionne" : "en échec") + (val.ms ? " · " + val.ms + " ms" : "")
+    + (x.present ? " · …" + (x.fin || "") : "");
+}
+async function dispoTestOne(name){
+  dispoMark(name, { running: true });
   try {
-    const r = await fetch(API_BASE + "/api/credits", { headers: agtHeaders(), cache: "no-store" });
+    const r = await fetch(API_BASE + "/api/secrets/test", {
+      method: "POST", headers: agtHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name: name }),
+    });
+    const d = await r.json();
+    if (!d || !d.ok || !d.resultat) throw new Error((d && d.error) || ("HTTP " + r.status));
+    dispoMark(name, d.resultat);
+  } catch (e) {
+    dispoMark(name, { ok: false, ms: 0, status: 0, message: "Test impossible : " + String((e && e.message) || e) });
+  }
+}
+async function dispoTestAll(){
+  if (DISPO.busy) return;
+  DISPO.busy = true;
+  const stamp = document.getElementById("distamp");
+  const btn = document.getElementById("distestall");
+  if (btn) { btn.disabled = true; btn.textContent = "Tests en cours…"; }
+  for (const x of DISPO.list) dispoMark(x.name, { running: true });
+  try {
+    const r = await fetch(API_BASE + "/api/secrets/test-all", { method: "POST", headers: agtHeaders() });
     const d = await r.json();
     if (!d || !d.ok) throw new Error((d && d.error) || ("HTTP " + r.status));
-    creditsShow(d);
-    if (stamp) stamp.textContent = "Lu à " + new Date().toLocaleTimeString("fr-FR") + (d.cache ? " (en cache une minute)" : "") + ".";
+    const list = d.resultats || [];
+    for (const res of list) dispoMark(res.name, res);
+    const ko = list.filter(function (x) { return !x.ok; }).length;
+    if (stamp) stamp.textContent = list.length + " secrets testés à " + new Date().toLocaleTimeString("fr-FR")
+      + " · " + (list.length - ko) + " fonctionnent" + (ko ? " · " + ko + " en échec" : "") + ".";
   } catch (e) {
-    if (stamp) stamp.textContent = "Lecture impossible : " + (e && e.message ? e.message : e);
+    if (stamp) stamp.textContent = "Tests impossibles : " + String((e && e.message) || e);
+    for (const x of DISPO.list) if (!DISPO.res[x.name] || DISPO.res[x.name].running) dispoMark(x.name, { ok: false, message: "Test impossible." });
   }
+  DISPO.busy = false;
+  if (btn) { btn.disabled = false; btn.textContent = "Tout tester"; }
+}
+function dispoDetail(name, r){
+  const pop = document.getElementById("dispop");
+  if (!pop) return;
+  const t = document.getElementById("dispo-title"), m = document.getElementById("dispo-msg");
+  if (t) t.textContent = name + (r.ok ? " — fonctionne" : " — en échec");
+  if (m) m.textContent = (r.message || "Aucun message.")
+    + (r.status ? "\n\nHTTP " + r.status : "")
+    + (r.ms ? " · " + r.ms + " ms" : "");
+  pop.hidden = false;
+  const c = document.getElementById("dispo-copy");
+  if (c) c.onclick = function () {
+    const txt = name + " : " + (r.message || "") + (r.status ? " (HTTP " + r.status + ")" : "");
+    try { navigator.clipboard.writeText(txt); agtToast("Copié."); } catch (e) { agtToast("Copie impossible."); }
+  };
+  const x = document.getElementById("dispo-close");
+  if (x) x.onclick = function () { pop.hidden = true; };
+  pop.onclick = function (e) { if (e.target === pop) pop.hidden = true; };
 }
 
 /* ---- Paramètres ▸ Tâches : la liste des missions de la passerelle ------ */
@@ -8181,19 +8246,20 @@ async function tasksStop(id){
 var SET_VIEW = "list";
 function showSetView(view){
   const l = document.getElementById("setlist"), a = document.getElementById("setcompte"),
-        c = document.getElementById("setcanal"), r = document.getElementById("setcredits"),
+        c = document.getElementById("setcanal"), r = document.getElementById("setdispo"),
         md = document.getElementById("setmodels"), w = document.getElementById("setwan"),
         tk = document.getElementById("settasks");
   SET_VIEW = view;
   if (l) l.hidden = (view !== "list");
   if (a) a.hidden = (view !== "compte");
   if (c) c.hidden = (view !== "canal");
-  if (r) r.hidden = (view !== "credits");
+  if (r) r.hidden = (view !== "dispo");
   if (md) md.hidden = (view !== "models");
   if (w) w.hidden = (view !== "wan");
   if (tk) tk.hidden = (view !== "tasks");
   if (view === "wan") renderWanModels();
   if (view === "tasks") tasksLoad();
+  if (view === "dispo") dispoLoad();
   /* Le bouton « revenir » est un frère de la croix, dans le panneau : les deux
      sont donc posés au même endroit, à la même hauteur, quoi qu'il arrive. */
   const b = document.getElementById("setback");
@@ -8532,14 +8598,12 @@ function canalWire(){
   if (sc && !sc.dataset.wired2) { sc.dataset.wired2 = "1"; sc.addEventListener("click", function(){ showSetView("list"); }); }
   const ga = g("setgoaccount"); if (ga) ga.onclick = function(){ showSetView("compte"); };
   const gc = g("setgocanal"); if (gc) gc.onclick = function(){ showSetView("canal"); };
-  const gr = g("setgocredits"); if (gr) gr.onclick = function(){ showSetView("credits"); creditsLoad(); };
+  const gr = g("setgodispo"); if (gr) gr.onclick = function(){ showSetView("dispo"); dispoLoad(); };
   const gm = g("setgomodels"); if (gm) gm.onclick = function(){ showSetView("models"); };
   const gw = g("setgowan"); if (gw) gw.onclick = function(){ showSetView("wan"); };
   const gt = g("setgotasks"); if (gt) gt.onclick = function(){ showSetView("tasks"); };
+  const dt = g("distestall"); if (dt) dt.onclick = dispoTestAll;
   const tr = g("taskrefresh"); if (tr) tr.onclick = tasksLoad;
-  const crr = g("crrefresh"); if (crr) crr.onclick = creditsLoad;
-  const crc = g("crpollclaim");
-  if (crc) crc.onclick = function(){ window.open("https://enter.pollinations.ai", "_blank", "noopener"); };
   const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView(SET_VIEW === "wan" ? "models" : "list"); };
   /* les missions connues de cet appareil se déclarent (une fois, en douceur) */
   setTimeout(function(){ try{ agtJobsDeclare(); }catch(e){} }, 1200);

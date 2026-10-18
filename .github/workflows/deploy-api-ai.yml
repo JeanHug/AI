@@ -41,6 +41,16 @@ jobs:
           RF_TOKEN_1: ${{ secrets.RF_TOKEN_1 }}
           RF_TOKEN_2: ${{ secrets.RF_TOKEN_2 }}
           RF_TOKEN_3: ${{ secrets.RF_TOKEN_3 }}
+          # Jetons Roboflow nommés : ROBOFLOW_API_KEY_1 … _8. C'est cette
+          # famille qui fait foi ; les RF_TOKEN_* restent pour ne rien perdre.
+          ROBOFLOW_API_KEY_1: ${{ secrets.ROBOFLOW_API_KEY_1 }}
+          ROBOFLOW_API_KEY_2: ${{ secrets.ROBOFLOW_API_KEY_2 }}
+          ROBOFLOW_API_KEY_3: ${{ secrets.ROBOFLOW_API_KEY_3 }}
+          ROBOFLOW_API_KEY_4: ${{ secrets.ROBOFLOW_API_KEY_4 }}
+          ROBOFLOW_API_KEY_5: ${{ secrets.ROBOFLOW_API_KEY_5 }}
+          ROBOFLOW_API_KEY_6: ${{ secrets.ROBOFLOW_API_KEY_6 }}
+          ROBOFLOW_API_KEY_7: ${{ secrets.ROBOFLOW_API_KEY_7 }}
+          ROBOFLOW_API_KEY_8: ${{ secrets.ROBOFLOW_API_KEY_8 }}
           # Clé NVIDIA NIM : posée elle aussi en secret du worker, réservée aux
           # modèles NVIDIA NIM (ajoutés plus tard). Aucun modèle n'est activé ici.
           NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}

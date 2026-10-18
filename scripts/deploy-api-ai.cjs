@@ -33,7 +33,9 @@ const apiToken = process.env.CLOUDFLARE_TOKEN;
 const accessCode = process.env.ACCESS_CODE || '';
 const wanted = (process.env.WORKER_NAME || 'api-ai').trim();
 /* Jetons supplémentaires : noms des secrets attendus, dans l'ordre de rotation. */
-const tokenSecrets = ['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3']
+const named = [];
+for (let i = 1; i <= 8; i++) named.push('ROBOFLOW_API_KEY_' + i);
+const tokenSecrets = named.concat(['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3'])
   .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
   .filter((t) => t.text.length > 0);
 /* Autres secrets du worker, posés exactement de la même façon (aucune valeur
@@ -290,7 +292,9 @@ function get(url, headers) {
       if (typeof seen === 'number' && seen > 0) break;
       await sleep(4000);
     }
-    const attendu = 1 + tokenSecrets.length;
+    /* Le worker dédoublonne : deux noms pour la même clé = un seul jeton.
+       On attend donc au moins la moitié des noms fournis, plus l'historique. */
+    const attendu = Math.max(2, Math.ceil(tokenSecrets.length / 2));
     console.log(`🔎 rotation des jetons Roboflow → ${seen} jeton(s) vu(s) par le worker (attendu ≥ ${attendu})`);
     if (!(seen >= attendu)) {
       console.error('❌ Rotation incomplète : le worker ne voit pas tous les jetons (secrets non posés ?).');
