@@ -200,8 +200,15 @@ async function hfVideo(env, prompt, dur) {
     sse = await fetch(`${cfg.host}/gradio_api/call/${cfg.api}/${evId}`, {
       headers: env && env.HF_TOKEN ? { Authorization: "Bearer " + String(env.HF_TOKEN).trim() } : {},
     });
-  } catch (err) { return { error: `flux SSE vidéo injoignable : ${err.message}`, poster, posterMime }; }
-  const txt = await sse.text();
+  } catch (err) { return { error: `flux SSE vidéo injoignable : ${String((err && err.message) || err)}`, poster, posterMime }; }
+  let txt = "";
+  try {
+    txt = await sse.text();
+  } catch (err) {
+    /* La connexion SSE peut être coupée en plein milieu (quota, réseau) :
+       on le dit clairement au lieu de laisser remonter un « TypeError ». */
+    return { error: "la réponse du Space vidéo a été coupée en cours de route (quota gratuit ou réseau) — réessaie dans un instant", poster, posterMime };
+  }
   if (/event:\s*error/.test(txt)) {
     /* Message brut d'abord : c'est lui qui dit la vraie raison. */
     let msg = "Space vidéo : " + txt.replace(/\s+/g, " ").slice(0, 240);
