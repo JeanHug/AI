@@ -1254,6 +1254,11 @@ const MODELS = [
    sc:null, edit:true, desc:"FLUX.3 Klein, le dernier modèle image de Black Forest Labs, sur son Space officiel : jusqu'à 2K, édition avec images de référence, gratuit via Hugging Face ZeroGPU, sans token. ~10 s en 1K, ~30 s en 2K."},
   {id:"ideogram-v4", label:"Ideogram v4", vendor:"ideogram", family:"ideo", gen:"img", via:"HF ZeroGPU",
    sc:null, desc:"Ideogram v4 (Space officiel ideogram-ai), excellent en typographie et couleurs, gratuit via Hugging Face ZeroGPU, sans token. ~20-30 s/image."},
+  /* IFM — passerelle OpenAI-compatible. K2 Horizon 375B A23B : un MoE de
+     375 milliards de paramètres dont 23 B actifs, raisonnement visible.
+     Aucune clé dans ce fichier : le worker détient IFM_API_KEY. */
+  {id:"ifm-k2-horizon", label:"K2 Horizon 375B A23B", vendor:"ifm", family:"ifm", via:"IFM",
+   sc:[9,8.5,6,45], desc:"Modèle MoE de 375 milliards de paramètres (23 B actifs) servi par IFM : raisonnement détaillé, code et analyses longues, avec un débit rapide pour sa taille."},
   /* Arena — le canal direct entre cette application et Arena : aucun service de
      modèle derrière, tout passe par un canal Firebase dédié. Placé en fin de
      liste : le modèle choisi par défaut au premier lancement ne change pas. */
@@ -1293,6 +1298,7 @@ const MARKS = {
   meta: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#0866FF"  d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></svg>',
   xiaomi: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="#FF6900"  d="M12 0C8.016 0 4.756.255 2.493 2.516.23 4.776 0 8.033 0 12.012c0 3.98.23 7.235 2.494 9.497C4.757 23.77 8.017 24 12 24c3.983 0 7.243-.23 9.506-2.491C23.77 19.247 24 15.99 24 12.012c0-3.984-.233-7.243-2.502-9.504C19.234.252 15.978 0 12 0zM4.906 7.405h5.624c1.47 0 3.007.068 3.764.827.746.746.827 2.233.83 3.676v4.54a.15.15 0 0 1-.152.147h-1.947a.15.15 0 0 1-.152-.148V11.83c-.002-.806-.048-1.634-.464-2.051-.358-.36-1.026-.441-1.72-.458H7.158a.15.15 0 0 0-.151.147v6.98a.15.15 0 0 1-.152.148H4.906a.15.15 0 0 1-.15-.148V7.554a.15.15 0 0 1 .15-.149zm12.131 0h1.949a.15.15 0 0 1 .15.15v8.892a.15.15 0 0 1-.15.148h-1.949a.15.15 0 0 1-.151-.148V7.554a.15.15 0 0 1 .151-.149zM8.92 10.948h2.046c.083 0 .15.066.15.147v5.352a.15.15 0 0 1-.15.148H8.92a.15.15 0 0 1-.152-.148v-5.352a.15.15 0 0 1 .152-.147Z"/></svg>',
   mistral: '<svg width="15" height="13" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="mistralM" x1="0" y1="3.4" x2="0" y2="20.6" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFD800"/><stop offset=".2" stop-color="#FFD800"/><stop offset=".2" stop-color="#FFAF00"/><stop offset=".4" stop-color="#FFAF00"/><stop offset=".4" stop-color="#FF8205"/><stop offset=".6" stop-color="#FF8205"/><stop offset=".6" stop-color="#FA500F"/><stop offset=".8" stop-color="#FA500F"/><stop offset=".8" stop-color="#E10500"/><stop offset="1" stop-color="#E10500"/></linearGradient></defs><path fill="url(#mistralM)" d="M17.143 3.429v3.428h-3.429v3.429h-3.428V6.857H6.857V3.43H3.43v13.714H0v3.428h10.286v-3.428H6.857v-3.429h3.429v3.429h3.429v-3.429h3.428v3.429h-3.428v3.428H24v-3.428h-3.43V3.429z"/></svg>',
+  ifm: '<svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#111827"/><path fill="#fff" d="M7 6.6h2.2v4.5l4-4.5h2.7l-4.2 4.7 4.4 5.9h-2.8l-3.1-4.3-1 1.1v3.2H7z"/></svg>',
   bfl: '<svg width="13" height="13" viewBox="32 60 196.407 140.291" aria-hidden="true"><path fill="#07130E" d="M172.047 119.966H172.045V149.393L148.793 182.239V199.317H94.7969L94.7959 199.318H73.9072L73.9082 199.317H32L130.27 60.9777L172.047 119.966ZM228.407 199.316H195.431V182.303L172.047 149.393V119.965L228.407 199.316ZM65.1064 182.238H86.0381L130.268 119.966H151.156L106.927 182.238H127.917L172.044 119.966H151.158L130.27 90.5373L65.1064 182.238Z"/></svg>'
 };
 </script>
@@ -1865,7 +1871,7 @@ const VENDORS = [
   ["pollinations","Pollinations"],
   ["bfl","Black Forest Labs"],["ideogram","Ideogram"],
   ["modelscope","ModelScope"],
-  ["arena","Arena"],
+  ["ifm","IFM"],["arena","Arena"],
 ];
 const CHEV='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>';
 function renderModelBtn(){
@@ -2398,7 +2404,7 @@ async function submit(){
   if(current.gen==="vid"){ await submitVideo(text); return; }
   if(current.gen==="live"){ await submitLive(text); return; }
   if(typeof AGENT_ON!=="undefined"&&AGENT_ON&&!current.gen){ await agentRun(text); return; }
-  if(current.family==="gtext"||current.family==="groq"||current.family==="ptext"){ await submitStreaming(text); return; }
+  if(current.family==="gtext"||current.family==="groq"||current.family==="ptext"||current.family==="ifm"){ await submitStreaming(text); return; }
 
   busy=true; sendBtn.disabled=true;
   const kind = pendingAudio ? "audio" : (pendingImage ? "upload" : (useBlackImage ? "black" : "none"));
@@ -2541,7 +2547,7 @@ async function submitStreaming(text){
     params: cleanParams(current.id),
   };
   const fbm = current.fb ? MODELS.find(x=>x.id===current.fb) : null;
-  const STREAM_FAMS=["gtext","groq","ptext"];
+  const STREAM_FAMS=["gtext","groq","ptext","ifm"];
   /* Anti-gel : au-delà de 20 000 caractères (longs SVG…), re-rendre le
      markdown à chaque trame sature le navigateur → on affiche le texte brut
      (textContent, quasi gratuit) pendant le flux, et on ne passe au
@@ -3710,6 +3716,10 @@ const CFG_FIELDS = {
   /* Arena n'a pas d'option de génération : le tableau vide évite toute
      erreur quand on ouvre sa fiche. */
   arena: [],
+  ifm: [
+    {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:16, max:32768, ph:"défaut modèle"},
+    {k:"temperature", label:"Température (0 à 2)", type:"num", min:0, max:2, step:0.05, ph:"défaut modèle"},
+  ],
   claude: [
     {k:"extended_thinking", label:"Réflexion étendue", type:"check",
      note:"Activable, mais la profondeur n'est plus contrôlable depuis Claude Opus 4.7 : le thinking est « adaptive » et le budget ci-dessous est ignoré."},
@@ -4341,7 +4351,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P111</p>
+      <p class="setver">Version P112</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>

@@ -57,6 +57,9 @@ jobs:
           # Clé ModelScope (jetons « ms-… ») : posée en secret du worker, prête
           # pour les modèles à ajouter plus tard.
           MODELSCOPE_API_KEY: ${{ secrets.MODELSCOPE_API_KEY }}
+          # Clé IFM (passerelle OpenAI-compatible, K2 Horizon) : posée en secret
+          # du worker. Aucune valeur dans le dépôt, aucun affichage.
+          IFM_API_KEY: ${{ secrets.IFM_API_KEY }}
           FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}
           FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
           # Jeton Hugging Face (facultatif) : lève le quota ZeroGPU anonyme des
