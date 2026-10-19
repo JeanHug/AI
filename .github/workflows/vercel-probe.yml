@@ -26,6 +26,25 @@ jobs:
           print('email_present=', bool(u.get('email')))
           print('error=', (d.get('error') or {}).get('message'))
           PY
+      - name: Portée du jeton
+        env:
+          VK: ${{ secrets.VERCEL_API_KEY }}
+        run: |
+          if [ -z "$VK" ]; then exit 0; fi
+          code=$(curl -s -o /tmp/p.json -w "%{http_code}" -H "Authorization: Bearer $VK" "https://api.vercel.com/v9/projects?limit=20")
+          echo "projects_status=$code"
+          python3 - <<'PY'
+          import json
+          try:
+              d=json.load(open('/tmp/p.json'))
+          except Exception:
+              d={}
+          ps=d.get('projects') or []
+          print('projects_count=', len(ps))
+          print('projects=', ','.join([str(x.get('name')) for x in ps[:8]]))
+          print('projects_error=', (d.get('error') or {}).get('message'))
+          open('/tmp/first','w').write(str((ps[0] or {}).get('name')) if ps else '')
+          PY
       - name: Déploiement statique minimal
         env:
           VK: ${{ secrets.VERCEL_API_KEY }}
