@@ -481,6 +481,10 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
   border:1px solid var(--line);background:#fff;color:var(--ink-2);cursor:pointer;transition:.12s}
 .reschip:hover{border-color:#c7c7cf;color:var(--ink)}
 .reschip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+/* Format : un petit cadre à l'échelle du ratio, puis le ratio lui-même. */
+.fmtchip{display:inline-flex;align-items:center;gap:7px}
+.fmtbox{display:block;border:1.5px solid currentColor;border-radius:2.5px;flex:0 0 auto;opacity:.9;background:currentColor;background-clip:content-box;padding:1px;box-sizing:border-box}
+.imgsize{margin:8px 0 0;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)}
 .sw{
   position:relative;width:38px;height:22px;flex:0 0 auto;border-radius:999px;
   border:1px solid var(--line);background:#ececf0;cursor:pointer;transition:.15s;padding:0;
@@ -3600,27 +3604,29 @@ const CFG_FIELDS = {
     {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:1, max:128000, ph:"défaut modèle"},
   ],
   msimg: [
-    /* La résolution part chez ModelScope dans le champ « size »
-       (« largeurxhauteur ») : vérifié dans la documentation de l'API
-       /images/generations. Qwen Image rend jusqu'à 1664 px de côté ; le
-       réglage s'ouvre par appui long sur le nom du modèle, en haut. */
-    {k:"resolution", label:"Résolution", type:"chips",
-     opts:["", "1024x1024", "1328x1328", "1664x1664", "1664x928", "928x1664"],
-     labels:{"":"Défaut du modèle", "1024x1024":"1024 × 1024", "1328x1328":"1328 × 1328",
-       "1664x1664":"1664 × 1664", "1664x928":"Paysage 1664 × 928", "928x1664":"Portrait 928 × 1664"},
-     note:"ModelScope accepte une taille précise. 1328 × 1328 est la résolution native de Qwen Image : l'image est deux fois plus détaillée qu'en 1024. L'image est transmise et enregistrée sans aucune recompression."},
+    /* Deux sections, dans cet ordre : le FORMAT (ratio) puis la QUALITÉ
+       (taille demandée). Les pixels exacts partent dans `size` chez
+       ModelScope — vérifié dans la documentation de /images/generations. */
+    {k:"format", label:"Format", type:"format",
+     note:"Le ratio est converti en pixels exacts au moment de l'envoi ; l'image revient sans aucune recompression."},
+    {k:"tier", label:"Qualité", type:"tier",
+     note:"Qwen Image plafonne à 1664 px de côté : au-delà, la qualité n'ajoute plus de détail."},
   ],
+
   msvid: [
     {k:"duration", label:"Durée (secondes)", type:"int", min:2, max:6, ph:"4",
      note:"Wan 2.2 rend des plans courts : 2 à 6 secondes. Plus long = plus d'attente et un fichier plus lourd."},
   ],
   pimg: [
-    {k:"width", label:"Largeur (px)", type:"int", min:768, max:1024, step:16, ph:"1024",
-     note:"Contraintes MAI : côtés multiples de 16 px, 768 px minimum, 1 048 576 px² au total. Flux 2 Dev accepte ces mêmes tailles."},
-    {k:"height", label:"Hauteur (px)", type:"int", min:768, max:1024, step:16, ph:"1024"},
-    {k:"quality", label:"Qualité", type:"select", opts:["low","medium","high","hd"], ph:"défaut modèle",
-     note:"GPT Image 2 uniquement ; ignorée par les modèles MAI et Flux."},
+    {k:"format", label:"Format", type:"format",
+     note:"MAI impose 768 px minimum par côté et ~1 mégapixel au total : le format est borné en conséquence."},
+    {k:"tier", label:"Qualité", type:"tier",
+     note:"Pollinations plafonne ces modèles à 1024 px de côté."},
+    {k:"quality", label:"Qualité du rendu", type:"chips", only:"po-gpt-image-2",
+     opts:["low","medium","high","hd"], labels:{low:"low",medium:"medium",high:"high",hd:"hd"},
+     note:"GPT Image 2 uniquement ; les modèles MAI et Flux ignorent ce réglage."},
   ],
+
   groq: [
     {k:"reasoning_effort", label:"Effort de raisonnement", type:"select", opts:["low","medium","high"], ph:"défaut modèle",
      note:"GPT-OSS uniquement ; ignoré par les autres modèles."},
@@ -3656,31 +3662,37 @@ const CFG_FIELDS = {
     {k:"max_new_tokens", label:"Tokens max à générer", type:"int", min:1, max:8192, ph:"défaut modèle"},
   ],
   flux: [
-    {k:"width", label:"Largeur (px)", type:"int", min:256, max:2048, step:64, ph:"1024",
-     note:"Résolution de l'image générée (256 à 2048 px, multiples de 64)."},
-    {k:"height", label:"Hauteur (px)", type:"int", min:256, max:2048, step:64, ph:"1024"},
+    {k:"format", label:"Format", type:"format",
+     note:"Pixels calculés depuis le ratio et la qualité (Workers AI, multiples de 64)."},
+    {k:"tier", label:"Qualité", type:"tier",
+     note:"Workers AI accepte jusqu'à 2048 px de côté."},
     {k:"num_steps", label:"Étapes de diffusion", type:"int", min:1, max:50, ph:"défaut modèle",
      note:"Plus d'étapes = plus de détails mais plus lent. Klein est conçu pour peu d'étapes."},
     {k:"guidance", label:"Guidance (0 à 10)", type:"num", min:0, max:10, step:0.1, ph:"défaut modèle",
      note:"Fidélité au prompt : plus la valeur est haute, plus l'image suit le texte au pied de la lettre."},
   ],
+
   kleinhf: [
-    {k:"width", label:"Largeur (px)", type:"int", min:256, max:1024, step:8, ph:"1024",
-     note:"Résolution de l'image (256 à 1024 px, multiples de 8) côté Space HF."},
-    {k:"height", label:"Hauteur (px)", type:"int", min:256, max:1024, step:8, ph:"1024"},
+    {k:"format", label:"Format", type:"format",
+     note:"Pixels calculés depuis le ratio et la qualité, côté Space HF (multiples de 8)."},
+    {k:"tier", label:"Qualité", type:"tier",
+     note:"Ces Spaces plafonnent à 1024 px de côté."},
     {k:"num_steps", label:"Étapes de diffusion", type:"int", min:1, max:8, ph:"4",
      note:"Klein est distillé : 4 étapes suffisent (8 max sur ces Spaces)."},
     {k:"guidance", label:"Guidance (0 à 10)", type:"num", min:0, max:10, step:0.1, ph:"1.0",
      note:"Uniquement prise en compte par la variante 4B ; ignorée en 9B KV."},
   ],
+
   ideo: [
-    {k:"width", label:"Largeur (px)", type:"int", min:512, max:2048, step:64, ph:"1024",
-     note:"Résolution de l'image Ideogram (512 à 2048 px, multiples de 64)."},
-    {k:"height", label:"Hauteur (px)", type:"int", min:512, max:2048, step:64, ph:"1024"},
+    {k:"format", label:"Format", type:"format",
+     note:"Pixels calculés depuis le ratio et la qualité (Ideogram, multiples de 64)."},
+    {k:"tier", label:"Qualité", type:"tier",
+     note:"Ideogram accepte jusqu'à 2048 px de côté."},
     {k:"mode", label:"Mode", type:"select", ph:"Turbo",
      opts:["Turbo · 12 steps", "Default · 20 steps", "Quality · 48 steps"],
      note:"Turbo = le plus rapide ; Quality = le plus fidèle mais plus lent."},
   ],
+
 };
 
 const SETTINGS = {};
@@ -3691,16 +3703,58 @@ MODELS.forEach(m=>{
 });
 function saveSettings(id){ try{ localStorage.setItem("cfg_"+id, JSON.stringify(SETTINGS[id])); }catch(e){} }
 
+/* Géométrie des modèles d'image : la fiche ne demande plus des pixels bruts,
+   mais un FORMAT (ratio) puis une QUALITÉ (taille). Les pixels exacts sont
+   calculés ici, puis bornés par ce que chaque fournisseur accepte. */
+const IMG_GEO = {
+  msimg:   { formats:["1:1","4:3","3:4","3:2","2:3","16:9","9:16"],
+             tiers:[{v:1024,l:"1K · 1024 px"},{v:1328,l:"1,5K · 1328 px"},{v:1664,l:"2K · 1664 px"}],
+             def:{format:"1:1",tier:1328}, step:16, min:512, max:1664 },
+  pimg:    { formats:["1:1","4:3","3:4","3:2","2:3","16:9","9:16"],
+             tiers:[{v:768,l:"768 px"},{v:1024,l:"1K · 1024 px"}],
+             def:{format:"1:1",tier:1024}, step:16, min:768, max:1024 },
+  flux:    { formats:["1:1","4:3","3:4","3:2","2:3","16:9","9:16"],
+             tiers:[{v:1024,l:"1K · 1024 px"},{v:2048,l:"2K · 2048 px"}],
+             def:{format:"1:1",tier:1024}, step:64, min:256, max:2048 },
+  kleinhf: { formats:["1:1","4:3","3:4","3:2","2:3","16:9","9:16"],
+             tiers:[{v:768,l:"768 px"},{v:1024,l:"1K · 1024 px"}],
+             def:{format:"1:1",tier:1024}, step:8, min:256, max:1024 },
+  ideo:    { formats:["1:1","4:3","3:4","3:2","2:3","16:9","9:16"],
+             tiers:[{v:1024,l:"1K · 1024 px"},{v:2048,l:"2K · 2048 px"}],
+             def:{format:"1:1",tier:1024}, step:64, min:512, max:2048 },
+};
+/* Largeur et hauteur exactes pour un ratio et une qualité donnés. */
+function imgSizeOf(family, format, tier){
+  const g=IMG_GEO[family];
+  if(!g) return {w:0,h:0,capped:false};
+  const parts=String(format||g.def.format).split(":");
+  const a=Number(parts[0])||1, b=Number(parts[1])||1;
+  const want=Number(tier)||g.def.tier;
+  const L=Math.max(g.min, Math.min(g.max, want));
+  let w,h;
+  if(a>=b){ w=L; h=L*b/a; } else { h=L; w=L*a/b; }
+  const snap=n=>Math.max(g.min, Math.min(g.max, Math.round(n/g.step)*g.step));
+  return { w:snap(w), h:snap(h), capped:(want>g.max || Math.min(w,h)<g.min) };
+}
+
 /* ne retient que les valeurs réellement renseignées */
 function cleanParams(id){
   const m=MODELS.find(x=>x.id===id);
   if(!m) return {};
   const out={};
   for(const f of CFG_FIELDS[m.family]){
+    if(f.only && f.only!==id) continue;
     const v=SETTINGS[id][f.k];
     if(v===null||v===undefined||v===""||v===false) continue;
     out[f.k]=v;
   }
+  /* Format + qualité -> pixels exacts, bornés par le fournisseur. */
+  const g=IMG_GEO[m.family];
+  if(g){
+    const sz=imgSizeOf(m.family, out.format, out.tier);
+    out.width=sz.w; out.height=sz.h;
+  }
+  delete out.format; delete out.tier;
   return out;
 }
 function countParams(id){ return Object.keys(cleanParams(id)).length; }
@@ -3732,7 +3786,16 @@ function openSettings(m){
         +'<span>Vitesse <b>'+(m.sc?m.sc[3]:"–")+' TPS</b></span>')
     +"</div>";
   cfgBody.appendChild(card);
+  /* Ligne vivante « Image de … × … px », tenue à jour par les deux sections. */
+  const geoRow = IMG_GEO[m.family] || null;
+  let sizeEl = null;
+  const updSize = ()=>{
+    if(!sizeEl || !geoRow) return;
+    const sz=imgSizeOf(m.family, SETTINGS[m.id].format, SETTINGS[m.id].tier);
+    sizeEl.textContent = "Image de " + sz.w + " × " + sz.h + " px" + (sz.capped ? " · plafonné par le fournisseur" : "");
+  };
   for(const f of CFG_FIELDS[m.family]){
+    if(f.only && f.only!==m.id) continue;      /* réglage propre à un seul modèle */
     const row=document.createElement("div"); row.className="field";
     const lab=document.createElement("label");
     const txt=document.createElement("span"); txt.textContent=f.label;
@@ -3748,6 +3811,47 @@ function openSettings(m){
         input.setAttribute("aria-checked", on?"true":"false");
         SETTINGS[m.id][f.k]=on; saveSettings(m.id);
       };
+    }else if(f.type==="format" || f.type==="tier"){
+      /* Deux listes dessinées par l'app : les ratios (avec un cadre à
+         l'échelle) puis les qualités (tailles réelles). */
+      const geo=IMG_GEO[m.family];
+      const wrap=document.createElement("div");
+      wrap.className = "resrow" + (f.type==="format" ? " fmtrow" : "");
+      const cur = ()=> SETTINGS[m.id][f.k] || geo.def[f.k];
+      const paint = ()=>{
+        for(const btn of wrap.children) btn.setAttribute("aria-pressed", btn.dataset.v===String(cur()) ? "true":"false");
+        updSize();
+      };
+      for(const o of geo[f.type==="format" ? "formats" : "tiers"]){
+        const v = (f.type==="format") ? o : String(o.v);
+        const btn=document.createElement("button");
+        btn.type="button";
+        btn.className = "reschip" + (f.type==="format" ? " fmtchip" : "");
+        btn.dataset.v=v;
+        if(f.type==="format"){
+          const ar=v.split(":").map(Number);
+          const bw=Math.round(18*Math.min(1.8,ar[0]/ar[1]));
+          const bh=Math.round(18*Math.min(1.8,ar[1]/ar[0]));
+          btn.innerHTML='<span class="fmtbox" style="width:'+bw+'px;height:'+bh+'px"></span><span>'+esc(v)+'</span>';
+        }else{
+          btn.textContent=o.l;
+        }
+        btn.onclick=()=>{
+          SETTINGS[m.id][f.k] = (f.type==="tier") ? Number(v) : v;
+          saveSettings(m.id); paint();
+        };
+        wrap.appendChild(btn);
+      }
+      row.appendChild(lab); row.appendChild(wrap);
+      if(f.note){ const n=document.createElement("p"); n.className="note"; n.textContent=f.note; row.appendChild(n); }
+      if(f.type==="format"){
+        sizeEl=document.createElement("p"); sizeEl.className="imgsize";
+        row.appendChild(sizeEl); paint();
+      }else{
+        paint();
+      }
+      cfgBody.appendChild(row);
+      continue;
     }else if(f.type==="chips"){
       /* Liste dessinée par l'app : une pastille par valeur, aucune liste native. */
       const wrap=document.createElement("div"); wrap.className="resrow";
@@ -4018,7 +4122,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P105</p>
+      <p class="setver">Version P106</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
