@@ -2608,7 +2608,13 @@ async function submitStreaming(text){
     let thinkEl=null, thinkTxt="", thinkT0=0, thinkDone=false;
     const pushThink=(str)=>{
       if(!str) return;
-      if(!thinkEl){ thinkEl=thinkBlock(); bubble.parentNode.insertBefore(thinkEl, bubble); thinkT0=performance.now(); }
+      if(!thinkEl){
+        thinkEl=thinkBlock();
+        bubble.parentNode.insertBefore(thinkEl, bubble);
+        thinkT0=performance.now();
+        /* Le « Generating… » n'a plus lieu d'être : le raisonnement a commencé. */
+        const g=bubble.querySelector(".gentxt"); if(g) bubble.innerHTML="";
+      }
       thinkTxt+=str;
       thinkEl.querySelector(".think-b").textContent=thinkTxt;
     };
