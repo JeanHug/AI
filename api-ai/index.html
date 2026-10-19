@@ -3751,7 +3751,7 @@ const CFG_FIELDS = {
   mercury: [
     {k:"reasoning_effort", label:"Effort de raisonnement", type:"select", opts:["instant","low","medium","high"], ph:"low (défaut)",
      note:"« instant » pour la voix et le temps réel, « high » pour les raisonnements longs. Mercury 3 vaut « low » par défaut."},
-    {k:"max_completion_tokens", label:"Tokens max en sortie", type:"int", min:1, max:64000, ph:"défaut modèle"},
+    {k:"max_completion_tokens", label:"Tokens max en sortie", type:"int", min:1, max:131072, def:131072, ph:"131072 (maximum)"},
     {k:"temperature", label:"Température (0,5 à 1)", type:"num", min:0.5, max:1, step:0.05, ph:"0,75"},
   ],
   ifm: [
@@ -3979,7 +3979,10 @@ function cleanParams(id){
   const out={};
   for(const f of CFG_FIELDS[m.family]){
     if(f.only && f.only!==id) continue;
-    const v=SETTINGS[id][f.k];
+    let v=SETTINGS[id][f.k];
+    /* Une valeur « par défaut » déclarée dans la fiche (ex. 131 072 tokens
+       pour Mercury 3) s'applique tant que l'utilisateur n'a rien réglé. */
+    if((v===null||v===undefined||v==="") && f.def!==undefined) v=f.def;
     if(v===null||v===undefined||v===""||v===false) continue;
     out[f.k]=v;
   }
