@@ -74,6 +74,24 @@ main{flex:1 1 auto;overflow-y:auto;padding:26px 20px 34px}
 /* Diffusion (Mercury 3) : le texte se déparasite sous les yeux — fine
    ligne qui glisse tant que le modèle raffine, rien d'autre. */
 .bubble.diffusing{position:relative;padding-bottom:12px}
+/* « Thinking » : raisonnement du modèle, replié par défaut. Pendant la
+   génération le libellé respire ; à la fin il donne la durée, et un clic
+   déplie le texte en gris. */
+.think{margin:0 0 10px}
+.think-h{display:inline-flex;align-items:center;gap:7px;border:0;background:none;padding:2px 0;cursor:pointer;
+  color:var(--ink-3);font:500 12.5px/1.4 var(--sans);letter-spacing:.01em}
+.think-h:hover{color:var(--ink-2)}
+.think-h svg{flex:0 0 auto;display:block}
+.think-c{transition:transform .16s ease;opacity:.7}
+.think.open .think-c{transform:rotate(90deg)}
+.think-t.live{animation:thinkpulse 1.6s ease-in-out infinite}
+@keyframes thinkpulse{0%,100%{opacity:.55}50%{opacity:1}}
+.think-b{margin:7px 0 2px;padding:9px 12px;border-left:2px solid var(--line);
+  color:#7c7d84;font-size:12.5px;line-height:1.55;white-space:pre-wrap;
+  max-height:320px;overflow:auto}
+.think-b[hidden]{display:none}
+@media (prefers-reduced-motion: reduce){.think-t.live{animation:none}}
+
 .bubble.diffusing::after{content:"";position:absolute;left:0;right:0;bottom:5px;height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(17,17,19,.06),rgba(17,17,19,.55),rgba(17,17,19,.06));background-size:220% 100%;animation:diffslide 1s linear infinite}
 @keyframes diffslide{from{background-position:220% 0}to{background-position:-220% 0}}
 @media (prefers-reduced-motion: reduce){.bubble.diffusing::after{animation:none;background:rgba(17,17,19,.25)}}
@@ -2387,6 +2405,21 @@ function addUser(text, kind, snap, asnap){
   log.appendChild(el);
   return el;
 }
+/* Zone « Thinking » d'un message : logo SVG discret, libellé, chevron.
+   Pendant le flux le libellé dit « Thinking… » ; à la fin il donne la durée
+   et un clic déplie le raisonnement en gris. */
+function thinkBlock(){
+  const d=document.createElement("div"); d.className="think";
+  d.innerHTML='<button type="button" class="think-h" aria-expanded="false">'
+    +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2a6.1 6.1 0 0 0-3.7 11c.5.4.8 1 .8 1.6v.4h5.8v-.4c0-.6.3-1.2.8-1.6A6.1 6.1 0 0 0 12 3.2Z"/><path d="M9.6 18.9h4.8"/><path d="M10.4 21h3.2"/><path d="M12 7.4v4.2"/><path d="M9.9 9.5h4.2"/></svg>'
+    +'<span class="think-t live">Thinking…</span>'
+    +'<svg class="think-c" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>'
+    +'</button><div class="think-b" hidden></div>';
+  const head=d.querySelector(".think-h"), body=d.querySelector(".think-b");
+  head.onclick=()=>{ const open=body.hidden; body.hidden=!open; d.classList.toggle("open",open);
+    head.setAttribute("aria-expanded", open?"true":"false"); };
+  return d;
+}
 function addAssistant(modelId){
   const m=(modelId&&MODELS.find(x=>x.id===modelId))||current;
   const el=document.createElement("div"); el.className="msg assistant";
@@ -2568,7 +2601,26 @@ async function submitStreaming(text){
      (textContent, quasi gratuit) pendant le flux, et on ne passe au
      markdown complet qu'UNE fois, à la fin. */
   const HEAVY=20000;
+  /* Raisonnement du modèle pour ce message (durée + texte), capté pendant
+     le flux et transmis à la sauvegarde. */
+  let lastThink=null;
   const runStream=async(model, params)=>{
+    let thinkEl=null, thinkTxt="", thinkT0=0, thinkDone=false;
+    const pushThink=(str)=>{
+      if(!str) return;
+      if(!thinkEl){ thinkEl=thinkBlock(); bubble.parentNode.insertBefore(thinkEl, bubble); thinkT0=performance.now(); }
+      thinkTxt+=str;
+      thinkEl.querySelector(".think-b").textContent=thinkTxt;
+    };
+    const endThink=()=>{
+      if(!thinkEl||thinkDone) return;
+      thinkDone=true;
+      const secs=Math.max(1, Math.round((performance.now()-thinkT0)/1000));
+      const tl=thinkEl.querySelector(".think-t");
+      tl.classList.remove("live");
+      tl.textContent="Thinking for "+secs+" s";
+      lastThink={text:thinkTxt, ms:secs*1000};
+    };
     let acc="";        /* tout ce qui est arrivé du serveur */
     let shown=0;       /* ce qui est déjà à l'écran */
     let paintTimer=null;
@@ -2625,6 +2677,7 @@ async function submitStreaming(text){
           try{
             const j=JSON.parse(p);
             if(j.error) throw new Error(j.error);
+            if(j.r){ pushThink(j.r); }
             /* Diffusion (Mercury 3) : `d` est le texte ENTIER à cet instant,
                on remplace — on n'ajoute pas. On l'affiche brut, caractères
                parasites compris : c'est le modèle au travail. */
@@ -2641,7 +2694,7 @@ async function submitStreaming(text){
               await new Promise(r=>setTimeout(r, 160));
             }
             if(j.fin){ acc=j.t||acc; bubble.classList.remove("diffusing"); bubble.style.whiteSpace=""; bubble.innerHTML=renderMarkdown(acc); scrollDown(); }
-            else if(j.t){ acc+=j.t; paint(); }
+            else if(j.t){ endThink(); acc+=j.t; paint(); }
           }catch(e){ if(e instanceof SyntaxError) continue; throw e; }
         }
       }
@@ -2649,6 +2702,7 @@ async function submitStreaming(text){
          sinon la fin du flux collerait tout le texte d'un coup. */
       const tEnd=Date.now();
       while(paintTimer!==null && Date.now()-tEnd<600){ await new Promise(r=>setTimeout(r,26)); }
+      endThink();
       if(paintTimer!==null){ clearTimeout(paintTimer); paintTimer=null; }
       shown=acc.length;
       if(acc.length) renderShown();
@@ -2689,7 +2743,7 @@ async function submitStreaming(text){
     if(kind==="upload"&&snapshot) uEnt3.images=[{name:snapshot.name, b64:snapshot.b64, mime:"image/png"}];
     conv.push(uEnt3);
     conv.push({role:"assistant",text:acc});
-    if(typeof FB!=="undefined"&&FB.afterText) FB.afterText({userText:text, kind, snap:kind==="upload"?snapshot:null, asnap:kind==="audio"?asnapshot:null, out:acc, via:usedFb?(current.fbTxt||null):null});
+    if(typeof FB!=="undefined"&&FB.afterText) FB.afterText({userText:text, kind, snap:kind==="upload"?snapshot:null, asnap:kind==="audio"?asnapshot:null, out:acc, via:usedFb?(current.fbTxt||null):null, think:lastThink});
     const pre=(usedFb && current.fbTxt) ? '<p class="viafb"><em>'+esc(current.fbTxt)+'</em></p>' : "";
     if(acc.length>HEAVY){
       /* Texte énorme : le markdown complet figerait l'onglet. On garde le
@@ -4424,7 +4478,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P113</p>
+      <p class="setver">Version P114</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -4976,6 +5030,14 @@ async function loadChat(id){
         conv.push(ent);
       }else{
         const b=addAssistant(m.modelName);   /* renvoie directement la bulle */
+        if(m.thinking && m.thinking.text){
+          const tb=thinkBlock();
+          const tl=tb.querySelector(".think-t");
+          tl.classList.remove("live");
+          tl.textContent="Thinking for "+Math.max(1, Math.round((Number(m.thinking.ms)||1000)/1000))+" s";
+          tb.querySelector(".think-b").textContent=m.thinking.text;
+          b.parentNode.insertBefore(tb, b);
+        }
         /* Mission d'agent : zone terminal repliable reconstruite telle
            quelle, exactement comme avant de quitter la page. */
         const legacy=(m.steps&&m.steps.length)?null:agtSplitLegacyMission(m.text||"");
@@ -5162,6 +5224,9 @@ async function afterText(x){
     if(fl.length) uDoc.files=fl;
     const aDoc={role:"assistant", text:x.out||"", modelName:x.via||current.id,
       order:++msgSeq, createdAt:Date.now()};
+    /* Le raisonnement est conservé avec le message : au rechargement, la
+       zone « Thinking for … s » se redessine avec son contenu gris. */
+    if(x.think && x.think.text) aDoc.thinking={text:String(x.think.text).slice(0,60000), ms:Number(x.think.ms)||0};
     await commitPair(uDoc, aDoc);
   }catch(e){ console.warn("sauvegarde :", e); fbSaveWarn(e); }
 }
