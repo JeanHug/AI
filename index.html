@@ -1217,6 +1217,8 @@ const MODELS = [
    sc:null, desc:"FLUX.2 klein 9B servi par le Space officiel Black Forest Labs (variante KV optimisée), gratuit via Hugging Face ZeroGPU, sans token. ~13 s/image."},
   {id:"hf-flux-2-klein-4b", hidden:true, label:"FLUX.2 [klein] 4B · HF", vendor:"bfl", family:"kleinhf", gen:"img", via:"HF ZeroGPU",
    sc:null, desc:"FLUX.2 klein 4B sur le Space officiel Black Forest Labs, gratuit via Hugging Face ZeroGPU, sans token. Le plus rapide (~2-5 s/image)."},
+  {id:"hf-flux-3-klein", label:"FLUX.3 [klein]", vendor:"bfl", family:"klein3", gen:"img", via:"HF ZeroGPU",
+   sc:null, desc:"FLUX.3 Klein, le dernier modèle image de Black Forest Labs, sur son Space officiel : jusqu'à 2K, édition avec images de référence, gratuit via Hugging Face ZeroGPU, sans token. ~10 s en 1K, ~30 s en 2K."},
   {id:"ideogram-v4", label:"Ideogram v4", vendor:"ideogram", family:"ideo", gen:"img", via:"HF ZeroGPU",
    sc:null, desc:"Ideogram v4 (Space officiel ideogram-ai), excellent en typographie et couleurs, gratuit via Hugging Face ZeroGPU, sans token. ~20-30 s/image."},
   /* Arena — le canal direct entre cette application et Arena : aucun service de
@@ -3372,6 +3374,12 @@ const HF_CFG = {
     w:[256,1024,8], h:[256,1024,8], s:[1,50,4],
     data:(p,w,h,s,g)=>[p,[],"Distilled (4 steps)",0,true,w,h,s,g===undefined?1.0:g,false],
   },
+  "hf-flux-3-klein": {
+    host:"https://black-forest-labs-flux-3-image-klein.hf.space", api:"generate",
+    w:[512,2048,64], h:[512,2048,64], s:[1,50,16],
+    modes:["Distilled (16 steps)","Base (50 steps)"],
+    data:(p,w,h,s,g,mode)=>[p,[],mode||"Distilled (16 steps)",0,true,w,h,s===undefined?16:s,g===undefined?1.0:g,true],
+  },
   "ideogram-v4": {
     host:"https://ideogram-ai-ideogram4.hf.space", api:"generate",
     w:[512,2048,64], h:[512,2048,64], s:null,
@@ -3683,6 +3691,17 @@ const CFG_FIELDS = {
      note:"Uniquement prise en compte par la variante 4B ; ignorée en 9B KV."},
   ],
 
+  klein3: [
+    {k:"format", label:"Format", type:"format",
+     note:"Pixels calculés depuis le ratio et la qualité (Space officiel BFL, multiples de 64)."},
+    {k:"tier", label:"Qualité", type:"tier",
+     note:"Sans compte Hugging Face, ZeroGPU plafonne à 2048 px de côté : le 4K demanderait un compte PRO."},
+    {k:"mode", label:"Mode", type:"select", ph:"Distilled (16 steps)",
+     opts:["Distilled (16 steps)", "Base (50 steps)"],
+     note:"Distilled = 16 étapes, rapide. Base = 50 étapes, plus lent et plus fin."},
+    {k:"num_steps", label:"Étapes de diffusion", type:"int", min:1, max:50, ph:"16"},
+    {k:"guidance", label:"Guidance (0 à 10)", type:"num", min:0, max:10, step:0.1, ph:"1.0"},
+  ],
   ideo: [
     {k:"format", label:"Format", type:"format",
      note:"Pixels calculés depuis le ratio et la qualité (Ideogram, multiples de 64)."},
@@ -3721,6 +3740,9 @@ const IMG_GEO = {
              def:{format:"1:1",tier:1024}, step:8, min:256, max:1024 },
   ideo:    { formats:["1:1","4:3","3:4","3:2","2:3","16:9","9:16"],
              tiers:[{v:1024,l:"1K · 1024 px"},{v:2048,l:"2K · 2048 px"}],
+             def:{format:"1:1",tier:1024}, step:64, min:512, max:2048 },
+  klein3:  { formats:["1:1","4:3","3:4","3:2","2:3","16:9","9:16"],
+             tiers:[{v:1024,l:"1K · 1024 px"},{v:1536,l:"1,5K · 1536 px"},{v:2048,l:"2K · 2048 px"}],
              def:{format:"1:1",tier:1024}, step:64, min:512, max:2048 },
 };
 /* Largeur et hauteur exactes pour un ratio et une qualité donnés. */
@@ -4122,7 +4144,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P106</p>
+      <p class="setver">Version P107</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
