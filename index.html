@@ -8433,7 +8433,7 @@ function dispoCredits(){
   const box=document.getElementById("discredits");
   const stamp=document.getElementById("discredstamp");
   if(!box) return;
-  fetch(API_BASE+"/api/credits",{headers:agtHeaders(),cache:"no-store"})
+  fetch(API_BASE+"/api/credits?light=1",{headers:agtHeaders(),cache:"no-store"})
     .then(function(r){ return r.json(); })
     .then(function(d){
       if(!d||!d.ok) throw new Error((d&&d.error)||"réponse illisible");
