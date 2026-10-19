@@ -184,6 +184,13 @@ main{flex:1 1 auto;overflow-y:auto;padding:26px 20px 34px}
 .zone-render{padding:0;background:#fff;min-height:90px}
 .zone-frame{display:block;width:100%;height:340px;border:0;background:#fff}
 /* --- boutons d'action sous les messages ------------------------------ */
+/* ---------- crédits (écran Disponibilité) ---------- */
+.crgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.crgrid .cred{border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:#fff;min-width:0}
+.cred span{display:block;font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
+.cred b{display:block;font-size:20px;line-height:1.15;letter-spacing:-.02em;font-weight:650}
+.cred em{display:block;font-style:normal;font-size:11.5px;line-height:1.45;color:var(--ink-2);margin-top:5px}
+.cred.ko b{color:var(--ink-2);font-size:15px}
 /* ---------- feuille « Téléchargement » (secours universel) ---------- */
 .dlmask{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;
   padding:18px;background:rgba(17,17,16,.42);animation:lbin .16s ease}
@@ -1230,21 +1237,21 @@ const MODELS = [
   /* Black Forest Labs — génération d'image (Cloudflare Workers AI, gratuit) */
   /* ModelScope — génération d'image (crédits gratuits de la plateforme) */
   {id:"qwen-image-2-1", label:"Qwen Image 2.1", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
-   sc:null, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Servi par ModelScope."},
+   sc:null, edit:true, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Servi par ModelScope."},
   {id:"qwen-image-2-1-turbo", label:"Qwen Image 2.1 Turbo", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
-   sc:null, desc:"La version rapide de Qwen Image 2.1 : même famille, génération en quelques secondes au lieu de vingt — idéale pour essayer plusieurs idées de suite. Servie par ModelScope."},
+   sc:null, edit:true, desc:"La version rapide de Qwen Image 2.1 : même famille, génération en quelques secondes au lieu de vingt — idéale pour essayer plusieurs idées de suite. Servie par ModelScope."},
   {id:"wan-2-2-t2v", label:"Wan 2.2", vendor:"modelscope", family:"msvid", gen:"vid", via:"Wan 2.2",
    sc:null, desc:"Wan 2.2 (Alibaba) transforme une image en court plan animé de quelques secondes. Sans image jointe, l'application fabrique d'abord l'image de départ avec le modèle choisi dans Paramètres ▸ Modèles ▸ Wan 2.2 (FLUX.2 klein 4B par défaut), puis l'anime."},
   {id:"flux-2-klein-9b", label:"FLUX.2 [klein] 9B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-9b",
-   sc:null, desc:"Modèle de génération d'images de Black Forest Labs (9 milliards de paramètres), hébergé gratuitement par Cloudflare Workers AI. Texte→image de haute qualité, rapide."},
+   sc:null, edit:true, desc:"Modèle de génération d'images de Black Forest Labs (9 milliards de paramètres), hébergé gratuitement par Cloudflare Workers AI. Texte→image de haute qualité, rapide."},
   {id:"flux-2-klein-4b", label:"FLUX.2 [klein] 4B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-4b",
-   sc:null, desc:"Version légère de FLUX.2 klein (4 milliards de paramètres), plus rapide et plus économique ; hébergée gratuitement par Cloudflare Workers AI."},
+   sc:null, edit:true, desc:"Version légère de FLUX.2 klein (4 milliards de paramètres), plus rapide et plus économique ; hébergée gratuitement par Cloudflare Workers AI."},
   {id:"hf-flux-2-klein-9b", hidden:true, label:"FLUX.2 [klein] 9B · HF", vendor:"bfl", family:"kleinhf", gen:"img", via:"HF ZeroGPU",
-   sc:null, desc:"FLUX.2 klein 9B servi par le Space officiel Black Forest Labs (variante KV optimisée), gratuit via Hugging Face ZeroGPU, sans token. ~13 s/image."},
+   sc:null, edit:true, desc:"FLUX.2 klein 9B servi par le Space officiel Black Forest Labs (variante KV optimisée), gratuit via Hugging Face ZeroGPU, sans token. ~13 s/image."},
   {id:"hf-flux-2-klein-4b", hidden:true, label:"FLUX.2 [klein] 4B · HF", vendor:"bfl", family:"kleinhf", gen:"img", via:"HF ZeroGPU",
-   sc:null, desc:"FLUX.2 klein 4B sur le Space officiel Black Forest Labs, gratuit via Hugging Face ZeroGPU, sans token. Le plus rapide (~2-5 s/image)."},
+   sc:null, edit:true, desc:"FLUX.2 klein 4B sur le Space officiel Black Forest Labs, gratuit via Hugging Face ZeroGPU, sans token. Le plus rapide (~2-5 s/image)."},
   {id:"hf-flux-3-klein", label:"FLUX.3 [klein]", vendor:"bfl", family:"klein3", gen:"img", via:"HF ZeroGPU",
-   sc:null, desc:"FLUX.3 Klein, le dernier modèle image de Black Forest Labs, sur son Space officiel : jusqu'à 2K, édition avec images de référence, gratuit via Hugging Face ZeroGPU, sans token. ~10 s en 1K, ~30 s en 2K."},
+   sc:null, edit:true, desc:"FLUX.3 Klein, le dernier modèle image de Black Forest Labs, sur son Space officiel : jusqu'à 2K, édition avec images de référence, gratuit via Hugging Face ZeroGPU, sans token. ~10 s en 1K, ~30 s en 2K."},
   {id:"ideogram-v4", label:"Ideogram v4", vendor:"ideogram", family:"ideo", gen:"img", via:"HF ZeroGPU",
    sc:null, desc:"Ideogram v4 (Space officiel ideogram-ai), excellent en typographie et couleurs, gratuit via Hugging Face ZeroGPU, sans token. ~20-30 s/image."},
   /* Arena — le canal direct entre cette application et Arena : aucun service de
@@ -1907,10 +1914,15 @@ function selectModel(m){
   updateHint();
   const imgGen = m.gen==="img";
   const vidGen = m.gen==="vid";
-  attachBtn.style.display = (imgGen && m.id!=="po-gpt-image-2") ? "none" : "";
+  /* Les modèles qui savent ÉDITER gardent le trombone : l'image jointe part
+     comme image de référence (une seule, jamais l'historique). Les autres
+     générateurs n'en ont pas besoin. */
+  const canEdit = !!(m.edit || m.id==="po-gpt-image-2");
+  attachBtn.style.display = (imgGen && !canEdit) ? "none" : "";
   imgMenu.hidden = true;
   promptEl.placeholder = vidGen ? "Décris la scène à animer…"
-    : (imgGen ? "Décris l’image à générer…" : "Demandez à l’IA…");
+    : (imgGen ? (canEdit ? "Décris l’image, ou joins-en une à modifier…" : "Décris l’image à générer…")
+              : "Demandez à l’IA…");
 }
 renderModelBtn();
 
@@ -3152,7 +3164,7 @@ document.addEventListener("click", function(e){
   }else if(t.classList.contains("iback")){
     const im=IMG_STORE[t.getAttribute("data-iid")]; if(!im) return;
     pendingAudio=null;
-    pendingImage={name:im.name, b64:im.b64, small:im.small, mime:im.mime, kb:Math.max(1,Math.round(im.b64.length*0.75/1024))};
+    pendingImage={name:im.name, b64:im.b64, small:im.small, tiny:im.tiny, mime:im.mime, kb:Math.max(1,Math.round(im.b64.length*0.75/1024))};
     if(typeof setAttachImage==="function") setAttachImage(pendingImage); else renderPending();
   }else if(t.classList.contains("aback")){
     const a=AUDIO_STORE[t.getAttribute("data-aid")]; if(!a) return;
@@ -3179,11 +3191,17 @@ async function submitImage(text){
   let clock=null;
   const showWait=()=>{ stopImgClock(clock); bubble.innerHTML=imgWaitHTML(); clock=startImgClock(bubble); };
   showWait();
+  /* Une seule image part : celle qui vient d'être jointe. `image` est
+     l'original (édition HF / ModelScope), `image_tiny` sa copie 496 px pour
+     Cloudflare (FLUX.2 klein exige des références plus petites que 512 px). */
+  let tiny = snapshot ? (snapshot.tiny || "") : "";
+  if (snapshot && !tiny) { try { tiny = await tinyFromB64(snapshot.b64); } catch(e) { tiny = ""; } }
   const spec={
     model: current.id,
     prompt: text,
     params: cleanParams(current.id),
     image: snapshot ? snapshot.b64 : undefined,
+    image_tiny: tiny || undefined,
   };
   const tryGen=async(sp)=>{
     const r=await fetch(API_BASE+"/api/image",{
@@ -4149,6 +4167,27 @@ function renderPending(){
   updateHint();
 }
 
+/* Réduit une image déjà en mémoire à 496 px de côté au plus (référence
+   Cloudflare). Rend une promesse de base64 JPEG. */
+function tinyFromB64(b64){
+  return new Promise((res,rej)=>{
+    try{
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const T=496, k=Math.min(1,T/Math.max(img.naturalWidth||1,img.naturalHeight||1));
+          const w=Math.max(1,Math.round((img.naturalWidth||1)*k)), h=Math.max(1,Math.round((img.naturalHeight||1)*k));
+          const c=document.createElement("canvas"); c.width=w; c.height=h;
+          const x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,w,h);
+          x.drawImage(img,0,0,w,h);
+          res(c.toDataURL("image/jpeg",0.9).split(",")[1]);
+        }catch(e){ rej(e); }
+      };
+      img.onerror=()=>rej(new Error("image illisible"));
+      img.src="data:image/png;base64,"+b64;
+    }catch(e){ rej(e); }
+  });
+}
 /* L'image d'ORIGINE est conservée telle quelle (affichage + sauvegarde) :
    seule une copie réduite (small) part vers les modèles — avant, tout était
    ré-encodé en 1280 px, d'où la perte de qualité (et les GIF figés). */
@@ -4179,7 +4218,18 @@ function fileToImage(file){
           x.drawImage(img,0,0,w,h);
           let small=c.toDataURL("image/png").split(",")[1];
           if(small.length>2000000) small=c.toDataURL("image/jpeg",0.9).split(",")[1];
-          resolve({name:file.name, b64:origB64, mime:mime, small:small,
+          /* Copie minuscule (496 px max) : Cloudflare refuse les références
+             de 512 px et plus. Elle ne sert qu'à l'édition FLUX.2 klein. */
+          let tiny="";
+          try{
+            const T=496, r2=Math.min(1,T/Math.max(img.naturalWidth||w,img.naturalHeight||h));
+            const tw=Math.max(1,Math.round(w*r2)), th=Math.max(1,Math.round(h*r2));
+            const c2=document.createElement("canvas"); c2.width=tw; c2.height=th;
+            const x2=c2.getContext("2d"); x2.fillStyle="#fff"; x2.fillRect(0,0,tw,th);
+            x2.drawImage(img,0,0,tw,th);
+            tiny=c2.toDataURL("image/jpeg",0.9).split(",")[1];
+          }catch(e){ tiny=""; }
+          resolve({name:file.name, b64:origB64, mime:mime, small:small, tiny:tiny,
             kb:Math.round(origB64.length*0.75/1024)});
         }catch(err){ reject(err); }
       };
@@ -4283,7 +4333,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P109</p>
+      <p class="setver">Version P110</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -4359,6 +4409,11 @@ function fileToImage(file){
         <div id="dislist"><p class="setnote">Lecture…</p></div>
         <p class="setnote" id="distamp" style="margin-top:14px"></p>
         <button type="button" class="linkbtn" id="distestall" style="margin-top:6px">Tout tester</button>
+      </section>
+      <section class="setsec" id="discredsec">
+        <h3>Crédits</h3>
+        <div id="discredits"><p class="setnote">Lecture…</p></div>
+        <p class="setnote" id="discredstamp" style="margin-top:10px"></p>
       </section>
     </div>
     <div class="setwrap" id="setcanal" hidden>
@@ -5696,7 +5751,7 @@ function setAttachImage(im){
   /* comme un chargement depuis l'appareil : l'image se place à côté */
   if(!pendingFiles.some(f=>f.kind==="image"&&f.b64===im.b64)){
     if(pendingFiles.filter(f=>f.kind==="image").length>=4){ alert("Maximum 4 images par message."); return; }
-    pendingFiles.push({kind:"image", name:im.name, b64:im.b64, small:im.small, mime:im.mime, kb:im.kb||0});
+    pendingFiles.push({kind:"image", name:im.name, b64:im.b64, small:im.small, tiny:im.tiny, mime:im.mime, kb:im.kb||0});
   }
   syncMirrors(); renderPending();
 }
@@ -8352,6 +8407,7 @@ function dispoLoad(){
       if (!d || !d.ok) throw new Error((d && d.error) || "réponse illisible");
       DISPO.list = d.secrets || [];
       dispoRender();
+      dispoCredits();
       if (stamp) stamp.textContent = DISPO.list.length + " secrets · " + DISPO.list.filter(function (x) { return x.present; }).length + " présents.";
     })
     .catch(function (e) {
@@ -8362,6 +8418,44 @@ function dispoLoad(){
 /* Un bouton par secret : ▶ au repos, un cercle qui tourne pendant l’essai,
    puis une fiche verte ou une croix rouge. Cliquer sur le résultat ouvre
    le détail, avec de quoi le copier. */
+/* Crédits qui restent : ModelScope (solde Magicubes, lu par son API) et
+   Cloudflare (neurones consommés aujourd'hui, comptés à chaque appel).
+   Aucun chiffre n'est inventé : quand une API ne répond pas, on le dit. */
+function dispoCredits(){
+  const box=document.getElementById("discredits");
+  const stamp=document.getElementById("discredstamp");
+  if(!box) return;
+  fetch(API_BASE+"/api/credits",{headers:agtHeaders(),cache:"no-store"})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d||!d.ok) throw new Error((d&&d.error)||"réponse illisible");
+      const ms=d.modelscope||{}, cf=d.cloudflare||{};
+      const bal=ms.balance||null;
+      const dispo=(bal&&bal.available!=null)?bal.available:null;
+      const total=(bal&&bal.total!=null)?bal.total:null;
+      const nf=function(v){ return v==null?"—":(Math.round(Number(v)*100)/100).toLocaleString("fr-FR"); };
+      let h='<div class="crgrid">';
+      if(dispo!=null){
+        h+='<div class="cred"><span>ModelScope</span><b>'+nf(dispo)+'</b><em>Magicubes disponibles'
+          +(total!=null?(' sur '+nf(total)):'')+'<br>≈ '+Math.floor(Number(dispo))+' image(s) Qwen 2.1</em></div>';
+      }else{
+        h+='<div class="cred ko"><span>ModelScope</span><b>Indisponible</b><em>'+esc(String(ms.error||"solde non lisible pour l'instant"))+'</em></div>';
+      }
+      if(cf.mesure){
+        h+='<div class="cred"><span>Cloudflare · neurones</span><b>'+nf(cf.restant)+'</b><em>restants sur '+nf(cf.gratuit)
+          +' aujourd’hui<br>'+nf(cf.neurones)+' consommés par l’app</em></div>';
+      }else{
+        h+='<div class="cred ko"><span>Cloudflare · neurones</span><b>En attente</b><em>le compteur se remplit au premier appel d’image Workers AI</em></div>';
+      }
+      h+='</div>';
+      box.innerHTML=h;
+      if(stamp) stamp.textContent="ModelScope : solde et crédits du jour. Cloudflare : 10 000 neurones gratuits par jour, mesurés sur les appels de l’application.";
+    })
+    .catch(function(e){
+      box.innerHTML='<p class="setnote">Crédits illisibles : '+esc(String((e&&e.message)||e))+'</p>';
+      if(stamp) stamp.textContent="";
+    });
+}
 function dispoBtn(html, cls, title){
   return '<button type="button" class="disbtn ' + cls + '" title="' + esc(title) + '">' + html + '</button>';
 }
