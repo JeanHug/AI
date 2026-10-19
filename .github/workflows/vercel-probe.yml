@@ -1,0 +1,62 @@
+name: vercel-probe
+# Essai manuel : le jeton Vercel peut-il déployer une application ?
+# Aucune valeur de jeton n'est affichée : seulement les codes HTTP et le nom
+# du projet créé, puis le déploiement est supprimé.
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Identité du jeton
+        env:
+          VK: ${{ secrets.VERCEL_API_KEY }}
+        run: |
+          if [ -z "$VK" ]; then echo "jeton absent"; exit 0; fi
+          code=$(curl -s -o /tmp/u.json -w "%{http_code}" -H "Authorization: Bearer $VK" https://api.vercel.com/v2/user)
+          echo "user_status=$code"
+          python3 - <<'PY'
+          import json
+          try:
+              d=json.load(open('/tmp/u.json'))
+          except Exception:
+              d={}
+          u=d.get('user') or {}
+          print('username=', u.get('username'))
+          print('email_present=', bool(u.get('email')))
+          print('error=', (d.get('error') or {}).get('message'))
+          PY
+      - name: Déploiement statique minimal
+        env:
+          VK: ${{ secrets.VERCEL_API_KEY }}
+        run: |
+          if [ -z "$VK" ]; then echo "jeton absent"; exit 0; fi
+          python3 - <<'PY'
+          import json
+          html='<!doctype html><meta charset="utf-8"><title>probe</title><h1>ok</h1>'
+          body={"name":"ai-probe","files":[{"file":"index.html","data":html}],
+                "projectSettings":{"framework":None},"target":"production"}
+          open('/tmp/dep.json','w').write(json.dumps(body))
+          PY
+          code=$(curl -s -o /tmp/dr.json -w "%{http_code}" -X POST https://api.vercel.com/v13/deployments \
+            -H "Authorization: Bearer $VK" -H "Content-Type: application/json" -d @/tmp/dep.json)
+          echo "deploy_status=$code"
+          python3 - <<'PY'
+          import json
+          try:
+              d=json.load(open('/tmp/dr.json'))
+          except Exception:
+              d={}
+          print('url=', d.get('url'))
+          print('id=', d.get('id'))
+          print('deploy_error=', (d.get('error') or {}).get('message'))
+          open('/tmp/did','w').write(str(d.get('id') or ''))
+          PY
+      - name: Suppression du déploiement
+        env:
+          VK: ${{ secrets.VERCEL_API_KEY }}
+        run: |
+          ID=$(cat /tmp/did 2>/dev/null || true)
+          if [ -z "$ID" ] || [ -z "$VK" ]; then echo "rien à supprimer"; exit 0; fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE -H "Authorization: Bearer $VK" "https://api.vercel.com/v13/deployments/$ID")
+          echo "delete_status=$code"
