@@ -184,6 +184,32 @@ main{flex:1 1 auto;overflow-y:auto;padding:26px 20px 34px}
 .zone-render{padding:0;background:#fff;min-height:90px}
 .zone-frame{display:block;width:100%;height:340px;border:0;background:#fff}
 /* --- boutons d'action sous les messages ------------------------------ */
+/* ---------- feuille « Téléchargement » (secours universel) ---------- */
+.dlmask{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-end;justify-content:center;
+  padding:18px;background:rgba(17,17,16,.42);animation:lbin .16s ease}
+.dlcard{width:100%;max-width:420px;background:#fff;border-radius:16px;padding:18px 18px 14px;
+  box-shadow:0 18px 60px rgba(0,0,0,.22);animation:dlup .2s cubic-bezier(.2,.8,.3,1) both}
+@keyframes dlup{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+.dlcard h4{margin:0 0 3px;font-size:14.5px;font-weight:650;line-height:1.35;overflow-wrap:anywhere}
+.dlmeta{margin:0 0 13px;font:12px var(--mono);color:var(--ink-3)}
+.dlbig{display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:11px;
+  background:var(--ink);color:#fff;text-decoration:none;font-size:14px;font-weight:600}
+.dlbig svg{width:16px;height:16px}
+.dlrow{display:flex;gap:8px;margin-top:9px}
+.dlrow a,.dlrow button{flex:1 1 0;height:38px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit;
+  font-size:12.5px;text-decoration:none;cursor:pointer}
+.dlnote{margin:11px 0 0;font-size:12px;line-height:1.5;color:var(--ink-3)}
+.dlclose{width:100%;margin-top:11px;height:36px;border:0;border-radius:10px;background:#f4f4f6;
+  color:var(--ink-2);font:inherit;font-size:12.5px;cursor:pointer}
+/* Rappel discret après un téléchargement : un lien reste à portée de main. */
+.dlhint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:78;
+  display:flex;align-items:center;gap:10px;max-width:min(92vw,440px);
+  padding:9px 10px 9px 14px;border-radius:12px;background:#111113;color:#fff;
+  box-shadow:0 10px 30px rgba(0,0,0,.28);font-size:12.5px;animation:toastIn .25s both}
+.dlhint button{border:0;border-radius:8px;background:#fff;color:#111;font:inherit;font-size:12px;
+  font-weight:600;padding:6px 11px;cursor:pointer;white-space:nowrap}
+.dlhint.out{animation:toastOut .3s ease both}
 .macts{display:flex;gap:6px;margin-top:10px}
 .mact,.iact{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
   border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink-2);cursor:pointer;padding:0}
@@ -2813,18 +2839,8 @@ function renderAudioPlayer(b64, mime, fname){
 }
 function saveAudio(id){
   const a=AUDIO_STORE[id]; if(!a) return false;
-  if(window.navigator && typeof window.navigator.msSaveOrOpenBlob==="function"){
-    window.navigator.msSaveOrOpenBlob(a.blob, a.name); return true;
-  }
-  try{
-    const link=document.createElement("a");
-    link.href=a.url; link.download=a.name; link.rel="noopener";
-    link.style.display="none";
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(function(){ try{ link.remove(); }catch(e){} }, 4000);
-    return true;
-  }catch(e){ return false; }
+  /* Même moteur que les images et les vidéos : cascade + lien de secours. */
+  return zDownload(a.blob, a.mime, a.name);
 }
 document.addEventListener("click", function(e){
   const btn=e.target && e.target.closest ? e.target.closest("button.auddl") : null;
@@ -2844,6 +2860,134 @@ function b64ToBlob(b64, mime){
   const bin=atob(b64); const u8=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
   return new Blob([u8],{type:mime||"image/jpeg"});
+}
+/* --- un seul moteur de téléchargement, pour tous les fichiers -----------
+   Pourquoi : `a.download` est ignoré sur iOS avant 13 et sur les vieux
+   Android ; les liens `data:` y sont refusés ; un <a> jamais attaché au
+   document ne déclenche rien sous Firefox ancien. On n'en choisit donc
+   aucun : on les essaie dans l'ordre, et on laisse TOUJOURS un lien
+   temporaire visible (valable dix minutes), ouvrable, copiable, que même
+   un navigateur d'avant ne peut pas rater. */
+const ZDL_KEEP={}; let ZDL_SEQ=0;
+function zDlSize(n){
+  if(!n) return "";
+  return n>=1048576 ? (Math.round(n/104857.6)/10).toFixed(1).replace(".",",")+" Mo"
+                    : Math.max(1,Math.round(n/1024))+" ko";
+}
+function zDlMake(src, mime, name){
+  let blob=src, b64="";
+  if(typeof src==="string"){ b64=src; blob=b64ToBlob(src, mime); }
+  else if(src instanceof Uint8Array) blob=new Blob([src],{type:mime||"application/octet-stream"});
+  else if(src && src.blob) blob=src.blob;
+  if(blob && !blob.type && mime){ try{ blob=new Blob([blob],{type:mime}); }catch(e){} }
+  return {blob:blob, b64:b64, mime:(blob&&blob.type)||mime||"application/octet-stream",
+          name:name||("fichier-"+Date.now())};
+}
+function zDlUrl(b64, blob, mime){
+  try{ if(typeof URL!=="undefined"&&URL.createObjectURL) return URL.createObjectURL(blob); }catch(e){}
+  try{ if(window.webkitURL&&webkitURL.createObjectURL) return webkitURL.createObjectURL(blob); }catch(e){}
+  /* Très vieux moteur : le lien data: est tout ce qui reste. */
+  if(b64) return "data:"+(mime||"application/octet-stream")+";base64,"+b64;
+  return null;
+}
+function zDlCopy(text){
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+  }catch(e){}
+  return new Promise(function(res,rej){
+    try{
+      const t=document.createElement("textarea");
+      t.value=text; t.setAttribute("readonly","");
+      t.style.position="fixed"; t.style.top="-1000px"; t.style.opacity="0";
+      document.body.appendChild(t); t.select(); t.setSelectionRange(0,t.value.length);
+      const ok=document.execCommand&&document.execCommand("copy");
+      document.body.removeChild(t);
+      ok?res(true):rej(new Error("copie refusée"));
+    }catch(e){ rej(e); }
+  });
+}
+/* La feuille de secours : nom, taille, gros bouton, lien, copie. */
+function zDlSheet(url, f, why){
+  let box=document.getElementById("dlsheet");
+  if(box){ try{ box.parentNode.removeChild(box); }catch(e){} }
+  box=document.createElement("div");
+  box.id="dlsheet"; box.className="dlmask";
+  const touch=/iPad|iPhone|iPod/.test(navigator.userAgent||"");
+  box.innerHTML=
+    '<div class="dlcard" role="dialog" aria-modal="true" aria-label="Téléchargement">'+
+      '<h4>'+esc(f.name)+'</h4>'+
+      '<p class="dlmeta">'+esc(f.mime||"fichier")+(f.size?(" · "+zDlSize(f.size)):"")+'</p>'+
+      (url
+        ? '<a class="dlbig" id="dlbig" href="'+url+'" download="'+esc(f.name)+'" rel="noopener">'+IC_DL+' Enregistrer le fichier</a>'+
+          '<div class="dlrow"><a id="dlopen" href="'+url+'" target="_blank" rel="noopener">Ouvrir dans un onglet</a>'+
+          '<button type="button" id="dlcopyx">Copier le lien</button></div>'
+        : '<p class="dlnote">Ce navigateur ne sait pas préparer de lien pour ce fichier. Ouvre-le depuis l\'aperçu, puis utilise « Enregistrer l\'image ».</p>')+
+      '<p class="dlnote">'+(why||"")+(touch
+        ? ' Sur iPhone ou iPad : appui long sur le bouton, puis « Télécharger le fichier lié ».'
+        : ' Si le bouton ne fait rien, touche « Ouvrir dans un onglet » puis enregistre la page.')+
+        ' Ce lien reste valable tant que la page est ouverte (dix minutes).</p>'+
+      '<button type="button" class="dlclose" id="dlclose">Fermer</button>'+
+    '</div>';
+  document.body.appendChild(box);
+  const close=function(){ try{ box.parentNode.removeChild(box); }catch(e){} };
+  box.addEventListener("click",function(e){ if(e.target===box) close(); });
+  const c=document.getElementById("dlclose"); if(c) c.onclick=close;
+  const cp=document.getElementById("dlcopyx");
+  if(cp) cp.onclick=function(){
+    zDlCopy(url).then(function(){ cp.textContent="Lien copié ✓"; })
+      .catch(function(){ cp.textContent="Copie impossible"; });
+  };
+  return box;
+}
+/* Rappel après un téléchargement lancé : le lien reste à portée de main. */
+function zDlHint(url, f){
+  let old=document.getElementById("dlhint");
+  if(old){ try{ old.parentNode.removeChild(old); }catch(e){} }
+  const el=document.createElement("div");
+  el.id="dlhint"; el.className="dlhint";
+  el.innerHTML='<span>Fichier prêt.</span><button type="button">Rien ne s\'ouvre ?</button>';
+  document.body.appendChild(el);
+  const kill=function(){ try{ el.classList.add("out"); setTimeout(function(){ try{ el.remove(); }catch(e){} },320); }catch(e){} };
+  el.querySelector("button").onclick=function(){ kill(); zDlSheet(url, f); };
+  setTimeout(kill, 9000);
+}
+/* Cascade : msSaveOrOpenBlob → <a download> attaché → feuille de secours. */
+function zDlGo(url, name, mime, opts){
+  opts=opts||{};
+  const nav=window.navigator||{};
+  if(nav.msSaveOrOpenBlob&&opts.blob){
+    try{ nav.msSaveOrOpenBlob(opts.blob, name); return true; }catch(e){}
+  }
+  if(!url) return false;
+  const a=document.createElement("a");
+  const canDownload=("download" in a);
+  let ok=false;
+  if(canDownload&&!opts.forceSheet){
+    try{
+      a.href=url; a.download=name; a.rel="noopener"; a.style.display="none";
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ try{ a.remove(); }catch(e){} }, 2000);
+      ok=true;
+    }catch(e){ ok=false; }
+  }
+  /* L'URL reste vivante : un blob révoqué trop tôt donne une page blanche. */
+  if(url.slice(0,5)==="blob:"){
+    const id="z"+(++ZDL_SEQ);
+    ZDL_KEEP[id]=url;
+    setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){} delete ZDL_KEEP[id]; }, 600000);
+  }
+  const f={name:name, mime:mime||"", size:opts.size||0};
+  if(!canDownload||opts.forceSheet) zDlSheet(url, f, opts.why||"Ce navigateur ne déclenche pas le téléchargement tout seul.");
+  else zDlHint(url, f);
+  return ok;
+}
+function zDownload(src, mime, name, opts){
+  const f=zDlMake(src, mime, name);
+  if(!f.blob) return false;
+  const nav=window.navigator||{};
+  if(nav.msSaveOrOpenBlob){ try{ nav.msSaveOrOpenBlob(f.blob, f.name); return true; }catch(e){} }
+  const url=zDlUrl(f.b64, f.blob, f.mime);
+  return zDlGo(url, f.name, f.mime, Object.assign({blob:f.blob, size:f.blob.size}, opts||{}));
 }
 function toPngBlob(blob){
   return new Promise((res,rej)=>{
@@ -2992,11 +3136,7 @@ document.addEventListener("click", function(e){
   }
   if(t.classList.contains("vdl")){
     const v=VID_STORE[t.getAttribute("data-vid")]; if(!v) return;
-    const url=URL.createObjectURL(b64ToBlob(v.b64, v.mime));
-    const a=document.createElement("a");
-    a.href=url; a.download=v.name; a.rel="noopener"; a.style.display="none";
-    document.body.appendChild(a); a.click();
-    setTimeout(function(){ try{ a.remove(); URL.revokeObjectURL(url); }catch(e2){} },4000);
+    zDownload(v.b64, v.mime||"video/mp4", v.name);
     return;
   }
   if(t.classList.contains("icopy")){
@@ -3008,11 +3148,7 @@ document.addEventListener("click", function(e){
     }).catch(()=>{});
   }else if(t.classList.contains("idl")){
     const im=IMG_STORE[t.getAttribute("data-iid")]; if(!im) return;
-    const url=URL.createObjectURL(b64ToBlob(im.b64, im.mime));
-    const a=document.createElement("a");
-    a.href=url; a.download=im.name; a.rel="noopener"; a.style.display="none";
-    document.body.appendChild(a); a.click();
-    setTimeout(function(){ try{ a.remove(); URL.revokeObjectURL(url); }catch(e2){} },4000);
+    zDownload(im.b64, im.mime||"image/png", im.name);
   }else if(t.classList.contains("iback")){
     const im=IMG_STORE[t.getAttribute("data-iid")]; if(!im) return;
     pendingAudio=null;
@@ -4147,7 +4283,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P108</p>
+      <p class="setver">Version P109</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -6727,7 +6863,9 @@ async function agtOpenFile(path, name){
     return b;
   };
   const dlBtn=(url,fname)=>mkBtn("Télécharger",()=>{
-    const a=document.createElement("a"); a.href=url; a.download=fname; a.click();
+    /* Le lien peut être un blob d'aperçu : on le passe au moteur commun,
+       qui garde une feuille de secours si le navigateur ne suit pas. */
+    zDlGo(url, fname, "", {why:"Le fichier est prêt."});
   });
   const codeToggle=(mainEl,content2)=>{
     const code=document.createElement("div");
