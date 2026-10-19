@@ -3847,7 +3847,7 @@ const CFG_FIELDS = {
     {k:"temperature", label:"Température (0,5 à 1)", type:"num", min:0.5, max:1, step:0.05, ph:"0,75"},
   ],
   ifm: [
-    {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:16, max:32768, ph:"défaut modèle"},
+    {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:16, max:524000, def:524000, ph:"524000 (maximum)"},
     {k:"temperature", label:"Température (0 à 2)", type:"num", min:0, max:2, step:0.05, ph:"défaut modèle"},
   ],
   claude: [
