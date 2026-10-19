@@ -3378,7 +3378,7 @@ const HF_CFG = {
     host:"https://black-forest-labs-flux-3-image-klein.hf.space", api:"generate",
     w:[512,2048,64], h:[512,2048,64], s:[1,50,16],
     modes:["Distilled (16 steps)","Base (50 steps)"],
-    data:(p,w,h,s,g,mode)=>[p,[],mode||"Distilled (16 steps)",0,true,w,h,s===undefined?16:s,g===undefined?1.0:g,true],
+    data:(p,w,h,s,g,mode,params)=>[p,[],mode||"Distilled (16 steps)",0,true,w,h,s===undefined?16:s,g===undefined?1.0:g,!!(params&&(params.upsample===true||params.upsample==="oui"))],
   },
   "ideogram-v4": {
     host:"https://ideogram-ai-ideogram4.hf.space", api:"generate",
@@ -3409,7 +3409,7 @@ async function hfLocal(cfg, text, params){
   const mode=cfg.modes ? (cfg.modes.indexOf(params.mode)>=0?params.mode:cfg.modes[0]) : undefined;
   const post=await fetch(cfg.host+"/gradio_api/call/"+cfg.api,{
     method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({data:cfg.data(text,w,h,s,g,mode)}),
+    body:JSON.stringify({data:cfg.data(text,w,h,s,g,mode,params)}),
   });
   if(!post.ok) throw new Error("Space HF HTTP "+post.status+" (appel direct)");
   const ev=(await post.json()).event_id;
@@ -3696,6 +3696,9 @@ const CFG_FIELDS = {
      note:"Pixels calculés depuis le ratio et la qualité (Space officiel BFL, multiples de 64)."},
     {k:"tier", label:"Qualité", type:"tier",
      note:"Sans compte Hugging Face, ZeroGPU plafonne à 2048 px de côté : le 4K demanderait un compte PRO."},
+    {k:"upsample", label:"Amélioration du prompt", type:"chips", def:"non",
+     opts:["non", "oui"], labels:{non:"non", oui:"oui"},
+     note:"Non (défaut) : le prompt part tel quel, mot pour mot. Oui : le Space l'enrichit avant de générer."},
     {k:"mode", label:"Mode", type:"select", ph:"Distilled (16 steps)",
      opts:["Distilled (16 steps)", "Base (50 steps)"],
      note:"Distilled = 16 étapes, rapide. Base = 50 étapes, plus lent et plus fin."},
@@ -3881,7 +3884,7 @@ function openSettings(m){
         const b=document.createElement("button");
         b.type="button"; b.className="reschip";
         b.textContent=(f.labels&&f.labels[o])||o||"Défaut";
-        b.setAttribute("aria-pressed", ((SETTINGS[m.id][f.k]||"")===o)?"true":"false");
+        b.setAttribute("aria-pressed", ((SETTINGS[m.id][f.k] ?? f.def ?? "")===o)?"true":"false");
         b.onclick=()=>{
           SETTINGS[m.id][f.k]= o||null; saveSettings(m.id);
           for(const x of wrap.children) x.setAttribute("aria-pressed", x===b?"true":"false");
@@ -4144,7 +4147,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P107</p>
+      <p class="setver">Version P108</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
