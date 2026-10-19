@@ -475,6 +475,12 @@ footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:12
   background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a92' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 8px center}
 .field .note{margin:6px 0 0;font-size:11.5px;color:var(--ink-3);line-height:1.5}
+/* Résolution : pastilles dessinées par l'app (jamais de menu natif). */
+.resrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.reschip{font-family:var(--mono);font-size:11.5px;padding:6px 10px;border-radius:999px;
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);cursor:pointer;transition:.12s}
+.reschip:hover{border-color:#c7c7cf;color:var(--ink)}
+.reschip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
 .sw{
   position:relative;width:38px;height:22px;flex:0 0 auto;border-radius:999px;
   border:1px solid var(--line);background:#ececf0;cursor:pointer;transition:.15s;padding:0;
@@ -1963,20 +1969,37 @@ function anchorImage(prompt, kind, snap){
    (générées ET jointes) — c'est la mémoire visuelle de l'IA. Sans ça, le
    modèle « oublie » l'image dès le message suivant. Les versions réduites
    (small) sont calculées à la volée et mises en cache. */
+/* Transfert FIDÈLE : on envoie les octets d'origine, pas la miniature. La
+   miniature ne sert que de secours quand l'original dépasserait la limite
+   du relais (le corps de /api/chat est plafonné à 6 Mo). */
+const SEND_IMG_MAX = 2900000;      /* ~2,2 Mo une fois décodé */
+const SEND_ONE_MAX = 4800000;
+function sendB64(snap, max){
+  if(!snap) return "";
+  const b=String(snap.b64||"");
+  if(b && b.length <= (max||SEND_IMG_MAX)) return b;
+  return String(snap.small||b);
+}
 async function collectSendImages(kind, snapshot){
   const out=[]; const seen=new Set();
+  /* Budget global : le corps d'une requête /api/chat est plafonné à 6 Mo,
+     on garde une marge. Au-delà, la miniature prend le relais. */
+  let budget = 5200000;
   const push=(name,b64,mime)=>{
-    if(!b64||seen.has(b64)) return;
-    seen.add(b64);
-    out.push({name:name||"image", b64, mime:mime||"image/png"});
+    let v=String(b64||"");
+    if(!v||seen.has(v)) return;
+    if(v.length > budget) return;
+    budget -= v.length;
+    seen.add(v);
+    out.push({name:name||"image", b64:v, mime:mime||"image/png"});
   };
   for(const m of conv){
-    if(m.images) for(const im of m.images) push(im.name, im.small||im.b64, im.mime);
+    if(m.images) for(const im of m.images) push(im.name, sendB64(im), im.mime);
   }
   if(typeof pendingFiles!=="undefined") for(const f of pendingFiles){
-    if(f.kind==="image") push(f.name, f.small||f.b64, "image/png");
+    if(f.kind==="image") push(f.name, sendB64(f), f.mime||"image/png");
   }
-  if(kind==="upload" && snapshot) push(snapshot.name, snapshot.small||snapshot.b64, "image/png");
+  if(kind==="upload" && snapshot) push(snapshot.name, sendB64(snapshot), snapshot.mime||"image/png");
   if(!out.length) return undefined;
   return out.slice(-3);
 }
@@ -2345,7 +2368,7 @@ async function submit(){
   const spec={
     model: current.id,
     prompt: anchorImage(buildPrompt(conv, text), kind, snapshot)+collectFileNotes(),
-    image: kind==="upload" ? (snapshot.small||snapshot.b64) : (kind==="black" ? blackImageB64() : WHITE_PX),
+    image: kind==="upload" ? sendB64(snapshot, SEND_ONE_MAX) : (kind==="black" ? blackImageB64() : WHITE_PX),
     image_kind: kind==="audio" ? "none" : kind,
     audio: asnapshot ? asnapshot.b64 : undefined,
     audio_mime: asnapshot ? asnapshot.mime : undefined,
@@ -2466,7 +2489,7 @@ async function submitStreaming(text){
   const spec={
     model: current.id,
     prompt: anchorImage(buildPrompt(conv, text), kind, snapshot)+collectFileNotes(),
-    image: kind==="upload" ? (snapshot.small||snapshot.b64) : (kind==="black" ? blackImageB64() : WHITE_PX),
+    image: kind==="upload" ? sendB64(snapshot, SEND_ONE_MAX) : (kind==="black" ? blackImageB64() : WHITE_PX),
     image_kind: kind==="audio" ? "none" : kind,
     audio: asnapshot ? asnapshot.b64 : undefined,
     audio_mime: asnapshot ? asnapshot.mime : undefined,
@@ -3321,7 +3344,9 @@ async function regenVideo(spec, b, pre){
   try{
     const j=await videoWithFallback(spec);
     stopImgClock(clock);
-    renderGenVideo(b, j, spec.prompt, (bb)=>regenVideo(spec,bb,pre), pre, true);
+    const vid=renderGenVideo(b, j, spec.prompt, (bb)=>regenVideo(spec,bb,pre), pre, true);
+    /* La vidéo recommencée est enregistrée comme les autres. */
+    if(typeof FB!=="undefined"&&FB.afterVideo) FB.afterVideo({userText:spec.prompt, id:vid, via:j.via});
   }catch(err){
     stopImgClock(clock);
     b.innerHTML='<div class="err">'+esc(String(err && err.message ? err.message : err))+'</div>';
@@ -3575,9 +3600,15 @@ const CFG_FIELDS = {
     {k:"max_tokens", label:"Tokens max en sortie", type:"int", min:1, max:128000, ph:"défaut modèle"},
   ],
   msimg: [
-    {k:"width", label:"Largeur (px)", type:"int", min:512, max:1440, step:64, ph:"1024",
-     note:"ModelScope : côtés entre 512 et 1440 px, multiples de 64."},
-    {k:"height", label:"Hauteur (px)", type:"int", min:512, max:1440, step:64, ph:"1024"},
+    /* La résolution part chez ModelScope dans le champ « size »
+       (« largeurxhauteur ») : vérifié dans la documentation de l'API
+       /images/generations. Qwen Image rend jusqu'à 1664 px de côté ; le
+       réglage s'ouvre par appui long sur le nom du modèle, en haut. */
+    {k:"resolution", label:"Résolution", type:"chips",
+     opts:["", "1024x1024", "1328x1328", "1664x1664", "1664x928", "928x1664"],
+     labels:{"":"Défaut du modèle", "1024x1024":"1024 × 1024", "1328x1328":"1328 × 1328",
+       "1664x1664":"1664 × 1664", "1664x928":"Paysage 1664 × 928", "928x1664":"Portrait 928 × 1664"},
+     note:"ModelScope accepte une taille précise. 1328 × 1328 est la résolution native de Qwen Image : l'image est deux fois plus détaillée qu'en 1024. L'image est transmise et enregistrée sans aucune recompression."},
   ],
   msvid: [
     {k:"duration", label:"Durée (secondes)", type:"int", min:2, max:6, ph:"4",
@@ -3717,6 +3748,24 @@ function openSettings(m){
         input.setAttribute("aria-checked", on?"true":"false");
         SETTINGS[m.id][f.k]=on; saveSettings(m.id);
       };
+    }else if(f.type==="chips"){
+      /* Liste dessinée par l'app : une pastille par valeur, aucune liste native. */
+      const wrap=document.createElement("div"); wrap.className="resrow";
+      for(const o of f.opts){
+        const b=document.createElement("button");
+        b.type="button"; b.className="reschip";
+        b.textContent=(f.labels&&f.labels[o])||o||"Défaut";
+        b.setAttribute("aria-pressed", ((SETTINGS[m.id][f.k]||"")===o)?"true":"false");
+        b.onclick=()=>{
+          SETTINGS[m.id][f.k]= o||null; saveSettings(m.id);
+          for(const x of wrap.children) x.setAttribute("aria-pressed", x===b?"true":"false");
+        };
+        wrap.appendChild(b);
+      }
+      row.appendChild(lab); row.appendChild(wrap);
+      if(f.note){ const n=document.createElement("p"); n.className="note"; n.textContent=f.note; row.appendChild(n); }
+      cfgBody.appendChild(row);
+      continue;
     }else if(f.type==="select"){
       input=document.createElement("select");
       const d=document.createElement("option");
@@ -4597,30 +4646,19 @@ function loadImgEl(src){
   return new Promise((res,rej)=>{ const im=new Image();
     im.onload=()=>res(im); im.onerror=()=>rej(new Error("image illisible")); im.src=src; });
 }
-/* Firestore plafonne chaque document à 1 Mo. On garde la meilleure qualité
-   possible : 1600 px JPEG 0,92 (au lieu de 1024 px 0,82), GIF animé et PNG
-   léger conservés tels quels (perte nulle). */
-async function shrinkForStore(b64, mime){
-  mime=mime||"image/png";
-  try{
-    if(mime==="image/gif" && b64.length<=900000) return {b64:b64, mime:"image/gif"};
-    if(mime==="image/png" && b64.length<=500000) return {b64:b64, mime:"image/png"};
-    const img=await loadImgEl("data:"+mime+";base64,"+b64);
-    const MAX=1600; let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
-    if(!w||!h) throw new Error("dimensions illisibles");
-    if(Math.max(w,h)>MAX){ const r=MAX/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r); }
-    const c=document.createElement("canvas"); c.width=w; c.height=h;
-    const x=c.getContext("2d"); if(!x) throw new Error("canvas indisponible");
-    x.fillStyle="#fff"; x.fillRect(0,0,w,h); x.drawImage(img,0,0,w,h);
-    let out=c.toDataURL("image/jpeg",0.92);
-    if(out.length>1100000) out=c.toDataURL("image/jpeg",0.78);
-    if(out.length>1100000) out=c.toDataURL("image/jpeg",0.62);
-    const i=out.indexOf(",");
-    return {b64:out.slice(i+1), mime:"image/jpeg"};
-  }catch(e){
-    return b64.length<1100000 ? {b64:b64, mime:mime} : null;
-  }
+/* Sauvegarde SANS PERTE. Un document Firestore est plafonné à ~1 Mio, mais
+   l'app découpe déjà les messages volumineux en morceaux (writeDocChunked) :
+   plus aucune raison de recompresser. On enregistre donc les OCTETS EXACTS,
+   avec leur type d'origine — l'image relue, zoomée ou téléchargée est
+   rigoureusement celle qui a été reçue (même règle pour les vidéos). */
+const STORE_MAX = 22000000;          /* au-delà, même découpé ce serait absurde */
+function storeExact(b64, mime){
+  if(!b64) return null;
+  if(b64.length > STORE_MAX) return null;
+  return {b64:b64, mime:mime||"image/png"};
 }
+/* Nom conservé pour les appels existants : la fonction ne rétrécit plus rien. */
+const shrinkForStore = storeExact;
 function capAudio(a){
   const mime=a.mime||"audio/wav";
   return a.b64.length<=900000 ? {name:a.name, mime:mime, b64:a.b64} : {name:a.name, mime:mime, tooBig:true};
@@ -4704,7 +4742,7 @@ async function afterText(x){
     if(x.kind==="upload"&&x.snap) imgs.push({name:x.snap.name, b64:x.snap.b64, mime:x.snap.mime||"image/png"});
     for(const f of files){ if(f.kind==="image"&&!imgs.some(i=>i.b64===f.b64)) imgs.push({name:f.name, b64:f.b64, mime:f.mime||"image/png"}); }
     for(const im of imgs.slice(0,4)){
-      const sm=await shrinkForStore(im.b64, im.mime||"image/png");
+      const sm=storeExact(im.b64, im.mime||"image/png");
       uDoc.images.push(sm?{name:im.name, b64:sm.b64, mime:sm.mime}:{name:im.name, mime:im.mime||"image/png", tooBig:true});
     }
     if(x.kind==="audio"&&x.asnap) uDoc.audio=capAudio(x.asnap);
@@ -4722,7 +4760,7 @@ async function afterImage(x){
   try{
     await ensureChat(x.userText);
     const im=IMG_STORE[x.id]; if(!im) return;
-    const sm=await shrinkForStore(im.b64, im.mime);
+    const sm=storeExact(im.b64, im.mime);
     const uDoc={role:"user", text:x.userText||"", kind:"imggen", modelName:current.id,
       order:++msgSeq, createdAt:Date.now()};
     const aDoc={role:"assistant", text:"(image générée : "+im.name+" avec "+current.label+")",
@@ -4737,15 +4775,15 @@ async function afterVideo(x){
   try{
     await ensureChat(x.userText);
     const v=VID_STORE[x.id]; if(!v) return;
-    /* Une vidéo ne se recompresse pas ici : au-delà de ~700 Ko de base64 on
-       garde le message et son nom sans le fichier (la bulle ouverte continue
-       de la lire, le rechargement affiche une ligne à la place). */
-    const big=v.b64.length>700000;
+    /* La vidéo est enregistrée elle aussi, OCTET POUR OCTET : le message
+       découpé (writeDocChunked) accepte plusieurs mégaoctets. Une fois
+       rechargée, elle se relit dans son lecteur, comme au premier affichage. */
+    const vs=storeExact(v.b64, v.mime||"video/mp4");
     const uDoc={role:"user", text:x.userText||"", kind:"vidgen", modelName:current.id,
       order:++msgSeq, createdAt:Date.now()};
     const aDoc={role:"assistant", text:"(vidéo générée : "+v.name+" avec "+current.label+")",
       modelName:current.id, order:++msgSeq, createdAt:Date.now(),
-      images:[big?{name:v.name, mime:v.mime, tooBig:true}:{name:v.name, b64:v.b64, mime:v.mime}]};
+      images:[vs?{name:v.name, b64:vs.b64, mime:vs.mime}:{name:v.name, mime:v.mime||"video/mp4", tooBig:true}]};
     await commitPair(uDoc, aDoc);
   }catch(e){ console.warn("sauvegarde vidéo :", e); fbSaveWarn(e); }
 }
