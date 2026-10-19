@@ -2616,6 +2616,10 @@ async function submitStreaming(text){
               bubble.style.whiteSpace="pre-wrap";
               bubble.textContent=acc;
               scrollDown();
+              /* Les états arrivent en rafale (le modèle va vite) : on les
+                 laisse chacun à l'écran un court instant pour que l'œil
+                 voie réellement le déparasitage. Aucun état n'est inventé. */
+              await new Promise(r=>setTimeout(r, 160));
             }
             if(j.fin){ acc=j.t||acc; bubble.classList.remove("diffusing"); bubble.style.whiteSpace=""; bubble.innerHTML=renderMarkdown(acc); scrollDown(); }
             else if(j.t){ acc+=j.t; paint(); }
