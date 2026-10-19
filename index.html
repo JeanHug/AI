@@ -3265,7 +3265,15 @@ async function submitImage(text){
     const rid=renderGenImg(bubble, j, text, (b)=>regenImage(spec,b,pre), pre);
     if(typeof FB!=="undefined"&&FB.afterImage) FB.afterImage({userText:text, id:rid, kind});
   }else if(relayErr){
-    const msg=String(relayErr && relayErr.message ? relayErr.message : relayErr);
+    let msg=String(relayErr && relayErr.message ? relayErr.message : relayErr);
+    /* Deux pannes très lisibles, traduites en clair plutôt qu'en anglais. */
+    if(/daily free allocation|used up your daily|HTTP 429/.test(msg)){
+      msg="Le quota gratuit de Cloudflare pour aujourd'hui est épuisé (10 000 neurones). "
+        +"Choisis Qwen Image 2.1 ou FLUX.3 [klein] pour éditer cette image, ou réessaie demain : le quota se remet à zéro chaque jour.";
+    }else if(/Space HF/.test(msg) && /event: error/.test(msg)){
+      msg="Le Space officiel de ce modèle répond mal pour l'instant (quota ZeroGPU ou service en maintenance). "
+        +"Essaie Qwen Image 2.1, qui passe par ModelScope.";
+    }
     const isNet = relayErr instanceof TypeError;
     bubble.innerHTML='<div class="err">'+esc(isNet
       ? "Impossible de joindre le Worker relais ("+API_BASE+") — "+msg
