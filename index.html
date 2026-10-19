@@ -2572,22 +2572,30 @@ async function submitStreaming(text){
     let acc="";        /* tout ce qui est arrivé du serveur */
     let shown=0;       /* ce qui est déjà à l'écran */
     let paintTimer=null;
+    let lastScroll=0;
+    /* Pendant le flux : TEXTE BRUT, jamais de markdown. Analyser le markdown
+       à chaque trame sur des réponses de plusieurs milliers de caractères
+       saturait le thread du navigateur — l'écran se figeait avec les modèles
+       très rapides (K2 Horizon). Le markdown complet est rendu UNE fois,
+       à la fin. */
     const renderShown=()=>{
-      const txt=acc.slice(0,shown);
-      if(txt.length>HEAVY){ bubble.textContent=txt; bubble.style.whiteSpace="pre-wrap"; }
-      else{ bubble.innerHTML=renderMarkdown(txt); }
-      scrollDown();
+      bubble.style.whiteSpace="pre-wrap";
+      bubble.textContent=acc.slice(0,shown);
+      const now=Date.now();
+      if(now-lastScroll>90){ lastScroll=now; scrollDown(); }
     };
     /* Certains fournisseurs (IFM notamment) envoient de gros blocs d'un coup :
        le texte est bien reçu en flux, mais il apparaîtrait d'un seul tenant.
-       On le déroule donc à l'écran au fil des caractères déjà reçus — jamais
-       au-delà : rien n'est inventé, on ne fait que décaler l'affichage. */
+       On le déroule à l'écran au fil des caractères DÉJÀ reçus — le pas est
+       proportionnel au retard, donc un afflux massif est rattrapé en quelques
+       trames au lieu de s'empiler. */
     const tick=()=>{
       const rest=acc.length-shown;
       if(rest<=0){ paintTimer=null; return; }
-      shown=Math.min(acc.length, shown+Math.max(1, Math.ceil(rest/10)));
+      const step = rest>4000 ? Math.ceil(rest/3) : Math.max(1, Math.ceil(rest/8));
+      shown=Math.min(acc.length, shown+step);
       renderShown();
-      paintTimer=setTimeout(tick, 26);
+      paintTimer=setTimeout(tick, rest>4000 ? 8 : 40);
     };
     const paint=()=>{ if(paintTimer===null) tick(); };
     try{
@@ -2682,9 +2690,16 @@ async function submitStreaming(text){
     conv.push(uEnt3);
     conv.push({role:"assistant",text:acc});
     if(typeof FB!=="undefined"&&FB.afterText) FB.afterText({userText:text, kind, snap:kind==="upload"?snapshot:null, asnap:kind==="audio"?asnapshot:null, out:acc, via:usedFb?(current.fbTxt||null):null});
-    bubble.style.whiteSpace="";
     const pre=(usedFb && current.fbTxt) ? '<p class="viafb"><em>'+esc(current.fbTxt)+'</em></p>' : "";
-    bubble.innerHTML = pre+(acc.trim() ? renderMarkdown(acc) : '<p style="color:var(--ink-3)"><em>(réponse vide)</em></p>');
+    if(acc.length>HEAVY){
+      /* Texte énorme : le markdown complet figerait l'onglet. On garde le
+         texte brut, lisible, et on n'analyse rien. */
+      bubble.style.whiteSpace="pre-wrap";
+      bubble.textContent=pre.replace(/<[^>]+>/g,"")+acc;
+    }else{
+      bubble.style.whiteSpace="";
+      bubble.innerHTML = pre+(acc.trim() ? renderMarkdown(acc) : '<p style="color:var(--ink-3)"><em>(réponse vide)</em></p>');
+    }
     const md=acc, sp=specFinal;
     msgActions(bubble,{getMd:()=>md, regen:(b)=>regenStream(sp,b)});
   }catch(err){
