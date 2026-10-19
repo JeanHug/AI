@@ -1237,15 +1237,15 @@ const MODELS = [
   /* Black Forest Labs — génération d'image (Cloudflare Workers AI, gratuit) */
   /* ModelScope — génération d'image (crédits gratuits de la plateforme) */
   {id:"qwen-image-2-1", label:"Qwen Image 2.1", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
-   sc:null, edit:true, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Servi par ModelScope."},
+   sc:null, edit:true, desc:"Générateur d'images d'Alibaba (Qwen Image 2.1) : texte→image de qualité photo, bon rendu du texte dans l'image. Joins une image et il la MODIFIE (jusqu'à 10 références côté modèle ; l'app n'en envoie qu'une). Servi par ModelScope."},
   {id:"qwen-image-2-1-turbo", label:"Qwen Image 2.1 Turbo", vendor:"qwen", family:"msimg", gen:"img", via:"ModelScope",
-   sc:null, edit:true, desc:"La version rapide de Qwen Image 2.1 : même famille, génération en quelques secondes au lieu de vingt — idéale pour essayer plusieurs idées de suite. Servie par ModelScope."},
+   sc:null, edit:true, desc:"La version rapide de Qwen Image 2.1 : même famille, génération en quelques secondes au lieu de vingt — idéale pour essayer plusieurs idées de suite. Elle édite aussi une image jointe. Servie par ModelScope."},
   {id:"wan-2-2-t2v", label:"Wan 2.2", vendor:"modelscope", family:"msvid", gen:"vid", via:"Wan 2.2",
    sc:null, desc:"Wan 2.2 (Alibaba) transforme une image en court plan animé de quelques secondes. Sans image jointe, l'application fabrique d'abord l'image de départ avec le modèle choisi dans Paramètres ▸ Modèles ▸ Wan 2.2 (FLUX.2 klein 4B par défaut), puis l'anime."},
   {id:"flux-2-klein-9b", label:"FLUX.2 [klein] 9B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-9b",
-   sc:null, edit:true, desc:"Modèle de génération d'images de Black Forest Labs (9 milliards de paramètres), hébergé gratuitement par Cloudflare Workers AI. Texte→image de haute qualité, rapide."},
+   sc:null, edit:true, desc:"Modèle de génération d'images de Black Forest Labs (9 milliards de paramètres), hébergé gratuitement par Cloudflare Workers AI. Texte→image de haute qualité, rapide. Une image jointe part comme référence d'édition (une seule, réduite à 496 px : c'est la limite de Cloudflare)."},
   {id:"flux-2-klein-4b", label:"FLUX.2 [klein] 4B", vendor:"bfl", family:"flux", gen:"img", via:"Workers AI", fb:"hf-flux-2-klein-4b",
-   sc:null, edit:true, desc:"Version légère de FLUX.2 klein (4 milliards de paramètres), plus rapide et plus économique ; hébergée gratuitement par Cloudflare Workers AI."},
+   sc:null, edit:true, desc:"Version légère de FLUX.2 klein (4 milliards de paramètres), plus rapide et plus économique ; hébergée gratuitement par Cloudflare Workers AI. Édite aussi une image jointe (une seule référence, 496 px)."},
   {id:"hf-flux-2-klein-9b", hidden:true, label:"FLUX.2 [klein] 9B · HF", vendor:"bfl", family:"kleinhf", gen:"img", via:"HF ZeroGPU",
    sc:null, edit:true, desc:"FLUX.2 klein 9B servi par le Space officiel Black Forest Labs (variante KV optimisée), gratuit via Hugging Face ZeroGPU, sans token. ~13 s/image."},
   {id:"hf-flux-2-klein-4b", hidden:true, label:"FLUX.2 [klein] 4B · HF", vendor:"bfl", family:"kleinhf", gen:"img", via:"HF ZeroGPU",
@@ -4341,7 +4341,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P110</p>
+      <p class="setver">Version P111</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
