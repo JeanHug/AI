@@ -36,7 +36,7 @@ const wanted = (process.env.WORKER_NAME || 'api-ai').trim();
 const named = [];
 for (let i = 1; i <= 8; i++) named.push('ROBOFLOW_API_KEY_' + i);
 /* Secrets simples : posés tels quels (aucun n'est affiché). */
-const plain = ['MODELSCOPE_API_KEY', 'NVIDIA_NIM_API_KEY', 'IFM_API_KEY', 'HUGGINGFACE_TOKEN', 'HF_TOKEN'];
+const plain = ['MODELSCOPE_API_KEY', 'NVIDIA_NIM_API_KEY', 'IFM_API_KEY', 'INCEPTION_API_KEY', 'HUGGINGFACE_TOKEN', 'HF_TOKEN'];
 const tokenSecrets = named.concat(['RF_TOKEN_1', 'RF_TOKEN_2', 'RF_TOKEN_3']).concat(plain)
   .map((n) => ({ name: n, text: String(process.env[n] || '').trim() }))
   .filter((t) => t.text.length > 0);

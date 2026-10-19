@@ -60,6 +60,8 @@ jobs:
           # Clé IFM (passerelle OpenAI-compatible, K2 Horizon) : posée en secret
           # du worker. Aucune valeur dans le dépôt, aucun affichage.
           IFM_API_KEY: ${{ secrets.IFM_API_KEY }}
+          # Clé Inception (Mercury 3, modèle de diffusion) : secret du worker.
+          INCEPTION_API_KEY: ${{ secrets.INCEPTION_API_KEY }}
           FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}
           FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
           # Jeton Hugging Face (facultatif) : lève le quota ZeroGPU anonyme des
