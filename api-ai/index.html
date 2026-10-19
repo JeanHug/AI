@@ -2637,6 +2637,10 @@ async function submitStreaming(text){
           }catch(e){ if(e instanceof SyntaxError) continue; throw e; }
         }
       }
+      /* Laisser le déroulé finir avant de rendre la main (au plus 600 ms) :
+         sinon la fin du flux collerait tout le texte d'un coup. */
+      const tEnd=Date.now();
+      while(paintTimer!==null && Date.now()-tEnd<600){ await new Promise(r=>setTimeout(r,26)); }
       if(paintTimer!==null){ clearTimeout(paintTimer); paintTimer=null; }
       shown=acc.length;
       if(acc.length) renderShown();
