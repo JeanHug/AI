@@ -2569,16 +2569,27 @@ async function submitStreaming(text){
      markdown complet qu'UNE fois, à la fin. */
   const HEAVY=20000;
   const runStream=async(model, params)=>{
-    let acc=""; let paintTimer=null;
-    const paint=()=>{
-      if(paintTimer!==null) return;
-      paintTimer=setTimeout(()=>{
-        paintTimer=null;
-        if(acc.length>HEAVY){ bubble.textContent=acc; bubble.style.whiteSpace="pre-wrap"; }
-        else{ bubble.innerHTML=renderMarkdown(acc); }
-        scrollDown();
-      }, 200);
+    let acc="";        /* tout ce qui est arrivé du serveur */
+    let shown=0;       /* ce qui est déjà à l'écran */
+    let paintTimer=null;
+    const renderShown=()=>{
+      const txt=acc.slice(0,shown);
+      if(txt.length>HEAVY){ bubble.textContent=txt; bubble.style.whiteSpace="pre-wrap"; }
+      else{ bubble.innerHTML=renderMarkdown(txt); }
+      scrollDown();
     };
+    /* Certains fournisseurs (IFM notamment) envoient de gros blocs d'un coup :
+       le texte est bien reçu en flux, mais il apparaîtrait d'un seul tenant.
+       On le déroule donc à l'écran au fil des caractères déjà reçus — jamais
+       au-delà : rien n'est inventé, on ne fait que décaler l'affichage. */
+    const tick=()=>{
+      const rest=acc.length-shown;
+      if(rest<=0){ paintTimer=null; return; }
+      shown=Math.min(acc.length, shown+Math.max(1, Math.ceil(rest/10)));
+      renderShown();
+      paintTimer=setTimeout(tick, 26);
+    };
+    const paint=()=>{ if(paintTimer===null) tick(); };
     try{
       const r=await fetch(API_BASE+"/api/chat/stream",{
         method:"POST",
@@ -2627,6 +2638,8 @@ async function submitStreaming(text){
         }
       }
       if(paintTimer!==null){ clearTimeout(paintTimer); paintTimer=null; }
+      shown=acc.length;
+      if(acc.length) renderShown();
       bubble.classList.remove("diffusing");
       return acc;
     }catch(e){
