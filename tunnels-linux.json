@@ -1,8 +1,8 @@
 {
   "name": "Ubuntu Linux Desktop",
-  "primary": "https://acquire-valid-browsing-usa.trycloudflare.com",
-  "cloudflare": "https://acquire-valid-browsing-usa.trycloudflare.com",
-  "lhrLife": "https://0c04bd7953d47d.lhr.life",
+  "primary": "https://api.trycloudflare.com",
+  "cloudflare": "https://api.trycloudflare.com",
+  "lhrLife": "https://51aa002b0dc6b2.lhr.life",
   "status": "online",
-  "updated_at": "2026-10-22T11:02:26Z"
+  "updated_at": "2026-10-22T16:55:16Z"
 }
