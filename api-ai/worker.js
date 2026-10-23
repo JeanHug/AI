@@ -1335,9 +1335,23 @@ function fsVal(f) {
   if (f.booleanValue !== undefined) return !!f.booleanValue;
   return null;
 }
+function fsAny(f) {
+  if (!f || typeof f !== "object") return null;
+  if (f.arrayValue !== undefined) {
+    const vals = (f.arrayValue || {}).values || [];
+    return vals.map(fsAny);
+  }
+  if (f.mapValue !== undefined) {
+    const ch = (f.mapValue || {}).fields || {};
+    const o = {};
+    for (const k of Object.keys(ch)) o[k] = fsAny(ch[k]);
+    return o;
+  }
+  return fsVal(f);
+}
 function fsDoc(d) {
   const out = {};
-  for (const k of Object.keys(d.fields || {})) out[k] = fsVal(d.fields[k]);
+  for (const k of Object.keys(d.fields || {})) out[k] = fsAny(d.fields[k]);
   out.id = String(d.name || "").split("/").pop();
   return out;
 }
