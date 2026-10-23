@@ -5376,6 +5376,8 @@ async function msDailyRun(){
     /* Le crédit quotidien réellement obtenu (200 魔粒 à la connexion du jour,
        +50 si un compte Aliyun est lié) : mesuré AVANT puis APRÈS l'appel. */
     gained:(typeof j.gained==="number")?j.gained:null,
+    gainedFrom:j.gainedFrom||"",           /* « solde » ou « journal » */
+    ledger:j.ledger||null,                 /* mouvements du jour */
     login:(j.login||null),
     /* Noms de modèles confirmés par ModelScope (lecture seule, zéro crédit) :
        « ok » = le nom configuré existe chez ModelScope, « inconnu » = à revoir. */
@@ -5389,7 +5391,8 @@ async function msDailyRun(){
       const tot=Object.keys(done.models).length;
       console.log("ModelScope — noms de modèles confirmés : "+okN+"/"+tot);
     }
-    console.log("ModelScope (quotidien) :",done.ok?("connecté"+(done.identity?(" · "+done.identity):"")+(done.balance?(" · solde "+done.balance.available):"")):("non — "+(done.error||"échec")));
+    console.log("ModelScope (quotidien) :",done.ok?("connecté"+(done.identity?(" · "+done.identity):"")+(done.balance?(" · solde "+done.balance.available):"")
+      +(typeof done.gained==="number"?(" · crédité +"+done.gained+" 魔粒"):"")):("non — "+(done.error||"échec")));
   }
   return done;
 }
