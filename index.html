@@ -2430,9 +2430,19 @@ function addAssistant(modelId){
 }
 function scrollDown(){ const m=document.querySelector("main"); m.scrollTop=m.scrollHeight; }
 
+/* Une image seule est un message valable — mais seulement vers le canal,
+   qui sait la transporter. Ailleurs, il faut du texte. */
+function imageSeule(){
+  return (typeof pendingFiles!=="undefined"&&Array.isArray(pendingFiles)
+          &&pendingFiles.some(function(f){return f&&f.kind==="image"&&(f.b64||f.small);}))
+      || (typeof pendingImage!=="undefined"&&!!pendingImage);
+}
 async function submit(){
   const text=promptEl.value.trim();
-  if(!text) return;
+  if(!text){
+    const versCanal=(CUR_CANAL&&CUR_CANAL!=="arena")||current.family==="arena";
+    if(!(versCanal&&imageSeule())) return;
+  }
   if(busy){
     /* Une mission tourne encore ici : elle continue en arrière-plan (c'est la
        passerelle qui la mène) et l'on peut écrire la suite tout de suite. */
@@ -8432,7 +8442,8 @@ async function submitCanal(text){
     /* Un nouveau message ferme la mission précédente : le message d'agent en
        cours s'arrête ici, comme en mode agent classique. */
     CANAL_MISSION = null;
-    addUser(text, "none", null, null);
+    const envoiImage = (imgs && imgs.length) ? "upload" : "none";
+    addUser(text, envoiImage, null, null);
     const b = addAssistant("arena");
     ARENA_WAIT = b;
     promptEl.value = ""; promptEl.style.height = "auto"; scrollDown();
