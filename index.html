@@ -5392,7 +5392,7 @@ async function msDailyRun(){
       console.log("ModelScope — noms de modèles confirmés : "+okN+"/"+tot);
     }
     console.log("ModelScope (quotidien) :",done.ok?("connecté"+(done.identity?(" · "+done.identity):"")+(done.balance?(" · solde "+done.balance.available):"")
-      +(typeof done.gained==="number"?(" · crédité +"+done.gained+" 魔粒"):"")):("non — "+(done.error||"échec")));
+      +(typeof done.gained==="number"?((done.gained>0?" · gagné aujourd'hui +"+done.gained:" · rien de neuf à créditer aujourd'hui")+" 魔粒"+(done.gainedFrom?(" ("+done.gainedFrom+")"):"")):"")):("non — "+(done.error||"échec")));
   }
   return done;
 }
