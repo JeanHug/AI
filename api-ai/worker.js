@@ -1686,6 +1686,7 @@ async function msLoginInfo(site, key) {
 /* Le grand livre : la seule preuve comptable du crédit quotidien.
    GET /openapi/v1/magicubes/transactions rend les mouvements (EARN, SPEND…).
    On additionne les gains du jour : c'est le montant réellement versé. */
+let out_sample = "";
 async function msLedger(env) {
   const key = msKey(env);
   if (!key) return null;
@@ -1698,6 +1699,13 @@ async function msLedger(env) {
       const d = (j && (j.data || j.Data)) || null;
       const rows = Array.isArray(d) ? d : ((d && (d.records || d.list || d.items)) || []);
       if (!Array.isArray(rows) || !rows.length) continue;
+      out_sample = Object.keys(rows[0]).map(function (k) {
+        const v = rows[0][k];
+        const t = (v === null) ? "null" : typeof v;
+        const num = (typeof v === "number" || /^\d+$/.test(String(v)))
+          ? "=" + String(v).slice(0, 20) : "";
+        return k + ":" + t + num;
+      }).join(", ");
       const today = new Date().toISOString().slice(0, 10);
       let gain = 0; const lignes = [];
       for (const row of rows) {
@@ -1708,7 +1716,7 @@ async function msLedger(env) {
         if (jour === today || !jour) lignes.push({ jour: jour || "?", type: type, montant: montant });
         if (type.indexOf("EARN") === 0 && montant > 0 && (jour === today || !jour)) gain += montant;
       }
-      return { gain: gain, lignes: lignes.slice(0, 6) };
+      return { gain: gain, lignes: lignes.slice(0, 6), sample: out_sample };
     } catch (e) { /* site suivant */ }
   }
   return null;
