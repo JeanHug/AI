@@ -4484,7 +4484,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P114</p>
+      <p class="setver">Version P115</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -4923,8 +4923,17 @@ async function canalHistoryLoad(cid){
   for (const m of msgs) {
     const txt = String(m.text || "");
     if (m.role === "user") {
-      if (!txt) continue;
+      if (!txt && !(m.imgs && m.imgs.length)) continue;
       addUser(txt, "none", null, null);
+      /* Les images envoyées reviennent à l'ouverture, dans le même message. */
+      if (m.imgs && m.imgs.length) {
+        const ub = log.querySelectorAll(".msg.user .bubble");
+        if (ub.length) {
+          const holder = document.createElement("div");
+          holder.innerHTML = canalImgsHtml(m.imgs);
+          if (holder.firstElementChild) ub[ub.length - 1].appendChild(holder.firstElementChild);
+        }
+      }
       conv.push({ role: "user", text: txt });
       n++; cur = null; continue;
     }
@@ -4938,15 +4947,16 @@ async function canalHistoryLoad(cid){
         n++; continue;
       }
       const out = (p && p.text) ? p.text : (p.kind === "call" ? "" : txt);
-      if (!out) continue;
+      const imgs = (m.imgs && m.imgs.length) ? m.imgs : null;
+      if (!out && !imgs) continue;
       if (cur) {
         const fin = document.createElement("div"); fin.className = "agent-final";
-        fin.innerHTML = renderMarkdown(out);
+        fin.innerHTML = renderMarkdown(out) + canalImgsHtml(imgs);
         cur.bubble.appendChild(fin);
         msgActions(cur.bubble, { getMd: () => out });
       } else {
         const b = addAssistant("arena");
-        b.innerHTML = renderMarkdown(out);
+        b.innerHTML = renderMarkdown(out) + canalImgsHtml(imgs);
         msgActions(b, { getMd: () => out });
       }
       conv.push({ role: "assistant", text: out });
@@ -5353,6 +5363,10 @@ async function msDailyRun(){
   const done=Object.assign({},base,{
     ok:j.ok===true, token:j.token||"", identity:j.identity||"",
     balance:j.balance||null, error:j.error||"",
+    /* Le crédit quotidien réellement obtenu (200 魔粒 à la connexion du jour,
+       +50 si un compte Aliyun est lié) : mesuré AVANT puis APRÈS l'appel. */
+    gained:(typeof j.gained==="number")?j.gained:null,
+    login:(j.login||null),
     /* Noms de modèles confirmés par ModelScope (lecture seule, zéro crédit) :
        « ok » = le nom configuré existe chez ModelScope, « inconnu » = à revoir. */
     models:j.models||null,
@@ -5438,13 +5452,15 @@ function arenaTimeout(ms){
   const t=setTimeout(()=>c.abort(), ms);
   return {signal:c.signal, stop:()=>clearTimeout(t)};
 }
-async function arenaSend(text, kind, req, note){
-  const g=arenaTimeout(15000);
+async function arenaSend(text, kind, req, note, imgs){
+  const g=arenaTimeout(40000);
   try{
+    const corps={text:String(text||""), kind:kind||"text", req:req||"", note:note||""};
+    if(Array.isArray(imgs)&&imgs.length) corps.imgs=imgs;
     const r=await fetch(API_BASE+"/api/arena/send",{signal:g.signal,
       method:"POST",
       headers:{"Content-Type":"application/json","X-Access-Code":ACCESS_CODE},
-      body:JSON.stringify({text:String(text||""), kind:kind||"text", req:req||"", note:note||""}),
+      body:JSON.stringify(corps),
     });
     const j=await r.json().catch(()=>({}));
     if(!r.ok) return {ok:false, error:(j&&j.error)||("HTTP "+r.status)};
@@ -5454,6 +5470,90 @@ async function arenaSend(text, kind, req, note){
     return {ok:false, error:/abort/i.test(m)?"canal : délai dépassé":m};
   }finally{ g.stop(); }
 }
+/* ---- images dans le canal ----------------------------------------------
+   Le canal transporte aussi des images : un message porte alors `imgs`,
+   une liste de {name, mime, b64}. Un document Firestore ne dépasse pas
+   1 Mio, donc l'application réduit chaque image (1280 px, JPEG) avant de
+   l'envoyer. Rien d'autre ne change : les images sont lues comme le texte. */
+function b64Mime(b64){
+  const s=String(b64||"");
+  if(s.indexOf("/9j/")===0) return "image/jpeg";
+  if(s.indexOf("iVBOR")===0) return "image/png";
+  if(s.indexOf("R0lGOD")===0) return "image/gif";
+  if(s.indexOf("UklGR")===0) return "image/webp";
+  return "image/png";
+}
+/* Réduit une image jointe pour le canal : 1280 px au plus, JPEG, et une
+   taille qui tient dans un document Firestore. Renvoie le base64 ou "". */
+function jpegForCanal(src){
+  return new Promise(function(res){
+    const b64=String(src||"").replace(/^data:[^;]+;base64,/,"");
+    if(!b64) return res("");
+    const im=new Image();
+    im.onload=function(){
+      try{
+        const max=1280;
+        let w=im.naturalWidth||im.width, h=im.naturalHeight||im.height;
+        if(!w||!h) return res("");
+        const k=Math.min(1, max/Math.max(w,h));
+        w=Math.max(1,Math.round(w*k)); h=Math.max(1,Math.round(h*k));
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(im,0,0,w,h);
+        let q=0.82, out="";
+        for(let i=0;i<6;i++){
+          out=String(c.toDataURL("image/jpeg",q)).split(",")[1]||"";
+          if(out && out.length<=760000) break;
+          q=Math.max(0.35, q-0.12);
+        }
+        res(out.length<=780000?out:"");
+      }catch(e){ res(""); }
+    };
+    im.onerror=function(){ res(""); };
+    im.src="data:"+b64Mime(b64)+";base64,"+b64;
+  });
+}
+/* Les images en attente d'envoi (trombone + image collée), prêtes pour le canal. */
+async function canalImgsFromPending(snap){
+  const srcs=[];
+  if(typeof pendingFiles!=="undefined" && pendingFiles){
+    for(const f of pendingFiles){ if(f && f.kind==="image" && (f.b64||f.small)) srcs.push(f); }
+  }
+  if(snap && snap.b64) srcs.push(snap);
+  const out=[];
+  for(const f of srcs.slice(0,3)){
+    const j=await jpegForCanal(f.b64||f.small);
+    if(j) out.push({name:String(f.name||"image").replace(/\.[a-z0-9]+$/i,"")+".jpg", mime:"image/jpeg", b64:j});
+  }
+  return out;
+}
+/* Rendu d'images reçues ou envoyées : vignette cliquable (visionneuse) + nom. */
+function canalImgsHtml(list){
+  if(!Array.isArray(list)||!list.length) return "";
+  let h='<div class="cimgs">', n=0;
+  for(const im of list){
+    if(!im||!im.b64) continue;
+    const mime=im.mime||b64Mime(im.b64);
+    const cid="k"+(++IMG_SEQ);
+    try{ IMG_STORE[cid]={b64:im.b64, mime:mime, name:im.name||"image"}; }catch(e){}
+    h+='<span class="attach-chip"><img class="gimg" data-iid="'+cid+'" src="data:'+mime+';base64,'+im.b64
+      +'" alt="'+esc(im.name||"image")+'"><span class="nm">'+esc(im.name||"image")+'</span></span>';
+    n++;
+  }
+  if(!n) return "";
+  return h+'</div>';
+}
+/* Ajoute des images à la dernière bulle de l'assistant (arrivée en direct). */
+function canalPushImages(list){
+  if(!Array.isArray(list)||!list.length) return;
+  const bs=log.querySelectorAll(".msg.assistant .bubble");
+  const b=bs.length?bs[bs.length-1]:null;
+  if(!b) return;
+  const d=document.createElement("div");
+  d.innerHTML=canalImgsHtml(list);
+  if(d.firstElementChild) b.appendChild(d.firstElementChild);
+  scrollDown();
+}
+
 /* ---- ce qu'on fait d'un message reçu ---- */
 function arenaParse(text){
   const t=String(text||"").trim();
@@ -5575,12 +5675,13 @@ async function arenaCommit(chat, docs){
 }
 /* Enregistrement « au mieux » : une panne de Firestore ne doit jamais empêcher
    d'envoyer un message ni bloquer l'application. */
-async function arenaSaveUser(text, req){
+async function arenaSaveUser(text, req, imgs){
   try{
     const chat=await arenaChat();
     if(!chat) return null;
     const now=Date.now();
-    await arenaCommit(chat, [{role:"user", text:String(text||""), kind:"none", modelName:"arena", order:now, createdAt:now, images:[], req:String(req||"")}]);
+    const images=(Array.isArray(imgs)?imgs:[]).map(function(i){ return {name:i.name, b64:i.b64, mime:i.mime||"image/jpeg"}; });
+    await arenaCommit(chat, [{role:"user", text:String(text||""), kind:images.length?"upload":"none", modelName:"arena", order:now, createdAt:now, images:images, req:String(req||"")}]);
     return chat;
   }catch(e){ console.warn("canal arena (enregistrement) :", e); return null; }
 }
@@ -5595,12 +5696,13 @@ async function arenaSaveStep(chat, step, at){
       order:t, createdAt:now, steps:[step]}]);
   }catch(e){ console.warn("canal arena (commande) :", e); }
 }
-async function arenaSaveReply(chat, text, at){
+async function arenaSaveReply(chat, text, at, imgs){
   if(!chat) return;
   try{
     const now=Date.now();
     const t=(typeof at==="number" && at>0 && at<=now+60000)?at:now;
-    await arenaCommit(chat, [{role:"assistant", text:String(text||""), modelName:"arena", order:t, createdAt:now}]);
+    const images=(Array.isArray(imgs)?imgs:[]).map(function(i){ return {name:i.name, b64:i.b64, mime:i.mime||"image/jpeg"}; });
+    await arenaCommit(chat, [{role:"assistant", text:String(text||""), modelName:"arena", order:t, createdAt:now, images:images}]);
   }catch(e){ console.warn("canal arena (enregistrement) :", e); }
 }
 async function arenaMark(id, state){
@@ -5637,21 +5739,22 @@ async function arenaDeliver1(d, id){
   }
   /* 2. Un message (texte, ou action « final ») s'affiche comme une réponse. */
   const out=parsed.text;
-  if(!out) { await arenaMark(id,"done"); return; }
+  const hasImgs=Array.isArray(d.imgs)&&d.imgs.length>0;
+  if(!out&&!hasImgs) { await arenaMark(id,"done"); return; }
   if(inChat && chat){
     /* La réponse prend la place de la bulle « Envoi… » : elle apparaît donc
        exactement là où l'utilisateur l'attend, dès qu'elle est générée. */
     const b=(ARENA_WAIT&&ARENA_WAIT.isConnected)?ARENA_WAIT:addAssistant("arena");
     ARENA_WAIT=null;
-    b.innerHTML=renderMarkdown(out);
+    b.innerHTML=renderMarkdown(out)+canalImgsHtml(d.imgs);
     msgActions(b,{getMd:()=>out});
     conv.push({role:"assistant", text:out});
     scrollDown();
-    await arenaSaveReply(chat, out, Number(d.ts)||0);
+    await arenaSaveReply(chat, out, Number(d.ts)||0, d.imgs);
   }else{
     /* Sur une autre discussion : on enregistre, et la ligne épinglée gagne un
        simple point (aucune fenêtre ne s'ouvre, rien ne recouvre l'écran). */
-    await arenaSaveReply(chat, out, Number(d.ts)||0);
+    await arenaSaveReply(chat, out, Number(d.ts)||0, d.imgs);
     if(!ARENA_DOT){ ARENA_DOT=true; renderChatList(); }
   }
   await arenaMark(id, "done");
@@ -5698,10 +5801,12 @@ async function submitArena(text){
     promptEl.value=""; promptEl.style.height="auto"; scrollDown();
     b.innerHTML='<span class="gentxt">Envoi<i>.</i><i>.</i><i>.</i></span>';
     conv.push({role:"user", text:text});
-    /* 1. l'enregistrement local (au mieux, jamais bloquant) puis l'envoi. */
-    const j=await arenaSend(text, "text", "", "");
+    /* 1. l'enregistrement local (au mieux, jamais bloquant) puis l'envoi.
+       Les images jointes partent dans le même message. */
+    const imgs=(typeof canalImgsFromPending==="function")?await canalImgsFromPending(pendingImage):[];
+    const j=await arenaSend(text, "text", "", "", imgs);
     const dev=!!(j&&j.device);
-    const chat=await arenaSaveUser(text, (j&&j.id)||"");
+    const chat=await arenaSaveUser(text, (j&&j.id)||"", imgs);
     if(j&&j.id&&typeof chipAttach==="function") chipAttach("arena", j.id);
     if(!j||!j.ok){
       b.innerHTML='<div class="err">Canal injoignable : '+esc((j&&j.error)||"raison inconnue")+'</div>';
@@ -8093,9 +8198,9 @@ async function canalFreeze(id, mode, chatId2){
 }
 
 /* --- écrire dans un canal, au nom de l'utilisateur ---------------------- */
-async function canalSendUser(id, text, kind){
+async function canalSendUser(id, text, kind, imgs){
   if (id === "arena") {
-    const j = await arenaSend(text, kind || "text", "", "");
+    const j = await arenaSend(text, kind || "text", "", "", imgs);
     return Object.assign({ }, j || { ok: false, error: "canal muet" });
   }
   if (!FB_OK || !fbUser) return { ok: false, error: "connectez-vous pour écrire dans un canal" };
@@ -8103,8 +8208,10 @@ async function canalSendUser(id, text, kind){
   if (!ref) return { ok: false, error: "canal indisponible" };
   const now = Date.now();
   try {
-    const r = await ref.add({ role: "user", text: String(text || ""), ts: now,
-      kind: kind || "text", state: "new", src: "app", createdAt: now });
+    const doc = { role: "user", text: String(text || ""), ts: now,
+      kind: kind || "text", state: "new", src: "app", createdAt: now };
+    if (Array.isArray(imgs) && imgs.length) doc.imgs = imgs;
+    const r = await ref.add(doc);
     return { ok: true, id: r.id };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
@@ -8262,9 +8369,11 @@ async function canalDeliver(cid, d, docId){
     }
     let out = parsed.text || "";
     if (!out && parsed.kind !== "call") out = String(d.text || "");
-    if (!out) { await canalMarkDone(cid, docId); return; }
+    if (!out && !(d.imgs && d.imgs.length)) { await canalMarkDone(cid, docId); return; }
     /* Un texte termine le message : il s'ajoute dans la même bulle. */
     if (open) canalMissionText(out);
+    /* Les images arrivent dans le même message que le texte. */
+    if (d.imgs && d.imgs.length) { if (open) canalPushImages(d.imgs); }
     /* La réponse reste dans le canal : la discussion la relira en s'ouvrant.
        Seul le point « non lu » est tenu à jour, ici, tout de suite. */
     for (const ch of duCanal) {
@@ -8318,6 +8427,8 @@ async function submitCanal(text){
        (nom du fichier, contenu texte) voyagent avec le message */
     const notes = (typeof collectFileNotes === "function") ? collectFileNotes() : "";
     const envoi = String(text || "") + notes;
+    /* images jointes (trombone) : elles partent AVEC le message */
+    const imgs = (typeof canalImgsFromPending === "function") ? await canalImgsFromPending(null) : [];
     /* Un nouveau message ferme la mission précédente : le message d'agent en
        cours s'arrête ici, comme en mode agent classique. */
     CANAL_MISSION = null;
@@ -8328,7 +8439,7 @@ async function submitCanal(text){
     b.innerHTML = '<span class="gentxt">Envoi<i>.</i><i>.</i><i>.</i></span>';
     conv.push({ role: "user", text: text });
     if (typeof pendingFiles !== "undefined") pendingFiles = [];
-    const j = await canalSendUser(cid, envoi, "text");
+    const j = await canalSendUser(cid, envoi, "text", imgs);
     if (j && j.id) chipAttach(cid, j.id);
     if (j && j.id) {
       try { delete CANAL_HIST[cid]; } catch (e) {}
