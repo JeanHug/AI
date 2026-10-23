@@ -1783,6 +1783,7 @@ async function msDaily(env) {
     const led = await msLedger(env);
     if (led) {
       out.ledger = led.lignes;
+      out.ledgerSample = led.sample || "";
       out.gained = led.gain;
       out.gainedFrom = "journal";
     }
