@@ -1725,7 +1725,9 @@ async function msDaily(env) {
   /* Relecture du solde : juste après la connexion, ModelScope peut répondre
      une fois de travers (le solde se met à jour côté serveur). On réessaie
      donc deux fois avant de renoncer. */
-  for (let essai = 0; essai < 3; essai++) {
+  const ATTENTES = [0, 1200, 3200, 6500];   /* le solde se met à jour côté serveur */
+  for (let essai = 0; essai < ATTENTES.length; essai++) {
+    if (ATTENTES[essai]) await new Promise((r) => setTimeout(r, ATTENTES[essai]));
     try {
       const after = await msBalance(env);
       if (after && after.balance) {
@@ -1736,7 +1738,6 @@ async function msDaily(env) {
         break;
       }
     } catch (e) { /* la mesure est un bonus */ }
-    await new Promise((r) => setTimeout(r, 700));
   }
   try {
     let r2 = { ok: false };
