@@ -1708,15 +1708,22 @@ async function msDaily(env) {
     if (li.ok) { out.identity = li.name || out.identity; break; }
     if (!out.error && li.raw) out.error = li.raw;
   }
-  try {
-    const after = await msBalance(env);
-    if (after && after.balance) {
-      out.balance = after.balance;
-      out.after = after.balance.available;
-      out.gained = (typeof out.before === "number" && typeof out.after === "number")
-        ? out.after - out.before : null;
-    }
-  } catch (e) { /* la mesure est un bonus */ }
+  /* Relecture du solde : juste après la connexion, ModelScope peut répondre
+     une fois de travers (le solde se met à jour côté serveur). On réessaie
+     donc deux fois avant de renoncer. */
+  for (let essai = 0; essai < 3; essai++) {
+    try {
+      const after = await msBalance(env);
+      if (after && after.balance) {
+        out.balance = after.balance;
+        out.after = after.balance.available;
+        out.gained = (typeof out.before === "number" && typeof out.after === "number")
+          ? out.after - out.before : null;
+        break;
+      }
+    } catch (e) { /* la mesure est un bonus */ }
+    await new Promise((r) => setTimeout(r, 700));
+  }
   try {
     let r2 = { ok: false };
     for (const site of MS_SITES) {
