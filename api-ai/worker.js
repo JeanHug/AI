@@ -3503,7 +3503,8 @@ async function msDrift() {
       if (env.ACCESS_CODE && request.headers.get("X-Access-Code") !== env.ACCESS_CODE) {
         return json({ error: "code d'accès invalide" }, 401);
       }
-      const VM_BASE = "https://vmai.hugdu77777.workers.dev/api/linux";
+      const VM_ORIGIN = "https://vmai.hugdu77777.workers.dev";
+      const VM_BASE = VM_ORIGIN + "/api/linux";
       const sub = url.pathname.slice("/api/agent/".length);
       const H = { "Authorization": "Bearer " + (env.VMAI_PASS || "") };
       const corsH = { "Access-Control-Allow-Origin": "*" };
@@ -3514,9 +3515,11 @@ async function msDrift() {
         for (const base of urls) {
           try {
             const r = await fetch(new Request(base + sub, init));
-            const ct = String(r.headers.get("content-type") || "");
             if (r.status >= 500) continue;                       /* tunnel mort */
-            if (r.status === 404 && ct.indexOf("text/html") >= 0) continue;
+            /* 404 en texte brut = le bureau a répondu mais pas cette route :
+               on tente le tunnel suivant plutôt que de rendre « 404 » sec. */
+            const ct = String(r.headers.get("content-type") || "");
+            if (r.status === 404 && ct.indexOf("json") < 0) continue;
             return r;
           } catch (e) { /* tunnel suivant */ }
         }
@@ -3527,7 +3530,9 @@ async function msDrift() {
          Et si la passerelle répond « daemon_pending_cycle » (son état des
          tunnels a du retard), la même requête repart par le tunnel direct. */
       const vmFetch = async (u, init) => {
-        const sub = u.startsWith(VM_BASE) ? u.slice(VM_BASE.length) : u;
+        /* Le tunnel expose les mêmes chemins que la passerelle (« /api/linux/exec ») :
+           on garde donc le chemin complet, seul l'hôte change. */
+        const sub = u.startsWith(VM_ORIGIN) ? u.slice(VM_ORIGIN.length) : u;
         let up = null, err = null;
         try {
           const rq = new Request(u, init);
