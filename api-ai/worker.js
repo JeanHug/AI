@@ -3728,6 +3728,17 @@ async function msDrift() {
           }
           return json({ ok: stopped, forced: url.searchParams.get("force") !== "0" });
         }
+        /* Diagnostic : l'état des tunnels vu par la passerelle, et la liste
+           que nous connaissons. Sert à savoir sur QUELLE VM on est branché. */
+        if (sub === "tunnels") {
+          let gw = null;
+          try {
+            const r = await vmFetch(VM_ORIGIN + "/api/tunnels", { headers: H });
+            gw = await r.json().catch(() => null);
+          } catch (e) { gw = { error: String(e && e.message ? e.message : e) }; }
+          const mine = await vmTunnelList();
+          return json({ ok: true, passerelle: gw, utilises: mine });
+        }
         if (sub === "docs/restore") {
           const res = await ensureAgentDocs(env);
           return json(res);
