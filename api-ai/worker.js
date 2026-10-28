@@ -1339,7 +1339,11 @@ async function vmTunnelList() {
   const now = Date.now();
   if (VM_TUNNELS.urls.length && now - VM_TUNNELS.at < 60000) return VM_TUNNELS.urls;
   try {
-    const r = await fetch("https://raw.githubusercontent.com/JeanHug/VM/tunnel-url/tunnels-linux.json?t=" + now,
+    /* La VM de L'AGENT, pas celle de la personne : c'est le dépôt de
+       l'application (JeanHug/AI) qui publie son tunnel — le même fichier que
+       lit la passerelle VMAI. (JeanHug/VM est le bureau personnel : ne jamais
+       y brancher l'agent.) */
+    const r = await fetch("https://raw.githubusercontent.com/JeanHug/AI/tunnel-url/tunnels-linux.json?t=" + now,
       { headers: { "User-Agent": "Cloudflare-VM-Gateway" } });
     const j = await r.json().catch(() => null);
     const list = [j && j.cloudflare, j && j.primary, j && j.lhrLife]
