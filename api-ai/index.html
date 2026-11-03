@@ -8895,6 +8895,11 @@ function disModState(id){
   if(!r) return { cls: "", sub: (m.via || "") };
   if(r.running) return { cls: "run", sub: "essai en cours…" };
   if(r.skipped) return { cls: "", sub: (r.platform || m.via || "") + " · essai non lancé (crédits)" };
+  if(r.ok === undefined){
+    /* La chaîne est connue, mais l'essai n'a pas encore eu lieu. */
+    const ch = (r.chain && r.chain.length) ? r.chain.join(" → ") : (m.via || "");
+    return { cls: "", sub: ch };
+  }
   if(r.ok === true){
     return { cls: "ok", sub: (r.platform || m.via || "") + (r.ms ? " · " + r.ms + " ms" : "")
       + (r.chain && r.chain.length > 1 ? " · secours : " + r.chain.slice(1).join(", ") : "") };
@@ -9019,7 +9024,8 @@ async function disModTest(id){
     if(d && typeof d.output === "string" && r.ok){
       res = { ok: true, kind: "text", ms: ms, status: r.status, via: d.via || "",
         platform: disModPlatformOf(chain, d.via), chain: chain,
-        echo: String(d.output).replace(/\s+/g, " ").trim().slice(0, 80) };
+        echo: String(d.output).replace(/\*?\(réponse interrompue[^)]*\)\*?/g, " ")
+          .replace(/\s+/g, " ").trim().slice(0, 80) || "(réponse vide à 8 tokens)" };
     }else{
       const err = (d && d.error) || String(texte).slice(0, 300) || ("HTTP " + r.status);
       res = { ok: false, kind: "text", ms: ms, status: r.status, chain: chain,
