@@ -722,9 +722,27 @@ function defuseWaf(s, level) {
    réessayer — jamais pour l'afficher. */
 function wafLike(status, text) {
   const t = String(text || "");
-  if (/Attention Required|Cloudflare|cf-error-details|error code:?\s*10(10|20|40)/i.test(t)) return true;
+  /* Un code 1010/1020 de Cloudflare est un vrai blocage, quel que soit le
+     format. */
+  if (/error code:?\s*10(10|20|40)/i.test(t)) return true;
+  /* Une erreur JSON du fournisseur (crédits épuisés, quota, modèle refusé)
+     n'est PAS un pare-feu : la réécrire ferait perdre la vraie raison. */
+  if (/^\s*\{/.test(t)) return false;
+  if (/Attention Required|cf-error-details/i.test(t)) return true;
   if (/^\s*<(!doctype|html)/i.test(t)) return true;
   return Number(status) === 403;
+}
+/* Roboflow : le compte peut être à court de crédits pour le cycle en cours.
+   Le refus arrive en 402 avec un message comptable — on le dit tel quel. */
+function roboflowCreditError(text) {
+  const t = String(text || "");
+  if (!/credit_cap_exceeded|ran out of credits|cannot currently spend credits/i.test(t)) return "";
+  const cap = (t.match(/cycleCreditCap[\"']?\s*:\s*(\d+(?:\.\d+)?)/) || [])[1];
+  const used = (t.match(/planCycleUsed[\"']?\s*:\s*(\d+(?:\.\d+)?)/) || [])[1];
+  const nf = function (v) { return String(Number(v).toFixed(2)).replace(".", ",") + " $"; };
+  return "Roboflow : crédits du cycle épuisés"
+    + (used && cap ? " (" + nf(used) + " dépensés sur " + nf(cap) + " autorisés pour ce cycle)" : "")
+    + " — le service de workflows refuse toute inférence jusqu'au prochain cycle ou à une recharge du plan (app.roboflow.com/settings/plan).";
 }
 // Ne conserve que les réglages valides pour la famille du modèle.
 function sanitize(params, family) {
@@ -4454,6 +4472,12 @@ function modelErrors(error) {
 
         let detail = t.slice(0, 400);
         try { const j = JSON.parse(t); detail = j.inner_error_message || j.message || detail; } catch { /* texte brut */ }
+        /* Crédits épuisés : c'est LA raison, elle passe avant le reste. */
+        const credit = roboflowCreditError(t);
+        if (credit) {
+          const nt = roboflowTokens(env).length;
+          return { ok: false, error: credit + (nt > 1 ? " (même espace de travail pour les " + nt + " jetons)" : ""), tries };
+        }
         if (wafLike(wafStat, t)) {
           /* Après les trois niveaux de réécriture, on ne parle ni de pare-feu
              ni de caractères fautifs : l'incident reste technique. */
