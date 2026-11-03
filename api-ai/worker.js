@@ -2010,21 +2010,6 @@ function rfWhyPhrase(env) {
     + (c.libre ? " (dont " + c.libre + " non essayé" + (c.libre > 1 ? "s" : "") + ")" : "")
     + " — " + parts.join(", ") + ".";
 }
-function rfBan(fin, ms, why) {
-  if (!fin) return;
-  RF_BAN[fin] = { until: Date.now() + ms, why: String(why || "") };
-}
-/* Envoie la mise de côté dans l'objet durable (partagée entre isolates). */
-async function rfPushBan(env, fin) {
-  try {
-    const e = RF_BAN[fin];
-    if (!env || !env.MISSION || !e) return;
-    const body = {};
-    body[fin] = { until: e.until, why: e.why };
-    const stub = env.MISSION.get(env.MISSION.idFromName("secrets"));
-    await stub.fetch("https://do/rf-bans", { method: "POST", body: JSON.stringify({ bans: body }) });
-  } catch (err) { /* la mise de côté locale suffit */ }
-}
 /* Développe une liste de blocs en (jeton, bloc) : le jeton tourne le plus vite. */
 function acrossTokens(env, cands) {
   const toks = rfOrderTokens(env);
