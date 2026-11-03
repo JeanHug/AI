@@ -3587,6 +3587,9 @@ function modelErrors(error) {
         texte = await r.text();
         entetes = { server: r.headers.get("server") || "", cfRay: r.headers.get("cf-ray") ? "oui" : "",
           contentType: r.headers.get("content-type") || "" };
+        const tous = {};
+        r.headers.forEach(function (v, k) { tous[k] = v; });
+        entetes.tous = tous;
       } catch (e) {
         return json({ ok: false, error: "Roboflow injoignable : " + String(e && e.message ? e.message : e) }, 502);
       }
@@ -3613,8 +3616,12 @@ function modelErrors(error) {
       const toks = roboflowTokens(env);
       if (!toks.length) return json({ error: "aucun jeton Roboflow dans le Worker" }, 400);
       let r, txt = "";
+      const chemin = String(new URL(request.url).searchParams.get("p") || "").replace(/^\/+/, "");
+      if (chemin && (!/^[A-Za-z0-9._\/-]+$/.test(chemin) || /^workflows/i.test(chemin))) {
+        return json({ error: "chemin refusé" }, 400);
+      }
       try {
-        r = await fetch("https://api.roboflow.com/?api_key=" + encodeURIComponent(toks[0]),
+        r = await fetch("https://api.roboflow.com/" + chemin + (chemin ? "?" : "") + "api_key=" + encodeURIComponent(toks[0]),
           { headers: { "Accept": "application/json", "User-Agent": BROWSER_UA } });
         txt = await r.text();
       } catch (e) {
