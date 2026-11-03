@@ -3616,7 +3616,11 @@ function modelErrors(error) {
        Envoie UNE requête au service de workflows avec le jeton donné et
        rend la réponse brute : statut, durée, en-têtes, début du corps.
        La clé n'est jamais renvoyée (quatre derniers caractères). */
-    const rfTryToken = async (tok, model, image, promptTxt) => {
+    /* Un pixel blanc de 1×1 : Roboflow exige un champ image, même pour un
+       modèle de texte. Sert quand l'appelant n'en fournit pas. */
+    const RF_PX = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const rfTryToken = async (tok, model, imageIn, promptTxt) => {
+      const image = String(imageIn || "") || RF_PX;
       const spec = MODELS[model] || null;
       if (!spec) return { error: "modèle inconnu : " + model };
       const step = {
