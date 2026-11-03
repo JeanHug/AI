@@ -1943,9 +1943,32 @@ async function rfExtraWrite(env, b) {
   if (j && Array.isArray(j.tokens)) RF_EXTRA = { at: Date.now(), tokens: j.tokens.map(String) };
   return j || { ok: false, error: "réponse illisible" };
 }
+/* Jetons mis de côté un moment : un espace à sec (402) ne se recharge pas en
+   une minute, et un espace au plan gratuit (403 « clés OpenRouter », ou 403
+   « scopes ») ne change pas de plan en une heure. Les mettre de côté évite
+   d'attendre huit refus avant d'atteindre le jeton qui marche. */
+let RF_BAN = {};      /* fin -> { until, why } */
+let RF_GOOD = "";     /* dernier jeton qui a répondu : il passe devant */
+function rfBan(fin, ms, why) {
+  if (!fin) return;
+  RF_BAN[fin] = { until: Date.now() + ms, why: String(why || "") };
+}
+function rfOrderTokens(env) {
+  const all = roboflowTokens(env);
+  /* Le jeton qui vient de répondre d'abord. */
+  if (RF_GOOD) {
+    const i = all.findIndex(t => String(t).slice(-4) === RF_GOOD);
+    if (i > 0) all.unshift(all.splice(i, 1)[0]);
+  }
+  const now = Date.now();
+  const libres = all.filter(t => !(RF_BAN[String(t).slice(-4)] && RF_BAN[String(t).slice(-4)].until > now));
+  /* Si TOUS sont de côté, on les réessaie quand même : rien ne doit rester
+     muet parce qu'un incident a été classé il y a longtemps. */
+  return libres.length ? libres : all;
+}
 /* Développe une liste de blocs en (jeton, bloc) : le jeton tourne le plus vite. */
 function acrossTokens(env, cands) {
-  const toks = roboflowTokens(env);
+  const toks = rfOrderTokens(env);
   if (!toks.length) return cands.slice();
   const out = [];
   for (const t of toks) for (const c of cands) out.push(Object.assign({}, c, { _token: t }));
@@ -4685,6 +4708,9 @@ function modelErrors(error) {
           let data = null;
           try { data = JSON.parse(body); } catch { data = null; }
           if (!data) return { ok: false, error: `Roboflow HTTP ${good.status} — ${body.slice(0, 400)}`, tries };
+          /* Ce jeton vient de répondre : il passera devant les autres. */
+          RF_GOOD = String(c._token || "").slice(-4);
+          delete RF_BAN[RF_GOOD];
           return { ok: true, used: c, data, tries };
         }
 
@@ -4693,14 +4719,16 @@ function modelErrors(error) {
         /* Limite de plan (clés OpenRouter gérées) : la vraie raison aussi. */
         const plan = roboflowPlanError(t);
         if (plan) {
+          rfBan(String(c._token || "").slice(-4), 6 * 3600 * 1000, "plan gratuit");
           const nt = roboflowTokens(env).length;
           return { ok: false, error: plan + (nt > 1 ? " (essayé sur les " + nt + " jetons)" : ""), tries };
         }
         /* Crédits épuisés : c'est LA raison, elle passe avant le reste. */
         const credit = roboflowCreditError(t);
         if (credit) {
+          rfBan(String(c._token || "").slice(-4), 30 * 60 * 1000, "crédits épuisés");
           const nt = roboflowTokens(env).length;
-          return { ok: false, error: credit + (nt > 1 ? " (même espace de travail pour les " + nt + " jetons)" : ""), tries };
+          return { ok: false, error: credit + (nt > 1 ? " (et sur les " + nt + " jetons, chacun son espace de travail)" : ""), tries };
         }
         if (wafLike(wafStat, t)) {
           /* Après les trois niveaux de réécriture, on ne parle ni de pare-feu
