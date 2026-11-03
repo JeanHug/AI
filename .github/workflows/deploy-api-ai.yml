@@ -62,6 +62,12 @@ jobs:
           IFM_API_KEY: ${{ secrets.IFM_API_KEY }}
           # Clé Inception (Mercury 3, modèle de diffusion) : secret du worker.
           INCEPTION_API_KEY: ${{ secrets.INCEPTION_API_KEY }}
+          # Clé Anthropic (facultative) : si elle existe, le bloc Claude l'utilise
+          # DIRECTEMENT, sans passer par la clé prêtée par Roboflow — donc sans
+          # consommer de crédits d'espace de travail. Absente : rien ne change.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Clé OpenAI (facultative), même principe pour les modèles GPT.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}
           FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
           # Jeton Hugging Face (facultatif) : lève le quota ZeroGPU anonyme des
