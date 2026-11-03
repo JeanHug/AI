@@ -3801,6 +3801,10 @@ function modelErrors(error) {
       }
       let b = {};
       try { b = await request.json(); } catch { /* corps illisible */ }
+      /* Les jetons ajoutés depuis l'application vivent dans l'objet durable :
+         sans cette relecture, la sonde ne voyait que ceux du Worker et
+         répondait pour le premier jeton en croyant tester un autre. */
+      await rfExtraTokens(env, true);
       const toks = roboflowTokens(env);
       if (!toks.length) return json({ error: "aucun jeton Roboflow dans le Worker" }, 400);
       /* `fin` choisit un jeton précis ; sinon le premier. */
