@@ -1962,9 +1962,31 @@ function rfOrderTokens(env) {
   }
   const now = Date.now();
   const libres = all.filter(t => !(RF_BAN[String(t).slice(-4)] && RF_BAN[String(t).slice(-4)].until > now));
-  /* Si TOUS sont de côté, on les réessaie quand même : rien ne doit rester
-     muet parce qu'un incident a été classé il y a longtemps. */
-  return libres.length ? libres : all;
+  /* Tous de côté : inutile de repayer dix-huit refus à chaque message. On
+     rend la main tout de suite, avec la raison (voir rfBanPhrase). */
+  return libres;
+}
+/* La phrase qui explique pourquoi plus aucun jeton n'est essayé. */
+function rfBanPhrase() {
+  const now = Date.now();
+  const c = { credit: 0, plan: 0, scopes: 0, autre: 0 };
+  let total = 0;
+  for (const k of Object.keys(RF_BAN)) {
+    const b = RF_BAN[k];
+    if (!b || b.until <= now) continue;
+    total++;
+    if (b.why === "crédits épuisés") c.credit++;
+    else if (b.why === "plan gratuit") c.plan++;
+    else if (b.why === "scopes") c.scopes++;
+    else c.autre++;
+  }
+  if (!total) return "";
+  const parts = [];
+  if (c.credit) parts.push(c.credit + (c.credit > 1 ? " espaces à sec (crédits du cycle épuisés)" : " espace à sec (crédits du cycle épuisés)"));
+  if (c.plan) parts.push(c.plan + " au plan gratuit (clés OpenRouter fermées)");
+  if (c.scopes) parts.push(c.scopes + " sans les droits requis (scopes)");
+  if (c.autre) parts.push(c.autre + " refusé" + (c.autre > 1 ? "s" : "") + " autrement");
+  return "Roboflow : sur " + total + " jeton" + (total > 1 ? "s" : "") + ", aucun ne peut servir en ce moment — " + parts.join(", ") + ".";
 }
 /* Développe une liste de blocs en (jeton, bloc) : le jeton tourne le plus vite. */
 function acrossTokens(env, cands) {
@@ -4575,6 +4597,21 @@ function modelErrors(error) {
     const attempt = async (list) => {
       let safeTried = false;
       let tries = 0;
+      if (!list.length) return { ok: false, error: rfBanPhrase() || "Roboflow : aucun jeton disponible", tries };
+      /* Ce que chaque jeton a répondu, pour pouvoir le dire en une phrase :
+         « sur 18 jetons, aucun ne peut servir — 4 espaces à sec, 14 au plan
+         gratuit ». */
+      const tally = { credit: 0, plan: 0, scopes: 0, other: 0, last: "" };
+      const rfSummary = () => {
+        const n = roboflowTokens(env).length;
+        const parts = [];
+        if (tally.credit) parts.push(tally.credit + (tally.credit > 1 ? " espaces à sec (crédits du cycle épuisés)" : " espace à sec (crédits du cycle épuisés)"));
+        if (tally.plan) parts.push(tally.plan + " au plan gratuit (clés OpenRouter fermées)");
+        if (tally.scopes) parts.push(tally.scopes + " sans les droits requis (scopes)");
+        if (tally.other) parts.push(tally.other + " refusé" + (tally.other > 1 ? "s" : "") + " autrement");
+        if (!parts.length) return "";
+        return "Roboflow : sur " + n + " jeton" + (n > 1 ? "s" : "") + ", aucun ne peut servir — " + parts.join(", ") + ".";
+      };
       const skip = new Set();       /* blocs dont la définition est refusée par Roboflow */
       let i = 0;
       while (i < list.length) {
@@ -4720,15 +4757,23 @@ function modelErrors(error) {
         const plan = roboflowPlanError(t);
         if (plan) {
           rfBan(String(c._token || "").slice(-4), 6 * 3600 * 1000, "plan gratuit");
-          const nt = roboflowTokens(env).length;
-          return { ok: false, error: plan + (nt > 1 ? " (essayé sur les " + nt + " jetons)" : ""), tries };
+          tally.plan++; tally.last = plan;
+          continue;
         }
-        /* Crédits épuisés : c'est LA raison, elle passe avant le reste. */
+        /* Crédits épuisés : un autre jeton a peut-être, lui, encore des
+           crédits — on passe au suivant au lieu de conclure. */
         const credit = roboflowCreditError(t);
         if (credit) {
           rfBan(String(c._token || "").slice(-4), 30 * 60 * 1000, "crédits épuisés");
-          const nt = roboflowTokens(env).length;
-          return { ok: false, error: credit + (nt > 1 ? " (et sur les " + nt + " jetons, chacun son espace de travail)" : ""), tries };
+          tally.credit++; tally.last = credit;
+          continue;
+        }
+        /* Jeton sans les droits requis (bloc Anthropic / Google direct) :
+           même chose, le suivant a peut-être un plan qui l'ouvre. */
+        if (r.status === 403 && /Unauthorized access to roboflow API|required scopes/i.test(t)) {
+          rfBan(String(c._token || "").slice(-4), 6 * 3600 * 1000, "scopes");
+          tally.scopes++; tally.last = detail;
+          continue;
         }
         if (wafLike(wafStat, t)) {
           /* Après les trois niveaux de réécriture, on ne parle ni de pare-feu
@@ -4743,7 +4788,10 @@ function modelErrors(error) {
         const defErr = (r.status === 400 || r.status === 404)
           && /validation error|string_pattern_mismatch|literal\[|BlockManifest|WorkflowSpecificationV1/i.test(t);
         if (defErr) skip.add(c.block);
+        tally.other++; tally.last = detail;
         if (i >= list.length || list.slice(i).every((x) => skip.has(x.block))) {
+          const resume = rfSummary();
+          if (resume) return { ok: false, error: resume + " Dernier refus : " + detail, tries };
           const nt = roboflowTokens(env).length;
           const suffix = c.orFallback
             ? " (les deux voies Roboflow et OpenRouter ont échoué" + (nt > 1 ? ", sur les " + nt + " jetons" : "") + ")"
@@ -4752,7 +4800,7 @@ function modelErrors(error) {
         }
         await new Promise((res) => setTimeout(res, 120));
       }
-      return { ok: false, error: "Roboflow : aucune voie disponible", tries };
+      return { ok: false, error: rfSummary() || "Roboflow : aucune voie disponible", tries };
     };
 
     const pick = (r) => (r.data && r.data.outputs && r.data.outputs[0]) ? r.data.outputs[0] : {};
