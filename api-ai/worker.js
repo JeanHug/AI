@@ -2181,13 +2181,25 @@ export class MissionJob {
       if (request.method === "POST") {
         let b = {};
         try { b = await request.json(); } catch { /* corps illisible */ }
+        /* `clear` : on efface tout et on réessaie depuis zéro (bouton
+           « réessayer » de l'application, ou après une recharge de crédits). */
+        if (b && b.clear) { bans = {}; await this.ctx.storage.put("rf_bans", bans); return json({ ok: true, bans: bans, cleared: true }); }
         const add = (b && b.bans && typeof b.bans === "object") ? b.bans : {};
+        const RANG = { "crédits épuisés": 3, "scopes": 2, "plan gratuit": 1 };
         for (const k of Object.keys(add)) {
           const e = add[k] || {};
           const until = Number(e.until || 0);
           if (!until || until <= now) continue;
           const prev = bans[k];
-          if (!prev || Number(prev.until || 0) < until) bans[k] = { until: until, why: String(e.why || "") };
+          const wNew = String(e.why || "");
+          /* Une raison faible n'écrase pas une raison forte : un espace à sec
+             reste « à sec », même si le repli OpenRouter, essayé juste après,
+             répond « plan gratuit ». */
+          if (prev && (RANG[String(prev.why || "")] || 0) > (RANG[wNew] || 0)) {
+            prev.until = Math.max(Number(prev.until || 0), until);
+            continue;
+          }
+          bans[k] = { until: Math.max(until, prev ? Number(prev.until || 0) : 0), why: wNew };
         }
         await this.ctx.storage.put("rf_bans", bans);
       }
@@ -3833,6 +3845,28 @@ function modelErrors(error) {
       const interest = {};
       for (const k of Object.keys(j)) if (cle.test(k)) interest[k] = j[k];
       return json({ ok: r.ok, statut: r.status, cles: Object.keys(j), interessants: interest });
+    }
+
+    /* ---- Roboflow : « réessayer maintenant » ------------------------
+       Efface les mises de côté (les deux caches) : au prochain message,
+       chaque jeton est réessayé pour de vrai. Sert après une recharge de
+       crédits, un changement de plan ou l'ajout d'une clé. */
+    if (url.pathname === "/api/rf/forget" && request.method === "POST") {
+      if (env.ACCESS_CODE && request.headers.get("X-Access-Code") !== env.ACCESS_CODE) {
+        return json({ error: "code d'accès invalide" }, 401);
+      }
+      RF_BAN = {};
+      RF_GOOD = "";
+      RF_LIST_CACHE = { at: 0, n: 0, data: null };
+      let ok = false;
+      try {
+        if (env.MISSION) {
+          const stub = env.MISSION.get(env.MISSION.idFromName("secrets"));
+          await stub.fetch("https://do/rf-bans", { method: "POST", body: JSON.stringify({ clear: true }) });
+          ok = true;
+        }
+      } catch (e) { /* le cache local est déjà vide */ }
+      return json({ ok: true, vide: ok, jetons: roboflowTokens(env).length });
     }
 
     /* ---- Roboflow : les jetons, un par un --------------------------
