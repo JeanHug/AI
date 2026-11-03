@@ -4496,7 +4496,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P117</p>
+      <p class="setver">Version P118</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -4584,6 +4584,16 @@ function fileToImage(file){
         <div id="dismodels"><p class="setnote">Lecture…</p></div>
         <p class="setnote" id="dismodstamp" style="margin-top:14px"></p>
         <button type="button" class="linkbtn" id="dismodtestall" style="margin-top:6px">Tout tester</button>
+      </section>
+
+      <section class="setsec" id="disrfsec">
+        <h3>Roboflow</h3>
+        <p class="setnote">Chaque jeton ouvre un espace de travail, et chaque espace a son propre quota de crédits. La rotation les essaie dans l'ordre : le premier qui peut encore dépenser travaille. ▶ lance un appel minuscule avec ce seul jeton — c'est la seule façon de savoir où il en est.</p>
+        <div id="disrflist"><p class="setnote">Lecture…</p></div>
+        <p class="setnote" id="disrfstamp" style="margin-top:14px"></p>
+        <input type="password" class="setinput" id="disrfnew" placeholder="rb_… (ajouter un jeton)" autocomplete="off" spellcheck="false">
+        <button type="button" class="linkbtn" id="disrfadd" style="margin-top:8px">Ajouter ce jeton</button>
+        <p class="setnote" id="disrfaddnote" style="margin-top:10px"></p>
       </section>
     </div>
     <div class="setwrap" id="setcanal" hidden>
@@ -8700,6 +8710,7 @@ function dispoLoad(){
      suite, même si la lecture des secrets échoue. */
   disModRender();
   disModChains();
+  disRfLoad();
   fetch(API_BASE + "/api/secrets", { headers: agtHeaders(), cache: "no-store" })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -9110,6 +9121,202 @@ function disModDetail(id, r){
   if(x) x.onclick = function(){ pop.hidden = true; };
   pop.onclick = function(e){ if(e.target === pop) pop.hidden = true; };
 }
+
+/* ---- Paramètres ▸ Disponibilité : les jetons Roboflow ------------------
+   Un jeton, un espace de travail, un quota. Roboflow ne publie pas le solde
+   restant : on affiche donc l'espace de chacun, et — quand un espace a tout
+   dépensé — le compte exact du cycle (10,89 / 10 crédits), tel que le
+   service le renvoie. L'essai ▶ dit lequel peut encore travailler. */
+const DISRF = { res: {}, jetons: [], espaces: {}, total: 0, busy: false };
+function disRfNum(v){ return String(Number(v).toFixed(2)).replace(".", ","); }
+function disRfState(t){
+  const r = DISRF.res[t.fin];
+  if(r && r.running) return { cls: "run", sub: "essai en cours…" };
+  if(r && r.ok === true){
+    return { cls: "ok", sub: (t.workspace ? t.workspace + " · " : "") + "peut encore dépenser"
+      + (r.ms ? " · " + r.ms + " ms" : "") };
+  }
+  if(r && r.ok === false){
+    const c = r.credits;
+    const court = (c && c.used != null && c.cap != null)
+      ? "crédits épuisés · " + disRfNum(c.used) + " / " + disRfNum(c.cap)
+      : String(r.message || "échec").slice(0, 96);
+    return { cls: "ko", sub: court };
+  }
+  if(t.ok === false) return { cls: "ko", sub: "jeton refusé · " + String(t.message || "").slice(0, 80) };
+  return { cls: "", sub: (t.workspace ? "espace " + t.workspace : "espace inconnu")
+    + (t.source === "ajouté" ? " · ajouté" : "") };
+}
+function disRfRender(){
+  const box = document.getElementById("disrflist");
+  if(!box) return;
+  let h = "";
+  for(const t of DISRF.jetons){
+    const st = disRfState(t);
+    const r = DISRF.res[t.fin] || {};
+    const icon = (st.cls === "run") ? '<span class="disspin"></span>'
+      : (st.cls === "ok") ? DIS_TICK : (st.cls === "ko") ? DIS_X : DIS_PLAY;
+    const title = r.running ? "Essai en cours…"
+      : (r.ok === true ? "Ce jeton peut encore dépenser — voir le détail"
+      : r.ok === false ? "Échec — voir le détail"
+      : "Tester ce jeton (un appel minuscule)" + (t.workspace ? " · " + t.workspace : ""));
+    h += '<div class="disrow" data-rf="' + esc(t.fin) + '">'
+      + '<div class="dismain"><b>Jeton ' + t.n + ' · …' + esc(t.fin) + '</b>'
+      + '<em>' + esc(st.sub) + '</em></div>'
+      + '<button type="button" class="disbtn ' + st.cls + '" data-rftest="' + esc(t.fin) + '" title="' + esc(title) + '">' + icon + '</button>'
+      + '</div>';
+  }
+  box.innerHTML = h || '<p class="setnote">Aucun jeton Roboflow dans le Worker.</p>';
+  [].slice.call(box.querySelectorAll("[data-rftest]")).forEach(function(b){
+    b.onclick = function(){
+      const fin = b.getAttribute("data-rftest");
+      const r = DISRF.res[fin];
+      if(r && !r.running && (r.ok === true || r.ok === false)) disRfDetail(fin, r);
+      else disRfTest(fin);
+    };
+  });
+}
+function disRfStamp(){
+  const el = document.getElementById("disrfstamp");
+  if(!el) return;
+  const nb = DISRF.total;
+  if(!nb){ el.textContent = ""; return; }
+  const noms = Object.keys(DISRF.espaces || {});
+  let ok = 0, ko = 0, inconnu = 0;
+  for(const t of DISRF.jetons){
+    const r = DISRF.res[t.fin];
+    if(!r || r.running) inconnu++;
+    else if(r.ok) ok++;
+    else ko++;
+  }
+  el.textContent = nb + " jeton" + (nb > 1 ? "s" : "") + " · " + noms.length + " espace" + (noms.length > 1 ? "s" : "")
+    + " de travail" + (noms.length ? " (" + noms.join(", ") + ")" : "")
+    + (inconnu || ok || ko ? " · " + ok + " peuvent dépenser, " + ko + " à sec, " + inconnu + " non testés" : "");
+}
+async function disRfLoad(frais){
+  try{
+    const r = await fetch(API_BASE + "/api/rf/tokens" + (frais ? "?fresh=1" : ""),
+      { headers: agtHeaders({}), cache: "no-store" });
+    const d = await r.json();
+    if(d && d.ok && Array.isArray(d.jetons)){
+      DISRF.jetons = d.jetons; DISRF.espaces = d.espaces || {}; DISRF.total = d.total || d.jetons.length;
+      /* On garde les résultats d'essais déjà obtenus. */
+      disRfRender(); disRfStamp();
+      return d;
+    }
+  }catch(e){ /* la section reste lisible : elle dit juste qu'elle n'a pas pu lire */ }
+  const box = document.getElementById("disrflist");
+  if(box && !DISRF.jetons.length) box.innerHTML = '<p class="setnote">Lecture impossible pour le moment.</p>';
+  return null;
+}
+function disRfMark(fin, val){
+  DISRF.res[fin] = val;
+  const b = document.querySelector('[data-rftest="' + fin + '"]');
+  const t = DISRF.jetons.filter(function(x){ return x.fin === fin; })[0] || { fin: fin };
+  const st = disRfState(t);
+  if(b){
+    b.className = "disbtn " + st.cls;
+    b.innerHTML = (st.cls === "run") ? '<span class="disspin"></span>'
+      : st.cls === "ok" ? DIS_TICK : st.cls === "ko" ? DIS_X : DIS_PLAY;
+    const row = b.closest(".disrow");
+    const em = row ? row.querySelector(".dismain em") : null;
+    if(em) em.textContent = st.sub;
+  }
+  disRfStamp();
+}
+async function disRfTest(fin){
+  if(DISRF.res[fin] && DISRF.res[fin].running) return null;
+  const t = DISRF.jetons.filter(function(x){ return x.fin === fin; })[0] || { fin: fin };
+  disRfMark(fin, { running: true });
+  const t0 = Date.now();
+  let res = null;
+  try{
+    const r = await fetch(API_BASE + "/api/rf/tokens/test", { method: "POST",
+      headers: agtHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ fin: fin, image: WHITE_PX }) });
+    const d = await r.json();
+    res = {
+      ok: !!(d && d.ok), fin: fin, ms: (d && d.ms) || (Date.now() - t0),
+      statut: d && d.statut, credits: (d && d.credits) || null,
+      message: (d && (d.error || d.message)) || "",
+      espace: t.workspace || "",
+    };
+  }catch(e){
+    res = { ok: false, fin: fin, ms: Date.now() - t0,
+      message: "essai impossible : " + String((e && e.message) || e) };
+  }
+  disRfMark(fin, res);
+  return res;
+}
+function disRfDetail(fin, r){
+  const pop = document.getElementById("dispop");
+  if(!pop) return;
+  const t = DISRF.jetons.filter(function(x){ return x.fin === fin; })[0] || { fin: fin, n: "?" };
+  const titre = document.getElementById("dispo-title"), msg = document.getElementById("dispo-msg");
+  if(titre) titre.textContent = "Jeton " + t.n + " · …" + fin + " — " + (r.ok ? "peut dépenser" : "à sec");
+  if(msg){
+    const L = [];
+    L.push("Espace de travail : " + (t.workspace || "inconnu"));
+    L.push("Jeton : …" + fin + (t.source ? " (" + t.source + ")" : ""));
+    if(r.credits && r.credits.used != null && r.credits.cap != null){
+      L.push("Crédits du cycle : " + disRfNum(r.credits.used) + " dépensés sur " + disRfNum(r.credits.cap) + " autorisés");
+      L.push("État : épuisé — Roboflow refuse toute inférence sur cet espace jusqu'au prochain cycle ou à une recharge.");
+    }else if(r.ok){
+      L.push("État : ce jeton a répondu — l'espace peut encore dépenser.");
+    }
+    if(r.ms) L.push("Durée : " + r.ms + " ms" + (r.statut ? " · HTTP " + r.statut : ""));
+    if(r.message) { L.push(""); L.push(r.message); }
+    L.push("");
+    L.push("Roboflow ne publie pas le solde restant (ni par API, ni dans les en-têtes) : le seul chiffre officiel est ce compteur de cycle, quand le plafond est atteint. Le nombre exact de crédits restants se lit sur la page Credit Usage de l'espace.");
+    msg.textContent = L.join("\n");
+  }
+  pop.hidden = false;
+  const c = document.getElementById("dispo-copy");
+  if(c) c.onclick = function(){
+    const txt = "Jeton …" + fin + " · " + (t.workspace || "espace inconnu") + " · "
+      + (r.ok ? "peut dépenser" : "à sec")
+      + (r.credits && r.credits.used != null ? " · " + disRfNum(r.credits.used) + "/" + disRfNum(r.credits.cap) + " crédits" : "")
+      + (r.message ? " · " + r.message : "");
+    try { navigator.clipboard.writeText(txt); agtToast("Copié."); } catch(e){ agtToast("Copie impossible."); }
+  };
+  const x = document.getElementById("dispo-close");
+  if(x) x.onclick = function(){ pop.hidden = true; };
+  pop.onclick = function(e){ if(e.target === pop) pop.hidden = true; };
+}
+async function disRfAdd(){
+  const inp = document.getElementById("disrfnew");
+  const note = document.getElementById("disrfaddnote");
+  const btn = document.getElementById("disrfadd");
+  if(!inp) return;
+  const v = String(inp.value || "").trim();
+  if(!v){ if(note) note.textContent = "Collez d'abord un jeton."; return; }
+  if(btn){ btn.disabled = true; btn.textContent = "Vérification…"; }
+  if(note) note.textContent = "";
+  try{
+    const r = await fetch(API_BASE + "/api/rf/tokens", { method: "POST",
+      headers: agtHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ add: v }) });
+    const d = await r.json();
+    if(d && d.ok){
+      inp.value = "";
+      if(note) note.textContent = "Jeton …" + d.ajoute + " ajouté — espace « " + d.workspace + " ». Il entre dans la rotation dès maintenant.";
+      await disRfLoad(true);
+    }else if(note){
+      note.textContent = (d && d.error) || "Ajout refusé.";
+    }
+  }catch(e){
+    if(note) note.textContent = "Ajout impossible : " + String((e && e.message) || e);
+  }
+  if(btn){ btn.disabled = false; btn.textContent = "Ajouter ce jeton"; }
+}
+(function disRfWire(){
+  const b = document.getElementById("disrfadd");
+  if(b && !b.dataset.wired){ b.dataset.wired = "1"; b.addEventListener("click", disRfAdd); }
+  const inp = document.getElementById("disrfnew");
+  if(inp && !inp.dataset.wired){
+    inp.dataset.wired = "1";
+    inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); disRfAdd(); } });
+  }
+})();
 
 /* ---- Paramètres ▸ Tâches : la liste des missions de la passerelle ------ */
 function taskAge(ts){
