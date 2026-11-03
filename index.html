@@ -4496,7 +4496,7 @@ function fileToImage(file){
           <span class="sra"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></span>
         </button>
       </section>
-      <p class="setver">Version P116</p>
+      <p class="setver">Version P117</p>
     </div>
     <div class="setwrap" id="setcompte" hidden>
       <div id="setavatar" class="setavatar"></div>
@@ -4577,6 +4577,13 @@ function fileToImage(file){
         <h3>Crédits</h3>
         <div id="discredits"><p class="setnote">Lecture…</p></div>
         <p class="setnote" id="discredstamp" style="margin-top:10px"></p>
+      </section>
+      <section class="setsec" id="dismodsec">
+        <h3>Modèles</h3>
+        <p class="setnote">Chaque modèle passe par une plateforme précise — et parfois par une seconde quand la première refuse. ▶ lance un vrai appel minuscule : la fiche dit quelle plateforme a répondu, et ce qu'ont répondu celles qui ont échoué avant.</p>
+        <div id="dismodels"><p class="setnote">Lecture…</p></div>
+        <p class="setnote" id="dismodstamp" style="margin-top:14px"></p>
+        <button type="button" class="linkbtn" id="dismodtestall" style="margin-top:6px">Tout tester</button>
       </section>
     </div>
     <div class="setwrap" id="setcanal" hidden>
@@ -8697,6 +8704,7 @@ function dispoLoad(){
       DISPO.list = d.secrets || [];
       dispoRender();
       dispoCredits();
+      disModRender();
       if (stamp) stamp.textContent = DISPO.list.length + " secrets · " + DISPO.list.filter(function (x) { return x.present; }).length + " présents.";
     })
     .catch(function (e) {
@@ -8852,6 +8860,182 @@ function dispoDetail(name, r){
   const x = document.getElementById("dispo-close");
   if (x) x.onclick = function () { pop.hidden = true; };
   pop.onclick = function (e) { if (e.target === pop) pop.hidden = true; };
+}
+
+/* ---- Disponibilité ▸ Modèles ------------------------------------------
+   Chaque modèle dit sa plateforme (celle de l'API, telle que la fiche la
+   connaît), puis son essai réel : un appel de quelques tokens. Le Worker
+   rend la chaîne des plateformes prévues et le message d'erreur de chacune
+   avant celle qui a répondu. */
+let DISMOD = { res: {}, busy: false, stop: false };
+const DIS_VENDORS = {
+  anthropic: "Anthropic", openai: "OpenAI", google: "Google", meta: "Meta",
+  mistral: "Mistral", qwen: "Qwen", kimi: "Moonshot", glm: "Zhipu",
+  deepseek: "DeepSeek", xiaomi: "Xiaomi", microsoft: "Microsoft",
+  bfl: "Black Forest Labs", ideogram: "Ideogram", ifm: "IFM",
+  inception: "Inception", modelscope: "ModelScope",
+};
+/* Ce qu'un modèle produit vraiment : un texte se teste d'un appel minuscule ;
+   une image ou une vidéo coûte des crédits et du temps, on le dit au lieu
+   de le faire sans le dire. */
+function modelKindOf(m){
+  if(!m) return "text";
+  if(m.gen==="img") return "image";
+  if(m.gen==="vid") return "video";
+  if(m.gen==="audio"||m.gen==="embed"||m.gen==="live"||m.gen==="transcribe") return "live";
+  return "text";
+}
+function disModList(){
+  return MODELS.filter(function(m){ return m && m.id !== "arena" && !m.hidden; });
+}
+function disModState(id){
+  const r = DISMOD.res[id];
+  const m = MODELS.filter(function(x){ return x.id === id; })[0] || {};
+  if(!r) return { cls: "", sub: (m.via || "") };
+  if(r.running) return { cls: "run", sub: "essai en cours…" };
+  if(r.skipped) return { cls: "", sub: (r.platform || m.via || "") + " · essai non lancé (crédits)" };
+  if(r.ok === true){
+    return { cls: "ok", sub: (r.platform || m.via || "") + (r.ms ? " · " + r.ms + " ms" : "")
+      + (r.chain && r.chain.length > 1 ? " · secours : " + r.chain.slice(1).join(", ") : "") };
+  }
+  const first = (r.previous && r.previous[0]) || r.error || "échec";
+  const court = String(first).length > 84 ? String(first).slice(0, 84) + "…" : String(first);
+  return { cls: "ko", sub: "échec · " + court };
+}
+function disModRender(){
+  const box = document.getElementById("dismodels");
+  if(!box) return;
+  const groups = {}, order = [];
+  for(const m of disModList()){
+    const v = m.vendor || "autre";
+    if(!groups[v]){ groups[v] = []; order.push(v); }
+    groups[v].push(m);
+  }
+  let h = "";
+  for(const v of order){
+    h += '<h3 style="margin:18px 0 4px">' + esc(DIS_VENDORS[v] || v) + "</h3>";
+    for(const m of groups[v]){
+      const st = disModState(m.id);
+      const r = DISMOD.res[m.id] || {};
+      const icon = (st.cls === "run") ? '<span class="disspin"></span>'
+        : (st.cls === "ok") ? DIS_TICK : (st.cls === "ko") ? DIS_X : DIS_PLAY;
+      const title = r.running ? "Essai en cours…"
+        : (r.ok === true ? "Fonctionne — voir la plateforme et les erreurs des autres"
+        : r.ok === false ? "Échec — voir le détail"
+        : r.skipped ? "Génération : l'essai n'est pas lancé d'ici (crédits)"
+        : "Tester " + m.label);
+      h += '<div class="disrow" data-mod="' + esc(m.id) + '">'
+        + '<div class="dismain"><b>' + esc(m.label) + '</b><em>' + esc(st.sub) + '</em></div>'
+        + '<button type="button" class="disbtn ' + st.cls + '" data-modtest="' + esc(m.id) + '" title="' + esc(title) + '">' + icon + '</button>'
+        + '</div>';
+    }
+  }
+  box.innerHTML = h || '<p class="setnote">Aucun modèle.</p>';
+  [].slice.call(box.querySelectorAll("[data-modtest]")).forEach(function(b){
+    b.onclick = function(){
+      const id = b.getAttribute("data-modtest");
+      const r = DISMOD.res[id];
+      if(r && !r.running && (r.ok === true || r.ok === false)) disModDetail(id, r);
+      else disModTest(id);
+    };
+  });
+}
+function disModMark(id, val){
+  DISMOD.res[id] = val;
+  const b = document.querySelector('[data-modtest="' + id + '"]');
+  if(!b) return;
+  const st = disModState(id);
+  b.className = "disbtn " + st.cls;
+  b.innerHTML = (st.cls === "run") ? '<span class="disspin"></span>'
+    : st.cls === "ok" ? DIS_TICK : st.cls === "ko" ? DIS_X : DIS_PLAY;
+  const row = b.closest(".disrow");
+  const em = row ? row.querySelector(".dismain em") : null;
+  if(em) em.textContent = st.sub;
+}
+async function disModTest(id){
+  if(DISMOD.res[id] && DISMOD.res[id].running) return null;
+  const m = MODELS.filter(function(x){ return x.id === id; })[0];
+  if(!m) return null;
+  disModMark(id, { running: true });
+  const ctrl = (typeof AbortController === "function") ? new AbortController() : null;
+  const minuteur = ctrl ? setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, 90000) : null;
+  let res = null;
+  try{
+    const opt = { method: "POST", headers: agtHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ id: id, kind: modelKindOf(m) }) };
+    if(ctrl) opt.signal = ctrl.signal;
+    const r = await fetch(API_BASE + "/api/models/test", opt);
+    const d = await r.json();
+    if(!d || d.error) throw new Error((d && d.error) || ("HTTP " + r.status));
+    res = d;
+  }catch(e){
+    res = { ok: false, chain: [], platform: "", error: "test impossible : " + String((e && e.message) || e), previous: [] };
+  }
+  if(minuteur) clearTimeout(minuteur);
+  disModMark(id, res);
+  return res;
+}
+async function disModTestAll(){
+  if(DISMOD.busy) return;
+  DISMOD.busy = true; DISMOD.stop = false;
+  const btn = document.getElementById("dismodtestall");
+  const stamp = document.getElementById("dismodstamp");
+  if(btn){ btn.textContent = "Arrêter"; btn.onclick = function(){ DISMOD.stop = true; }; }
+  /* Les modèles de texte d'abord : un appel de huit tokens, quelques
+     centimes de rien. Les générateurs d'images et de vidéos ne partent pas
+     d'ici — leur essai consomme des crédits et plusieurs dizaines de
+     secondes. */
+  const textes = disModList().filter(function(m){ return modelKindOf(m) === "text"; });
+  let i = 0, ok = 0, ko = 0;
+  for(const m of textes){
+    if(DISMOD.stop) break;
+    i++;
+    if(stamp) stamp.textContent = i + " / " + textes.length + " · " + ok + " fonctionnent" + (ko ? " · " + ko + " en échec" : "");
+    const r = await disModTest(m.id);
+    if(r && r.ok === true) ok++;
+    else if(r && r.ok === false) ko++;
+  }
+  if(stamp) stamp.textContent = i + " modèle(s) testé(s) à " + new Date().toLocaleTimeString("fr-FR")
+    + " · " + ok + " fonctionnent" + (ko ? " · " + ko + " en échec" : "") + (DISMOD.stop ? " · essai interrompu" : "");
+  DISMOD.busy = false;
+  if(btn){ btn.textContent = "Tout tester"; btn.onclick = disModTestAll; }
+}
+function disModDetail(id, r){
+  const pop = document.getElementById("dispop");
+  if(!pop) return;
+  const m = MODELS.filter(function(x){ return x.id === id; })[0] || {};
+  const t = document.getElementById("dispo-title"), msg = document.getElementById("dispo-msg");
+  const etat = r.ok === true ? "fonctionne" : r.ok === false ? "en échec" : "non testé";
+  if(t) t.textContent = (m.label || id) + " — " + etat;
+  if(msg){
+    const L = [];
+    L.push("Plateforme de l'API : " + (r.platform || m.via || "inconnue"));
+    if(r.chain && r.chain.length){
+      L.push("Chaîne prévue : " + r.chain.join(" → ")
+        + (r.chain.length > 1 ? " (la seconde n'est appelée que si la première refuse)" : ""));
+    }
+    if(r.via) L.push("Réponse venue de : " + r.platform + " (via « " + r.via + " »)");
+    if(r.ms) L.push("Durée : " + r.ms + " ms" + (r.status ? " · HTTP " + r.status : ""));
+    if(r.echo) L.push("Réponse reçue : « " + r.echo + " »");
+    if(r.skipped) L.push(r.reason || "essai non lancé.");
+    const prev = (r.previous && r.previous.length) ? r.previous : (r.error ? [r.error] : []);
+    if(r.ok === false && prev.length){
+      L.push("");
+      L.push("Erreur(s) des plateformes :");
+      for(const p of prev) L.push("• " + p);
+    }
+    msg.textContent = L.join("\n");
+  }
+  pop.hidden = false;
+  const c = document.getElementById("dispo-copy");
+  if(c) c.onclick = function(){
+    const txt = (m.label || id) + " · " + (r.platform || "") + " · " + (r.ok ? "fonctionne" : "en échec")
+      + (r.error ? " : " + r.error : "") + " · chaîne " + ((r.chain || []).join(" → "));
+    try { navigator.clipboard.writeText(txt); agtToast("Copié."); } catch(e){ agtToast("Copie impossible."); }
+  };
+  const x = document.getElementById("dispo-close");
+  if(x) x.onclick = function(){ pop.hidden = true; };
+  pop.onclick = function(e){ if(e.target === pop) pop.hidden = true; };
 }
 
 /* ---- Paramètres ▸ Tâches : la liste des missions de la passerelle ------ */
@@ -9293,6 +9477,7 @@ function canalWire(){
   const gw = g("setgowan"); if (gw) gw.onclick = function(){ showSetView("wan"); };
   const gt = g("setgotasks"); if (gt) gt.onclick = function(){ showSetView("tasks"); };
   const dt = g("distestall"); if (dt) dt.onclick = dispoTestAll;
+  const dm = g("dismodtestall"); if (dm) dm.onclick = disModTestAll;
   const tr = g("taskrefresh"); if (tr) tr.onclick = tasksLoad;
   const b1 = g("setback"); if (b1) b1.onclick = function(){ showSetView(SET_VIEW === "wan" ? "models" : "list"); };
   /* les missions connues de cet appareil se déclarent (une fois, en douceur) */
