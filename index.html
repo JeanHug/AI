@@ -9140,6 +9140,7 @@ function disRfState(t){
     const c = r.credits;
     const court = (c && c.used != null && c.cap != null)
       ? "crédits épuisés · " + disRfNum(c.used) + " / " + disRfNum(c.cap)
+      : r.plan ? "plan gratuit · clés OpenRouter fermées"
       : String(r.message || "échec").slice(0, 96);
     return { cls: "ko", sub: court };
   }
@@ -9238,6 +9239,7 @@ async function disRfTest(fin){
     res = {
       ok: !!(d && d.ok), fin: fin, ms: (d && d.ms) || (Date.now() - t0),
       statut: d && d.statut, credits: (d && d.credits) || null,
+      plan: !!(d && d.plan),
       message: (d && (d.error || d.message)) || "",
       espace: t.workspace || "",
     };
