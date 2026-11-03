@@ -3522,6 +3522,69 @@ function modelErrors(error) {
 
     /* ---- Crédits : ce qui reste dans chaque compte ------------------- */
     /* Les noms des secrets et l'état de chacun — jamais les valeurs. */
+    /* ---- Roboflow : l'enquête -------------------------------------
+       Une seule requête vers le service de workflows, avec le même corps
+       qu'une conversation, et la réponse BRUTE (statut + début du corps).
+       La clé n'est jamais renvoyée : seulement ses quatre derniers
+       caractères. Sert à comprendre un refus (pare-feu, quota, jeton). */
+    if (url.pathname === "/api/rf/probe" && request.method === "POST") {
+      if (env.ACCESS_CODE && request.headers.get("X-Access-Code") !== env.ACCESS_CODE) {
+        return json({ error: "code d'accès invalide" }, 401);
+      }
+      let b = {};
+      try { b = await request.json(); } catch { /* corps illisible */ }
+      const model = String(b.model || "qwen-3-8-27b");
+      const prompt = String(b.prompt || "ping");
+      const image = String(b.image || "");
+      const spec = MODELS[model];
+      if (!spec) return json({ error: "modèle inconnu : " + model }, 400);
+      const toks = roboflowTokens(env);
+      if (!toks.length) return json({ error: "aucun jeton Roboflow dans le Worker" }, 400);
+      const tok = toks[0];
+      const step = {
+        type: spec.block, name: "m", prompt,
+        [spec.vf || "model_version"]: spec.vv || model,
+        api_key: "rf_key:account", task_type: "unconstrained",
+      };
+      if (!spec.noimg && image) step.images = "$inputs.image";
+      const payload = {
+        api_key: tok,
+        inputs: image ? { image: { type: "base64", value: image } } : {},
+        specification: {
+          version: "1.0",
+          inputs: image ? [{ type: "WorkflowImage", name: "image" }] : [],
+          steps: [step],
+          outputs: [{ type: "JsonField", name: "output", selector: "$steps.m.output" }],
+        },
+      };
+      const t0 = Date.now();
+      let status = 0, texte = "", entetes = {};
+      try {
+        const r = await fetch(ROBOFLOW_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        status = r.status;
+        texte = await r.text();
+        entetes = { server: r.headers.get("server") || "", cfRay: r.headers.get("cf-ray") ? "oui" : "",
+          contentType: r.headers.get("content-type") || "" };
+      } catch (e) {
+        return json({ ok: false, error: "Roboflow injoignable : " + String(e && e.message ? e.message : e) }, 502);
+      }
+      return json({
+        ok: status < 300,
+        modele: model,
+        bloc: spec.block,
+        statut: status,
+        ms: Date.now() - t0,
+        entetes: entetes,
+        jeton: "…" + String(tok).slice(-4),
+        debut: String(texte).replace(/\s+/g, " ").slice(0, 900),
+        html: /<html|Attention Required|Just a moment/i.test(texte),
+      });
+    }
+
     /* ---- Modèles : la chaîne des plateformes, sans aucun appel ------
        Un Worker ne peut pas s'appeler lui-même (Cloudflare refuse une
        requête vers sa propre zone : « error code: 1042 »). L'essai réel se
