@@ -1931,6 +1931,15 @@ async function rfExtraTokens(env, force) {
     const r = await stub.fetch("https://do/rf-tokens?full=1", { method: "GET" });
     const j = await r.json().catch(() => null);
     if (j && Array.isArray(j.tokens)) RF_EXTRA = { at: now, tokens: j.tokens.map(String) };
+    if (j && j.bans && typeof j.bans === "object") {
+      for (const k of Object.keys(j.bans)) {
+        const e = j.bans[k] || {};
+        const until = Number(e.until || 0);
+        if (until > Date.now() && (!RF_BAN[k] || Number(RF_BAN[k].until || 0) < until)) {
+          RF_BAN[k] = { until: until, why: String(e.why || "") };
+        }
+      }
+    }
   } catch (e) { /* stockage indisponible : on garde ceux du Worker */ }
   return RF_EXTRA.tokens;
 }
@@ -1952,6 +1961,17 @@ let RF_GOOD = "";     /* dernier jeton qui a répondu : il passe devant */
 function rfBan(fin, ms, why) {
   if (!fin) return;
   RF_BAN[fin] = { until: Date.now() + ms, why: String(why || "") };
+}
+/* Envoie la mise de côté dans l'objet durable (partagée entre isolates). */
+async function rfPushBan(env, fin) {
+  try {
+    const e = RF_BAN[fin];
+    if (!env || !env.MISSION || !e) return;
+    const body = {};
+    body[fin] = { until: e.until, why: e.why };
+    const stub = env.MISSION.get(env.MISSION.idFromName("secrets"));
+    await stub.fetch("https://do/rf-bans", { method: "POST", body: JSON.stringify({ bans: body }) });
+  } catch (err) { /* la mise de côté locale suffit */ }
 }
 function rfOrderTokens(env) {
   const all = roboflowTokens(env);
@@ -2126,7 +2146,36 @@ export class MissionJob {
       }
       const full = new URL(request.url).searchParams.get("full") === "1";
       const fins = cur.map(t => String(t).slice(-4));
-      return json(full ? { ok: true, n: cur.length, fins: fins, tokens: cur } : { ok: true, n: cur.length, fins: fins });
+      if (!full) return json({ ok: true, n: cur.length, fins: fins });
+      /* Les jetons mis de côté sont partagés par tous les isolates : sans ça,
+         chaque nouveau démarrage repayait dix-huit refus avant de rendre la
+         main. */
+      const now = Date.now();
+      let bans = (await this.ctx.storage.get("rf_bans")) || {};
+      for (const k of Object.keys(bans)) if (!bans[k] || bans[k].until <= now) delete bans[k];
+      return json({ ok: true, n: cur.length, fins: fins, tokens: cur, bans: bans });
+    }
+    /* Mise de côté d'un jeton : crédits épuisés (30 min), plan gratuit ou
+       droits manquants (6 h). Partagé, pour que tous les démarrages en
+       profitent. */
+    if (path === "/rf-bans") {
+      const now = Date.now();
+      let bans = (await this.ctx.storage.get("rf_bans")) || {};
+      for (const k of Object.keys(bans)) if (!bans[k] || bans[k].until <= now) delete bans[k];
+      if (request.method === "POST") {
+        let b = {};
+        try { b = await request.json(); } catch { /* corps illisible */ }
+        const add = (b && b.bans && typeof b.bans === "object") ? b.bans : {};
+        for (const k of Object.keys(add)) {
+          const e = add[k] || {};
+          const until = Number(e.until || 0);
+          if (!until || until <= now) continue;
+          const prev = bans[k];
+          if (!prev || Number(prev.until || 0) < until) bans[k] = { until: until, why: String(e.why || "") };
+        }
+        await this.ctx.storage.put("rf_bans", bans);
+      }
+      return json({ ok: true, bans: bans });
     }
     if (path === "/alias") {
       if (request.method === "POST") {
@@ -4757,6 +4806,7 @@ function modelErrors(error) {
         const plan = roboflowPlanError(t);
         if (plan) {
           rfBan(String(c._token || "").slice(-4), 6 * 3600 * 1000, "plan gratuit");
+          try { if (ctx && ctx.waitUntil) ctx.waitUntil(rfPushBan(env, String(c._token || "").slice(-4))); } catch (e) {}
           tally.plan++; tally.last = plan;
           continue;
         }
@@ -4765,6 +4815,7 @@ function modelErrors(error) {
         const credit = roboflowCreditError(t);
         if (credit) {
           rfBan(String(c._token || "").slice(-4), 30 * 60 * 1000, "crédits épuisés");
+          try { if (ctx && ctx.waitUntil) ctx.waitUntil(rfPushBan(env, String(c._token || "").slice(-4))); } catch (e) {}
           tally.credit++; tally.last = credit;
           continue;
         }
@@ -4772,6 +4823,7 @@ function modelErrors(error) {
            même chose, le suivant a peut-être un plan qui l'ouvre. */
         if (r.status === 403 && /Unauthorized access to roboflow API|required scopes/i.test(t)) {
           rfBan(String(c._token || "").slice(-4), 6 * 3600 * 1000, "scopes");
+          try { if (ctx && ctx.waitUntil) ctx.waitUntil(rfPushBan(env, String(c._token || "").slice(-4))); } catch (e) {}
           tally.scopes++; tally.last = detail;
           continue;
         }
