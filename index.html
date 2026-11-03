@@ -8705,6 +8705,7 @@ function dispoLoad(){
       dispoRender();
       dispoCredits();
       disModRender();
+      disModChains();
       if (stamp) stamp.textContent = DISPO.list.length + " secrets · " + DISPO.list.filter(function (x) { return x.present; }).length + " présents.";
     })
     .catch(function (e) {
@@ -8952,24 +8953,82 @@ function disModMark(id, val){
   const em = row ? row.querySelector(".dismain em") : null;
   if(em) em.textContent = st.sub;
 }
+/* La chaîne des plateformes, demandée une fois au Worker : il ne fait que
+   lire ses propres tables de routage, sans appeler personne. */
+async function disModChains(){
+  const list = disModList().map(function(m){ return { id: m.id, kind: modelKindOf(m) }; });
+  try{
+    const r = await fetch(API_BASE + "/api/models/chains", { method: "POST",
+      headers: agtHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ models: list }), cache: "no-store" });
+    const d = await r.json();
+    if(d && d.ok && d.modeles){
+      for(const id of Object.keys(d.modeles)){
+        const info = d.modeles[id] || {};
+        DISMOD.res[id] = Object.assign({ chain: info.chain || [], kind: info.kind || "text" }, DISMOD.res[id] || {});
+      }
+      disModRender();
+    }
+  }catch(e){ /* la fiche dit au moins la plateforme de l'app */ }
+}
+/* Quelle plateforme a répondu, d'après le champ « via » du Worker. */
+function disModPlatformOf(chain, via){
+  const v = String(via || "");
+  if(v === "modelscope") return "ModelScope";
+  if(v === "openrouter") return "OpenRouter";
+  if(v === "roboflow") return "Roboflow";
+  if(v === "cloudflare") return "Cloudflare Workers AI";
+  if(v === "hf") return "Hugging Face (Space)";
+  if(v === "pollinations") return "Pollinations";
+  if(v === "ifm") return "IFM";
+  if(v === "inception") return "Inception (Mercury)";
+  return (chain && chain.length) ? chain[0] : "";
+}
+/* L'essai : la même route que la conversation, avec un prompt minuscule et
+   huit tokens. Un Worker ne peut pas s'appeler lui-même (Cloudflare le
+   refuse), donc c'est bien l'application qui frappe — comme vous, quand
+   vous écrivez. */
 async function disModTest(id){
   if(DISMOD.res[id] && DISMOD.res[id].running) return null;
   const m = MODELS.filter(function(x){ return x.id === id; })[0];
   if(!m) return null;
-  disModMark(id, { running: true });
+  const kind = modelKindOf(m);
+  const chain = (DISMOD.res[id] && DISMOD.res[id].chain) || [];
+  if(kind !== "text"){
+    const skip = { ok: null, skipped: true, kind: kind, chain: chain, platform: chain[0] || m.via || "",
+      reason: (kind === "image" || kind === "video")
+        ? "essai non lancé : la génération consomme des crédits et plusieurs dizaines de secondes"
+        : "ce modèle ne répond pas par le chat : son essai se fait depuis la discussion" };
+    disModMark(id, skip);
+    return skip;
+  }
+  disModMark(id, { running: true, chain: chain });
   const ctrl = (typeof AbortController === "function") ? new AbortController() : null;
   const minuteur = ctrl ? setTimeout(function(){ try { ctrl.abort(); } catch(e){} }, 90000) : null;
   let res = null;
+  const t0 = Date.now();
   try{
     const opt = { method: "POST", headers: agtHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ id: id, kind: modelKindOf(m) }) };
+      body: JSON.stringify({ model: id, prompt: "ping", params: { max_tokens: 8, temperature: 0 } }) };
     if(ctrl) opt.signal = ctrl.signal;
-    const r = await fetch(API_BASE + "/api/models/test", opt);
-    const d = await r.json();
-    if(!d || d.error) throw new Error((d && d.error) || ("HTTP " + r.status));
-    res = d;
+    const r = await fetch(API_BASE + "/api/chat", opt);
+    const texte = await r.text();
+    let d = null;
+    try{ d = JSON.parse(texte); }catch(e){ d = null; }
+    const ms = Date.now() - t0;
+    if(d && typeof d.output === "string" && r.ok){
+      res = { ok: true, kind: "text", ms: ms, status: r.status, via: d.via || "",
+        platform: disModPlatformOf(chain, d.via), chain: chain,
+        echo: String(d.output).replace(/\s+/g, " ").trim().slice(0, 80) };
+    }else{
+      const err = (d && d.error) || String(texte).slice(0, 300) || ("HTTP " + r.status);
+      res = { ok: false, kind: "text", ms: ms, status: r.status, chain: chain,
+        platform: disModPlatformOf(chain, d && d.via), error: err,
+        previous: String(err).split(" · ").map(function(x){ return x.trim(); }).filter(Boolean) };
+    }
   }catch(e){
-    res = { ok: false, chain: [], platform: "", error: "test impossible : " + String((e && e.message) || e), previous: [] };
+    res = { ok: false, kind: "text", ms: Date.now() - t0, chain: chain, platform: "",
+      error: "test impossible : " + String((e && e.message) || e), previous: [] };
   }
   if(minuteur) clearTimeout(minuteur);
   disModMark(id, res);
