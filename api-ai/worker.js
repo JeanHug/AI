@@ -732,6 +732,15 @@ function wafLike(status, text) {
   if (/^\s*<(!doctype|html)/i.test(t)) return true;
   return Number(status) === 403;
 }
+/* Roboflow refuse l'accès aux clés OpenRouter qu'il gère pour les espaces au
+   plan gratuit : ce n'est ni un pare-feu, ni une panne — c'est une limite de
+   plan, et il faut le dire ainsi. */
+function roboflowPlanError(text) {
+  const t = String(text || "");
+  if (!/only available to workspaces on a paid plan|provide your own OpenRouter API key/i.test(t)) return "";
+  return "Roboflow : cet espace de travail est au plan gratuit, qui n'ouvre pas les clés OpenRouter gérées par Roboflow"
+    + " — soit un plan payant (app.roboflow.com/settings/billing), soit sa propre clé OpenRouter.";
+}
 /* Le détail comptable d'un refus, sous forme de nombres — null si absent. */
 function roboflowCreditInfo(text) {
   const t = String(text || "");
@@ -3800,7 +3809,8 @@ function modelErrors(error) {
         credits: credits,
         epuise: !!credits,
         message: out.ok ? "" : (credits ? roboflowCreditError(out.texte)
-          : (roboflowCreditError(out.texte) || String(out.texte).replace(/\s+/g, " ").slice(0, 300))),
+          : (roboflowPlanError(out.texte) || String(out.texte).replace(/\s+/g, " ").slice(0, 300))),
+        plan: !out.ok && !!roboflowPlanError(out.texte),
       });
     }
 
@@ -4676,6 +4686,12 @@ function modelErrors(error) {
 
         let detail = t.slice(0, 400);
         try { const j = JSON.parse(t); detail = j.inner_error_message || j.message || detail; } catch { /* texte brut */ }
+        /* Limite de plan (clés OpenRouter gérées) : la vraie raison aussi. */
+        const plan = roboflowPlanError(t);
+        if (plan) {
+          const nt = roboflowTokens(env).length;
+          return { ok: false, error: plan + (nt > 1 ? " (essayé sur les " + nt + " jetons)" : ""), tries };
+        }
         /* Crédits épuisés : c'est LA raison, elle passe avant le reste. */
         const credit = roboflowCreditError(t);
         if (credit) {
