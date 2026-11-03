@@ -1983,35 +1983,54 @@ function rfOrderTokens(env) {
   const now = Date.now();
   const libres = all.filter(t => !(RF_BAN[String(t).slice(-4)] && RF_BAN[String(t).slice(-4)].until > now));
   /* Tous de côté : inutile de repayer dix-huit refus à chaque message. On
-     rend la main tout de suite, avec la raison (voir rfBanPhrase). */
+     rend la main tout de suite, avec la raison (voir rfWhyPhrase). */
   return libres;
 }
-/* La phrase qui explique pourquoi plus aucun jeton n'est essayé. */
-function rfBanPhrase() {
+/* La phrase qui explique pourquoi, jeton par jeton, rien ne peut servir. */
+function rfWhyPhrase(env) {
+  const toks = roboflowTokens(env);
   const now = Date.now();
-  const c = { credit: 0, plan: 0, scopes: 0, autre: 0 };
-  let total = 0;
-  for (const k of Object.keys(RF_BAN)) {
-    const b = RF_BAN[k];
-    if (!b || b.until <= now) continue;
-    total++;
+  const c = { credit: 0, plan: 0, scopes: 0, autre: 0, libre: 0 };
+  for (const t of toks) {
+    const b = RF_BAN[String(t).slice(-4)];
+    if (!b || b.until <= now) { c.libre++; continue; }
     if (b.why === "crédits épuisés") c.credit++;
     else if (b.why === "plan gratuit") c.plan++;
     else if (b.why === "scopes") c.scopes++;
     else c.autre++;
   }
-  if (!total) return "";
   const parts = [];
   if (c.credit) parts.push(c.credit + (c.credit > 1 ? " espaces à sec (crédits du cycle épuisés)" : " espace à sec (crédits du cycle épuisés)"));
   if (c.plan) parts.push(c.plan + " au plan gratuit (clés OpenRouter fermées)");
   if (c.scopes) parts.push(c.scopes + " sans les droits requis (scopes)");
   if (c.autre) parts.push(c.autre + " refusé" + (c.autre > 1 ? "s" : "") + " autrement");
-  return "Roboflow : sur " + total + " jeton" + (total > 1 ? "s" : "") + ", aucun ne peut servir en ce moment — " + parts.join(", ") + ".";
+  if (!parts.length) return "";
+  const n = toks.length;
+  return "Roboflow : sur " + n + " jeton" + (n > 1 ? "s" : "") + ", aucun ne peut servir"
+    + (c.libre ? " (dont " + c.libre + " non essayé" + (c.libre > 1 ? "s" : "") + ")" : "")
+    + " — " + parts.join(", ") + ".";
+}
+function rfBan(fin, ms, why) {
+  if (!fin) return;
+  RF_BAN[fin] = { until: Date.now() + ms, why: String(why || "") };
+}
+/* Envoie la mise de côté dans l'objet durable (partagée entre isolates). */
+async function rfPushBan(env, fin) {
+  try {
+    const e = RF_BAN[fin];
+    if (!env || !env.MISSION || !e) return;
+    const body = {};
+    body[fin] = { until: e.until, why: e.why };
+    const stub = env.MISSION.get(env.MISSION.idFromName("secrets"));
+    await stub.fetch("https://do/rf-bans", { method: "POST", body: JSON.stringify({ bans: body }) });
+  } catch (err) { /* la mise de côté locale suffit */ }
 }
 /* Développe une liste de blocs en (jeton, bloc) : le jeton tourne le plus vite. */
 function acrossTokens(env, cands) {
   const toks = rfOrderTokens(env);
-  if (!toks.length) return cands.slice();
+  /* Aucun jeton du tout : l'ancien comportement (les voies sans clé).
+     Jetons tous mis de côté : on ne tente rien, on dit pourquoi. */
+  if (!toks.length) return roboflowTokens(env).length ? [] : cands.slice();
   const out = [];
   for (const t of toks) for (const c of cands) out.push(Object.assign({}, c, { _token: t }));
   return out;
@@ -4646,21 +4665,12 @@ function modelErrors(error) {
     const attempt = async (list) => {
       let safeTried = false;
       let tries = 0;
-      if (!list.length) return { ok: false, error: rfBanPhrase() || "Roboflow : aucun jeton disponible", tries };
+      if (!list.length) return { ok: false, error: rfWhyPhrase(env) || "Roboflow : aucun jeton disponible", tries };
       /* Ce que chaque jeton a répondu, pour pouvoir le dire en une phrase :
          « sur 18 jetons, aucun ne peut servir — 4 espaces à sec, 14 au plan
          gratuit ». */
       const tally = { credit: 0, plan: 0, scopes: 0, other: 0, last: "" };
-      const rfSummary = () => {
-        const n = roboflowTokens(env).length;
-        const parts = [];
-        if (tally.credit) parts.push(tally.credit + (tally.credit > 1 ? " espaces à sec (crédits du cycle épuisés)" : " espace à sec (crédits du cycle épuisés)"));
-        if (tally.plan) parts.push(tally.plan + " au plan gratuit (clés OpenRouter fermées)");
-        if (tally.scopes) parts.push(tally.scopes + " sans les droits requis (scopes)");
-        if (tally.other) parts.push(tally.other + " refusé" + (tally.other > 1 ? "s" : "") + " autrement");
-        if (!parts.length) return "";
-        return "Roboflow : sur " + n + " jeton" + (n > 1 ? "s" : "") + ", aucun ne peut servir — " + parts.join(", ") + ".";
-      };
+      const rfSummary = () => rfWhyPhrase(env);
       const skip = new Set();       /* blocs dont la définition est refusée par Roboflow */
       let i = 0;
       while (i < list.length) {
