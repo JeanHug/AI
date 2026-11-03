@@ -3603,6 +3603,32 @@ function modelErrors(error) {
       });
     }
 
+    /* ---- Roboflow : le compte --------------------------------------
+       La fiche de l'espace de travail, filtrée : on ne garde que ce qui
+       parle de plan, de cycle et de crédits. La clé reste au Worker. */
+    if (url.pathname === "/api/rf/info" && request.method === "GET") {
+      if (env.ACCESS_CODE && request.headers.get("X-Access-Code") !== env.ACCESS_CODE) {
+        return json({ error: "code d'accès invalide" }, 401);
+      }
+      const toks = roboflowTokens(env);
+      if (!toks.length) return json({ error: "aucun jeton Roboflow dans le Worker" }, 400);
+      let r, txt = "";
+      try {
+        r = await fetch("https://api.roboflow.com/?api_key=" + encodeURIComponent(toks[0]),
+          { headers: { "Accept": "application/json", "User-Agent": BROWSER_UA } });
+        txt = await r.text();
+      } catch (e) {
+        return json({ error: "Roboflow injoignable : " + String(e && e.message ? e.message : e) }, 502);
+      }
+      let j = null;
+      try { j = JSON.parse(txt); } catch { /* pas du JSON */ }
+      if (!j) return json({ ok: false, statut: r.status, debut: String(txt).slice(0, 400) });
+      const cle = /plan|cycle|billing|credit|period|reset|renew|expire|trial|subscript|seat|usage/i;
+      const interest = {};
+      for (const k of Object.keys(j)) if (cle.test(k)) interest[k] = j[k];
+      return json({ ok: r.ok, statut: r.status, cles: Object.keys(j), interessants: interest });
+    }
+
     /* ---- Modèles : la chaîne des plateformes, sans aucun appel ------
        Un Worker ne peut pas s'appeler lui-même (Cloudflare refuse une
        requête vers sa propre zone : « error code: 1042 »). L'essai réel se
