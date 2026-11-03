@@ -739,10 +739,11 @@ function roboflowCreditError(text) {
   if (!/credit_cap_exceeded|ran out of credits|cannot currently spend credits/i.test(t)) return "";
   const cap = (t.match(/cycleCreditCap[\"']?\s*:\s*(\d+(?:\.\d+)?)/) || [])[1];
   const used = (t.match(/planCycleUsed[\"']?\s*:\s*(\d+(?:\.\d+)?)/) || [])[1];
-  const nf = function (v) { return String(Number(v).toFixed(2)).replace(".", ",") + " $"; };
+  const nf = function (v) { return String(Number(v).toFixed(2)).replace(".", ",") + " crédits"; };
   return "Roboflow : crédits du cycle épuisés"
     + (used && cap ? " (" + nf(used) + " dépensés sur " + nf(cap) + " autorisés pour ce cycle)" : "")
-    + " — le service de workflows refuse toute inférence jusqu'au prochain cycle ou à une recharge du plan (app.roboflow.com/settings/plan).";
+    + " — toute inférence est refusée jusqu'au prochain cycle ou à une recharge du plan"
+    + " (crédits et recharge : app.roboflow.com/settings/plan · dates du cycle : Réglages de l'espace ▸ Credit Usage).";
 }
 // Ne conserve que les réglages valides pour la famille du modèle.
 function sanitize(params, family) {
