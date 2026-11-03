@@ -3847,6 +3847,36 @@ function modelErrors(error) {
       return json({ ok: r.ok, statut: r.status, cles: Object.keys(j), interessants: interest });
     }
 
+    /* ---- Roboflow : qui est de côté, et pourquoi ---------------------
+       Le détail des mises de côté, sans aucune clé : les quatre derniers
+       caractères du jeton et la raison. Sert à comprendre un refus. */
+    if (url.pathname === "/api/rf/bans" && request.method === "GET") {
+      if (env.ACCESS_CODE && request.headers.get("X-Access-Code") !== env.ACCESS_CODE) {
+        return json({ error: "code d'accès invalide" }, 401);
+      }
+      const now = Date.now();
+      let doBans = null;
+      try {
+        if (env.MISSION) {
+          const stub = env.MISSION.get(env.MISSION.idFromName("secrets"));
+          const r = await stub.fetch("https://do/rf-bans", { method: "GET" });
+          const j = await r.json().catch(() => null);
+          if (j && j.bans) doBans = j.bans;
+        }
+      } catch (e) { /* pas de stockage partagé */ }
+      const vus = {};
+      for (const src of [RF_BAN, doBans || {}]) {
+        for (const k of Object.keys(src)) {
+          const e = src[k] || {};
+          if (!(Number(e.until || 0) > now)) continue;
+          vus[k] = { jusqu: new Date(Number(e.until)).toISOString(), min: Math.round((Number(e.until) - now) / 60000), why: String(e.why || "") };
+        }
+      }
+      const compte = {};
+      for (const k of Object.keys(vus)) compte[vus[k].why || "?"] = (compte[vus[k].why || "?"] || 0) + 1;
+      return json({ ok: true, total: roboflowTokens(env).length, deCote: Object.keys(vus).length, compte: compte, jetons: vus });
+    }
+
     /* ---- Roboflow : « réessayer maintenant » ------------------------
        Efface les mises de côté (les deux caches) : au prochain message,
        chaque jeton est réessayé pour de vrai. Sert après une recharge de
