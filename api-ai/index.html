@@ -8696,6 +8696,10 @@ function dispoLoad(){
   const box = document.getElementById("dislist");
   const stamp = document.getElementById("distamp");
   if (!box) return;
+  /* La liste des modèles ne dépend d'aucun secret : elle s'affiche tout de
+     suite, même si la lecture des secrets échoue. */
+  disModRender();
+  disModChains();
   fetch(API_BASE + "/api/secrets", { headers: agtHeaders(), cache: "no-store" })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -9014,7 +9018,11 @@ async function disModTest(id){
   const t0 = Date.now();
   try{
     const opt = { method: "POST", headers: agtHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ model: id, prompt: "ping", params: { max_tokens: 8, temperature: 0 } }) };
+      /* Le même corps qu'une vraie conversation : Roboflow exige un champ
+         image, l'application envoie donc son pixel blanc habituel. 64 tokens :
+         assez pour un modèle à diffusion (Mercury) qui répond « ok ». */
+      body: JSON.stringify({ model: id, prompt: "Réponds seulement : ok",
+        image: WHITE_PX, params: { max_tokens: 64, temperature: 0 } }) };
     if(ctrl) opt.signal = ctrl.signal;
     const r = await fetch(API_BASE + "/api/chat", opt);
     const texte = await r.text();
@@ -9025,7 +9033,7 @@ async function disModTest(id){
       res = { ok: true, kind: "text", ms: ms, status: r.status, via: d.via || "",
         platform: disModPlatformOf(chain, d.via), chain: chain,
         echo: String(d.output).replace(/\*?\(réponse interrompue[^)]*\)\*?/g, " ")
-          .replace(/\s+/g, " ").trim().slice(0, 80) || "(réponse vide à 8 tokens)" };
+          .replace(/\s+/g, " ").trim().slice(0, 80) || "(réponse vide à 64 tokens)" };
     }else{
       const err = (d && d.error) || String(texte).slice(0, 300) || ("HTTP " + r.status);
       res = { ok: false, kind: "text", ms: ms, status: r.status, chain: chain,
@@ -9046,7 +9054,7 @@ async function disModTestAll(){
   const btn = document.getElementById("dismodtestall");
   const stamp = document.getElementById("dismodstamp");
   if(btn){ btn.textContent = "Arrêter"; btn.onclick = function(){ DISMOD.stop = true; }; }
-  /* Les modèles de texte d'abord : un appel de huit tokens, quelques
+  /* Les modèles de texte d'abord : un appel de 64 tokens, quelques
      centimes de rien. Les générateurs d'images et de vidéos ne partent pas
      d'ici — leur essai consomme des crédits et plusieurs dizaines de
      secondes. */
