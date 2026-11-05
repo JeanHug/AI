@@ -4829,7 +4829,13 @@ function modelErrors(error) {
        passerelle déjà déployée. Résultat brut, y compris les erreurs. */
     const raw = body.params && body.params._raw;
     const rawCand = (raw && raw.block) ? {
-      block: String(raw.block), family: "router",
+      /* La famille suit le bloc : un bloc officiel doit recevoir la clé du
+         fournisseur apportée par le Worker (sinon l'essai est écarté d'office
+         comme « plan gratuit »). */
+      block: String(raw.block),
+      family: /anthropic/i.test(raw.block) ? "claude"
+        : (/open_ai|openai/i.test(raw.block) ? "openai"
+        : (/gemini/i.test(raw.block) ? "gemini" : "router")),
       vf: String(raw.vf || "model_version"), vv: String(raw.vv || model),
       out: raw.out ? String(raw.out) : undefined,
       noimg: raw.noimg === true,          /* certains modèles refusent l'image */
