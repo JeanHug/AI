@@ -4183,6 +4183,32 @@ function modelErrors(error) {
          à l'état du sous-domaine workers.dev. Repli : fetch HTTP classique.
          Et si la passerelle répond « daemon_pending_cycle » (son état des
          tunnels a du retard), la même requête repart par le tunnel direct. */
+      if (sub === "debug") {
+        const urls = await vmTunnelList();
+        const essais = [];
+        for (const base of urls) {
+          const t0 = Date.now();
+          try {
+            const r = await fetch(base + "/api/linux/exec", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ command: "hostname", user: "kasm-user", timeout: 15 }),
+            });
+            const txt = await r.text();
+            essais.push({ base: base, statut: r.status, ms: Date.now() - t0, corps: txt.slice(0, 160) });
+          } catch (e) {
+            essais.push({ base: base, erreur: String(e && e.message ? e.message : e), ms: Date.now() - t0 });
+          }
+        }
+        let gateway = null;
+        try {
+          const rq = new Request(VM_BASE + "/exec", { method: "POST",
+            headers: { ...H, "Content-Type": "application/json" },
+            body: JSON.stringify({ command: "hostname", user: "kasm-user", timeout: 15 }) });
+          const r = env.VMAI && typeof env.VMAI.fetch === "function" ? await env.VMAI.fetch(rq) : await fetch(rq);
+          gateway = { statut: r.status, corps: (await r.text()).slice(0, 160) };
+        } catch (e) { gateway = { erreur: String(e && e.message ? e.message : e) }; }
+        return json({ ok: true, tunnels: urls, direct: essais, passerelle: gateway });
+      }
       const vmFetch = async (u, init) => {
         /* Le tunnel expose les mêmes chemins que la passerelle (« /api/linux/exec ») :
            on garde donc le chemin complet, seul l'hôte change. */
