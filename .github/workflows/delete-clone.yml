@@ -1,0 +1,33 @@
+name: Delete clone ezjkerrstg
+
+# Supprime définitivement le worker clone « ezjkerrstg » (créé pour comparer
+# avec la version d'il y a une semaine). Ne touche à aucun autre worker.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  delete:
+    name: Suppression de ezjkerrstg
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supprimer le worker
+        env:
+          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CLOUDFLARE_ID: ${{ secrets.CLOUDFLARE_ID }}
+        run: |
+          set -e
+          echo "→ suppression de ezjkerrstg"
+          code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X DELETE \
+            -H "Authorization: Bearer ${CLOUDFLARE_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ID}/workers/scripts/ezjkerrstg")
+          echo "HTTP ${code}"
+          cat /tmp/out.json
+          echo
+          echo "→ workers restants :"
+          curl -s -H "Authorization: Bearer ${CLOUDFLARE_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ID}/workers/scripts" \
+            | tr ',' '\n' | grep -o '"id":"[^"]*"' | sed 's/"id":"//;s/"//'
