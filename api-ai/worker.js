@@ -3543,6 +3543,35 @@ async function fetchHandler(request, env, ctx) {
           return json({ ok: false, error: "ModelScope injoignable : " + (e && e.message ? e.message : e) }, 502);
         }
       }
+      /* Sonde de diagnostic (temporaire) : interroge ModelScope avec un
+         identifiant EXACT et rend son verdict — aucun re-mappage implicite. */
+      if (url.pathname === "/api/ms/probe" && request.method === "POST") {
+        let b = {};
+        try { b = await request.json(); } catch { /* corps illisible */ }
+        const id = String(b.model || "").trim();
+        if (!id) return json({ ok: false, error: "model manquant" }, 400);
+        const kind = String(b.kind || "text");
+        const key = msKey(env);
+        const H = { "Content-Type": "application/json", Authorization: "Bearer " + key, "User-Agent": BROWSER_UA };
+        if (kind === "image") {
+          const r = await fetch(MS_HOSTS[0] + "/images/generations", {
+            method: "POST",
+            headers: Object.assign({ "X-ModelScope-Async-Mode": "true" }, H),
+            body: JSON.stringify({ model: id, prompt: String(b.prompt || "un chat roux"), size: "1328x1328" }),
+          });
+          const t = await r.text();
+          return json({ ok: r.ok, model: id, kind: kind, status: r.status, body: String(t).slice(0, 400) });
+        }
+        const r = await fetch(MS_HOSTS[0] + "/chat/completions", {
+          method: "POST", headers: H,
+          body: JSON.stringify({ model: id, messages: [{ role: "user", content: "Réponds : ok" }], max_tokens: 8 }),
+        });
+        const t = await r.text();
+        let out = "";
+        try { out = String(JSON.parse(t).choices[0].message.content || ""); } catch { out = ""; }
+        return json({ ok: r.ok, model: id, kind: "text", status: r.status,
+          output: out.slice(0, 80), body: r.ok ? "" : String(t).slice(0, 300) });
+      }
       return json({ error: "route ModelScope inconnue" }, 404);
     }
 
