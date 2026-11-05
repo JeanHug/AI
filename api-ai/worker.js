@@ -4196,9 +4196,15 @@ function modelErrors(error) {
         if (up) {
           try {
             if (up.status >= 500) pending = true;
-            else if (String(up.headers.get("content-type") || "").indexOf("json") >= 0) {
+            else {
+              /* Toutes les routes /api/linux/* répondent du JSON. Une page
+                 d'erreur Cloudflare (« error code: 1016 »), un texte brut ou
+                 l'état « daemon_pending_cycle » veulent donc dire que la
+                 passerelle n'a pas joint le bureau : on retente en direct. */
               const txt = await up.clone().text();
               if (txt.indexOf("daemon_pending_cycle") >= 0) pending = true;
+              else if (txt && txt.charAt(0) !== "{" && txt.charAt(0) !== "[") pending = true;
+              else if (/^\s*(<!doctype|<html|error code:)/i.test(txt)) pending = true;
             }
           } catch (e) { /* réponse illisible : on la garde telle quelle */ }
         }
