@@ -1262,18 +1262,23 @@ const MS_SITE = MS_SITES[0];
    désormais zai-org (ZhipuAI est refusé), et les MiMo s'appellent
    MiMo-V2.6-… sur le dépôt. Un identifiant juste vaut mieux même quand le
    fournisseur n'est pas encore ouvert : le jour où il l'est, c'est branché. */
+/* Les identifiants ci-dessous ont été vérifiés un par un contre l'API
+   d'inférence (sonde /api/ms/probe) : un nom absent du dépôt ne renvoie pas
+   une erreur de modèle inconnu mais « has no provider supported », et le nom
+   approximatif d'un modèle d'image renvoie 500. On ne met donc ici que des
+   identifiants qui répondent vraiment. */
 const MS_TEXT = {
-  "kimi-k3": "moonshotai/Kimi-K3",
-  "glm-5-3": "zai-org/GLM-5.3",
-  "glm-5-3-flash": "zai-org/GLM-5.3-Flash",
-  "deepseek-v4-1-flash": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "kimi-k3": "moonshotai/Kimi-K3.1-Pro",          /* K3 n'est plus servi, K3.1 Pro oui */
+  "glm-5-3": "zai-org/GLM-5.2",                   /* GLM 5.3 pas encore publié côté inférence */
+  "glm-5-3-flash": "zai-org/GLM-4.7-Flash",
+  "deepseek-v4-1-flash": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
   "mimo-v2-6-pro": "XiaomiMiMo/MiMo-V2.6-Pro-RL",
   "mimo-v2-6-flash": "XiaomiMiMo/MiMo-V2.6-Flash-RL",
-  "qwen-3-8-flash-next": "Qwen/Qwen3.8-Flash-Next",
+  "qwen-3-8-flash-next": "Qwen/Qwen3.8-27B",
   "qwen-3-8-27b": "Qwen/Qwen3.8-27B",
   "groq-qwen-3-8-27b": "Qwen/Qwen3.8-27B",
-  "qwen-3-8-max": "Qwen/Qwen3.8-2.4T-A95B",
-  "qwen-3-8-2-4t": "Qwen/Qwen3.8-2.4T-A95B",
+  "qwen-3-8-max": "Qwen/Qwen3.5-397B-A17B",       /* Qwen3.8-Max n'est pas ouvert à ce compte */
+  "qwen-3-8-2-4t": "Qwen/Qwen3.5-397B-A17B",
 };
 /* Modèles d'image servis par ModelScope. */
 /* Modèles servis par ModelScope EN PREMIER : Roboflow ne prend le relais que
@@ -1296,9 +1301,12 @@ const MS_FIRST = {
   "glm-5-3-flash": true,
   "mimo-v2-6-pro": true,
 };
+/* Qwen-Image-2.1 (et Turbo) répondent 500 chez ModelScope : leur fonction
+   d'inférence a disparu côté serveur. Qwen-Image, lui, répond — et
+   Qwen-Image-Edit pour une image jointe. */
 const MS_IMG = {
-  "qwen-image-2-1": "Qwen/Qwen-Image-2.1",
-  "qwen-image-2-1-turbo": "Qwen/Qwen-Image-2.1-Turbo",
+  "qwen-image-2-1": "Qwen/Qwen-Image",
+  "qwen-image-2-1-turbo": "Qwen/Qwen-Image",
   /* Wan 2.2 n'est plus ici : la famille Wan 2.2 de ModelScope est vidéo
      (texte→image n'existe pas sur leur inférence), elle passe par /api/video. */
 };
@@ -1617,7 +1625,10 @@ async function msImage(env, msModel, ib) {
   const key = msKey(env);
   if (!key) return json({ error: "secret MODELSCOPE_API_KEY manquant côté Worker" }, 500);
   const p = (ib.params && typeof ib.params === "object") ? ib.params : {};
-  const body = { model: msModel, prompt: String(ib.prompt || "") };
+  /* Une image jointe = une édition : c'est Qwen-Image-Edit qui sait la
+     prendre en entrée (Qwen-Image ne fait que du texte→image). */
+  const msServed = (ib.image && /^Qwen\/Qwen-Image$/.test(msModel)) ? "Qwen/Qwen-Image-Edit" : msModel;
+  const body = { model: msServed, prompt: String(ib.prompt || "") };
   /* Résolution : le champ `size` de l'API /images/generations accepte une
      taille précise (« largeurxhauteur »). L'app l'envoie sous le nom
      `resolution` (pastilles), les anciens réglages sous width/height.
@@ -1645,15 +1656,15 @@ async function msImage(env, msModel, ib) {
   try { sj = JSON.parse(st); } catch { sj = null; }
   if (!sub.ok || !sj) {
     const m = (sj && sj.error && (sj.error.message || sj.error.code)) || ("HTTP " + sub.status);
-    MS_IMG_LAST = { at: Date.now(), model: msModel, taille: body.size || "(défaut)", etat: "refus",
+    MS_IMG_LAST = { at: Date.now(), model: msServed, taille: body.size || "(défaut)", etat: "refus",
       soumission: sj, statut: sub.status, brut: String(st || "").slice(0, 600) };
-    return json({ error: "ModelScope « " + msModel + " » : " + String(m).slice(0, 300) }, sub.status === 401 ? 401 : 502);
+    return json({ error: "ModelScope « " + msServed + " » : " + String(m).slice(0, 300) }, sub.status === 401 ? 401 : 502);
   }
   /* La soumission peut aussi répondre 200 avec un code d'erreur dans le corps. */
   if (sj.code && sj.message && !sj.task_id && !sj.output_images) {
     MS_IMG_LAST = { at: Date.now(), model: msModel, taille: body.size || "(défaut)", etat: "refus",
       soumission: sj, statut: sub.status };
-    return json({ error: "ModelScope « " + msModel + " » : " + String(sj.message).slice(0, 300) }, 502);
+    return json({ error: "ModelScope « " + msServed + " » : " + String(sj.message).slice(0, 300) }, 502);
   }
   /* Toute la réponse est conservée : c'est elle qui dit pourquoi ça ne marche pas. */
   MS_IMG_LAST = { at: Date.now(), model: msModel, taille: body.size || "(défaut)", soumission: sj,
@@ -1678,7 +1689,7 @@ async function msImage(env, msModel, ib) {
       if (status === "SUCCEED") { urls = (pj && pj.output_images) || []; break; }
       if (status === "FAILED") {
         MS_IMG_LAST = Object.assign({}, MS_IMG_LAST, { at: Date.now(), etat: "échec", tache: pj });
-        return json({ error: "ModelScope « " + msModel + " » : génération échouée — " +
+        return json({ error: "ModelScope « " + msServed + " » : génération échouée — " +
           String(JSON.stringify((pj && (pj.error || pj.message)) || pj || {})).slice(0, 250) }, 502);
       }
     }
@@ -1686,7 +1697,7 @@ async function msImage(env, msModel, ib) {
   const url = urls && urls[0];
   if (!url) {
     MS_IMG_LAST = Object.assign({}, MS_IMG_LAST, { at: Date.now(), etat: "sans image" });
-    return json({ error: "ModelScope « " + msModel + " » : aucune image rendue (tâche trop longue ou refusée)" }, 502);
+    return json({ error: "ModelScope « " + msServed + " » : aucune image rendue (tâche trop longue ou refusée)" }, 502);
   }
   MS_IMG_LAST = Object.assign({}, MS_IMG_LAST, { at: Date.now(), etat: "ok", image: String(url).slice(0, 120) });
   /* b64_json éventuel : déjà prêt. */
