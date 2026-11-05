@@ -2019,7 +2019,17 @@ async function rfPushBan(env, fin) {
     await stub.fetch("https://do/rf-bans", { method: "POST", body: JSON.stringify({ bans: body }) });
   } catch (err) { /* la mise de côté locale suffit */ }
 }
-function rfOrderTokens(env) {
+/* La clé du fournisseur apportée par le Worker, s'il y en a une : le bloc
+   officiel de Roboflow (anthropic_claude, open_ai, google_gemini) l'utilise
+   alors directement, sans consommer les crédits de l'espace. */
+function cleFournisseur(env, family) {
+  if (!env || !family) return "";
+  if (family === "claude") return String(env.ANTHROPIC_API_KEY || "").trim();
+  if (family === "openai") return String(env.OPENAI_API_KEY || "").trim();
+  if (family === "gemini") return String(env.GOOGLE_API_KEY || "").trim();
+  return "";
+}
+function rfOrderTokens(env, clePropre) {
   const all = roboflowTokens(env);
   /* Le jeton qui vient de répondre d'abord. */
   if (RF_GOOD) {
@@ -2027,7 +2037,16 @@ function rfOrderTokens(env) {
     if (i > 0) all.unshift(all.splice(i, 1)[0]);
   }
   const now = Date.now();
-  const libres = all.filter(t => !(RF_BAN[String(t).slice(-4)] && RF_BAN[String(t).slice(-4)].until > now));
+  /* Un espace mis de côté « plan gratuit » ou « sans clé du fournisseur » ne
+     l'a été que parce que Roboflow refusait de prêter SA clé. Quand le Worker
+     apporte la sienne pour ce modèle, l'essai redevient légitime : on ne
+     garde la mise de côté que pour les espaces vraiment à sec. */
+  const libres = all.filter(t => {
+    const b = RF_BAN[String(t).slice(-4)];
+    if (!b || b.until <= now) return true;
+    if (clePropre && (b.why === "plan gratuit" || b.why === "scopes")) return true;
+    return false;
+  });
   /* Tous de côté : inutile de repayer dix-huit refus à chaque message. On
      rend la main tout de suite, avec la raison (voir rfWhyPhrase). */
   return libres;
@@ -2058,7 +2077,8 @@ function rfWhyPhrase(env) {
 }
 /* Développe une liste de blocs en (jeton, bloc) : le jeton tourne le plus vite. */
 function acrossTokens(env, cands) {
-  const toks = rfOrderTokens(env);
+  const clePropre = (cands || []).some((c) => !!cleFournisseur(env, c && c.family));
+  const toks = rfOrderTokens(env, clePropre);
   /* Aucun jeton du tout : l'ancien comportement (les voies sans clé).
      Jetons tous mis de côté : on ne tente rien, on dit pourquoi. */
   if (!toks.length) return roboflowTokens(env).length ? [] : cands.slice();
@@ -3805,13 +3825,7 @@ function modelErrors(error) {
     /* La clé du fournisseur, quand elle existe dans les secrets du Worker :
        le bloc l'utilise alors directement, sans passer par la clé prêtée par
        Roboflow (donc sans consommer de crédits d'espace de travail). */
-    const providerKey = (env, c) => {
-      if (!c || c.orFallback) return "";
-      if (c.family === "claude") return String(env.ANTHROPIC_API_KEY || "").trim();
-      if (c.family === "openai") return String(env.OPENAI_API_KEY || "").trim();
-      if (c.family === "gemini") return String(env.GOOGLE_API_KEY || "").trim();
-      return "";
-    };
+    const providerKey = (env, c) => (c && !c.orFallback) ? cleFournisseur(env, c.family) : "";
     /* Un pixel blanc de 1×1 : Roboflow exige un champ image, même pour un
        modèle de texte. Sert quand l'appelant n'en fournit pas. */
     const RF_PX = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
