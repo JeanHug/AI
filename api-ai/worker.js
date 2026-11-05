@@ -3902,8 +3902,14 @@ function modelErrors(error) {
     const rfTryToken = async (tok, model, imageIn, promptTxt, opts) => {
       opts = opts || {};
       const image = String(imageIn || "") || RF_PX;
-      const spec = MODELS[model] || null;
-      if (!spec) return { error: "modèle inconnu : " + model };
+      const base = MODELS[model] || null;
+      if (!base && !opts.block) return { error: "modèle inconnu : " + model };
+      /* `opts.block`/`opts.vv` : essayer une AUTRE version du bloc, ou le bloc
+         d'un autre modèle, sans déployer pour autant. */
+      const spec = base ? Object.assign({}, base) : { block: String(opts.block), family: "router" };
+      if (opts.block) spec.block = String(opts.block);
+      if (opts.vv !== undefined) spec.vv = String(opts.vv);
+      if (opts.vf) spec.vf = String(opts.vf);
       /* `opts.apikey` : "" pour OMETTRE carrément le champ, une autre valeur
          pour l'essayer (« rf_key:user:default »…). `opts.trivial` remplace le
          bloc par une simple transformation, sans aucune clé de fournisseur :
@@ -3917,7 +3923,9 @@ function modelErrors(error) {
           task_type: "unconstrained",
         };
       if (!opts.trivial) {
-        const ak = opts.apikey === undefined ? "rf_key:account" : String(opts.apikey);
+        /* « $tok » : mettre le jeton de l'espace lui-même dans l'étape. */
+        const ak = opts.apikey === undefined ? "rf_key:account"
+          : (opts.apikey === "$tok" ? tok : String(opts.apikey));
         if (ak) step.api_key = ak;
       }
       if (!spec.noimg && image) step.images = "$inputs.image";
@@ -3932,11 +3940,19 @@ function modelErrors(error) {
         },
       };
       const t0 = Date.now();
+      /* Où mettre le jeton : dans le corps (défaut), dans l'en-tête, ou dans
+         l'URL. Roboflow n'authentifie pas forcément de la même façon la
+         requête du workflow et l'appel interne qui demande la clé gérée. */
+      const mode = String(opts.transport || "body");
+      const entetes = { "Content-Type": "application/json" };
+      let cible = ROBOFLOW_URL;
+      if (mode === "header") { delete payload.api_key; entetes["Authorization"] = "Bearer " + tok; }
+      else if (mode === "query") { delete payload.api_key; cible = ROBOFLOW_URL + "?api_key=" + encodeURIComponent(tok); }
       let r;
       try {
-        r = await fetch(ROBOFLOW_URL, {
+        r = await fetch(cible, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: entetes,
           body: JSON.stringify(payload),
         });
       } catch (e) {
@@ -3972,11 +3988,12 @@ function modelErrors(error) {
       const fin = String(b.fin || "");
       const tok = fin ? (toks.filter(t => String(t).slice(-4) === fin)[0] || toks[0]) : toks[0];
       const out = await rfTryToken(tok, String(b.model || "qwen-3-8-27b"), String(b.image || ""), String(b.prompt || "ping"),
-        { apikey: b.apikey, trivial: b.trivial === true });
+        { apikey: b.apikey, trivial: b.trivial === true, block: b.block, vv: b.vv, vf: b.vf, transport: b.transport });
       if (out.error) return json({ ok: false, error: out.error }, 502);
       return json({
         ok: out.ok, modele: String(b.model || "qwen-3-8-27b"), bloc: out.bloc, statut: out.statut,
-        essai: b.trivial === true ? "trivial" : ("api_key=" + (b.apikey === undefined ? "rf_key:account" : JSON.stringify(b.apikey))),
+        essai: [b.trivial === true ? "trivial" : ("api_key=" + (b.apikey === undefined ? "rf_key:account" : JSON.stringify(b.apikey))),
+          b.block ? "bloc=" + b.block : "", b.transport ? "transport=" + b.transport : ""].filter(Boolean).join(" · "),
         ms: out.ms, entetes: out.entetes, jeton: out.jeton,
         debut: String(out.texte).replace(/\s+/g, " ").slice(0, 900),
         html: /<html|Attention Required|Just a moment/i.test(out.texte),
