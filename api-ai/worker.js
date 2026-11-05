@@ -3226,7 +3226,18 @@ function modelErrors(error) {
           const r = env.VMAI && typeof env.VMAI.fetch === "function" ? await env.VMAI.fetch(rq) : await fetch(rq);
           gateway = { statut: r.status, corps: (await r.text()).slice(0, 160) };
         } catch (e) { gateway = { erreur: String(e && e.message ? e.message : e) }; }
-        return json({ ok: true, tunnels: urls, direct: essais, passerelle: gateway });
+        let rawInfo = null, apiInfo = null;
+        try {
+          const r = await fetch("https://raw.githubusercontent.com/JeanHug/VM/tunnel-url/tunnels-linux.json?d=" + Date.now());
+          rawInfo = { statut: r.status, age: r.headers.get("age"), cc: r.headers.get("cache-control"),
+            etag: r.headers.get("etag"), corps: (await r.text()).slice(0, 200) };
+        } catch (e) { rawInfo = { erreur: String(e && e.message ? e.message : e) }; }
+        try {
+          const r = await fetch("https://api.github.com/repos/JeanHug/VM/contents/tunnels-linux.json?ref=tunnel-url",
+            { headers: { "User-Agent": "api-ai", Accept: "application/vnd.github.raw" } });
+          apiInfo = { statut: r.status, reste: r.headers.get("x-ratelimit-remaining"), corps: (await r.text()).slice(0, 200) };
+        } catch (e) { apiInfo = { erreur: String(e && e.message ? e.message : e) }; }
+        return json({ ok: true, tunnels: urls, direct: essais, passerelle: gateway, raw: rawInfo, api: apiInfo });
       }
       const vmFetch = async (u, init) => {
         /* Le tunnel expose les mêmes chemins que la passerelle (« /api/linux/exec ») :
