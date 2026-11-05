@@ -3916,7 +3916,7 @@ function modelErrors(error) {
          cela sépare « le jeton peut lancer un workflow » de « Roboflow veut
          bien prêter sa clé ». */
       const step = opts.trivial
-        ? { type: "roboflow_core/dominant_color@v1", name: "m", images: "$inputs.image" }
+        ? { type: "roboflow_core/image_blur@v1", name: "m", images: "$inputs.image" }
         : {
           type: spec.block, name: "m", prompt: String(promptTxt || "ping"),
           [spec.vf || "model_version"]: spec.vv || model,
@@ -3936,7 +3936,7 @@ function modelErrors(error) {
           version: "1.0",
           inputs: image ? [{ type: "WorkflowImage", name: "image" }] : [],
           steps: [step],
-          outputs: [{ type: "JsonField", name: "output", selector: "$steps.m.output" }],
+          outputs: [{ type: "JsonField", name: "output", selector: opts.trivial ? "$steps.m.image" : "$steps.m.output" }],
         },
       };
       const t0 = Date.now();
