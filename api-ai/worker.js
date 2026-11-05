@@ -566,6 +566,67 @@ function pollErrorMessage(status, raw) {
 }
 
 /* --- Canal Google (Gemini API gratuite) --- */
+/* Un appel à l'API Google officielle, avec la clé du Worker. Rend un objet
+   simple, pour que la route puisse décider de retomber sur Roboflow. */
+async function googleChat(env, cfg, prompt, params, body) {
+  const H = { "Content-Type": "application/json", "x-goog-api-key": env.GOOGLE_API_KEY };
+  const B = "https://generativelanguage.googleapis.com/v1beta/models/" + cfg.m;
+  try {
+        if (cfg.kind === "embed") {
+          const up = await fetch(B + ":embedContent", { method: "POST", headers: H, body: JSON.stringify({ content: { parts: [{ text: prompt }] } }) });
+          const j2 = await up.json().catch(() => null);
+          if (!up.ok) return { ok: false, error: `Google HTTP ${up.status} — ${j2?.error?.message || ""}` };
+          const v = j2?.embedding?.values || [];
+          const norm = Math.sqrt(v.reduce((a, x) => a + x * x, 0));
+          return { ok: true, output: "", embedding: { dim: v.length, head: v.slice(0, 12).map(x => +x.toFixed(5)), norm: +norm.toFixed(4) } };
+        }
+        const parts = [{ text: prompt }];
+        const rawAudio = String(body.audio ?? "");
+        if (rawAudio) parts.unshift({ inline_data: { mime_type: String(body.audio_mime || "audio/wav"), data: rawAudio } });
+        if (cfg.kind !== "transcribe") for (const im of normImageList(body)) parts.unshift({ inline_data: { mime_type: im.mime, data: im.b64 } });
+        const gc = {};
+        if (params.max_tokens) gc.maxOutputTokens = Number(params.max_tokens);
+        if (params.temperature !== undefined && params.temperature !== null && params.temperature !== "") gc.temperature = Number(params.temperature);
+        if (params.thinking_level) gc.thinkingConfig = { thinkingLevel: String(params.thinking_level) };
+        const tools = [];
+        if (params.google_search) tools.push({ google_search: {} });
+        if (params.google_code_execution) tools.push({ code_execution: {} });
+        if (params.google_url_context) tools.push({ url_context: {} });
+        if (params.google_maps) tools.push({ google_maps: {} });
+        const reqBody = { contents: [{ role: "user", parts }] };
+        if (cfg.kind === "tts") {
+          gc.responseModalities = ["AUDIO"];
+          gc.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: String(params.voice || "Kore") } } };
+          delete gc.maxOutputTokens;
+        }
+        if (Object.keys(gc).length) reqBody.generationConfig = gc;
+        if (tools.length) reqBody.tools = tools;
+        const up = await fetch(B + ":generateContent", { method: "POST", headers: H, body: JSON.stringify(reqBody) });
+        const j2 = await up.json().catch(() => null);
+        if (!up.ok) return { ok: false, error: `Google HTTP ${up.status} — ${j2?.error?.message || ""}` };
+        const cand = j2?.candidates?.[0];
+        const ps = cand?.content?.parts || [];
+        const txt = ps.map(p => p.text || (p.audioTranscription && p.audioTranscription.text) || "").join("").trim();
+        if (cfg.kind === "tts") {
+          const au = ps.find(p => p.inlineData && p.inlineData.data);
+          if (!au) return { ok: false, error: "Google TTS : aucune donnée audio renvoyée" };
+          return { ok: true, output: txt, audio: au.inlineData.data, mime: au.inlineData.mimeType || "audio/wav" };
+        }
+        const gm = cand?.groundingMetadata;
+        const applied = [...new Set((gm?.groundingChunks || []).map(c => c?.web?.uri).filter(Boolean))].slice(0, 6);
+        return { ok: true, output: txt, applied };
+      } catch (err) { return { ok: false, error: `Google injoignable : ${err.message}` }; }
+}
+/* Modèles de la liste principale : Google officiel d'abord, bloc Google de
+   Roboflow en secours. Même identifiant de modèle des deux côtés. */
+const GOOGLE_FIRST = {
+  "gemini-3-8-flash": "gemini-3.8-flash",
+  "gemini-3-7-flash": "gemini-3.7-flash",
+  "gemini-3-5-flash-lite": "gemini-3.5-flash-lite",
+  "gemini-3-1-pro": "gemini-3.1-pro-preview",
+  "gemini-4-argon": "gemini-4-argon",
+  "gemini-2-5-pro": "gemini-2.5-pro",
+};
 const GOOGLE_MAP = {
   /* Les « gg-… » sont les modèles Google servis par l'API officielle, avec
      les outils Google. Les identifiants « gemini-… » de la liste principale
@@ -4761,55 +4822,23 @@ function modelErrors(error) {
     }
 
     /* --- Canal Google (Gemini API) --- */
-    if (GOOGLE_MAP[model]) {
-      const cfg = GOOGLE_MAP[model];
-      const H = { "Content-Type": "application/json", "x-goog-api-key": env.GOOGLE_API_KEY };
-      const B = "https://generativelanguage.googleapis.com/v1beta/models/" + cfg.m;
-      try {
-        if (cfg.kind === "embed") {
-          const up = await fetch(B + ":embedContent", { method: "POST", headers: H, body: JSON.stringify({ content: { parts: [{ text: prompt }] } }) });
-          const j2 = await up.json().catch(() => null);
-          if (!up.ok) return json({ error: `Google HTTP ${up.status} — ${j2?.error?.message || ""}` }, 502);
-          const v = j2?.embedding?.values || [];
-          const norm = Math.sqrt(v.reduce((a, x) => a + x * x, 0));
-          return json({ output: "", embedding: { dim: v.length, head: v.slice(0, 12).map(x => +x.toFixed(5)), norm: +norm.toFixed(4) } });
-        }
-        const parts = [{ text: prompt }];
-        const rawAudio = String(body.audio ?? "");
-        if (rawAudio) parts.unshift({ inline_data: { mime_type: String(body.audio_mime || "audio/wav"), data: rawAudio } });
-        if (cfg.kind !== "transcribe") for (const im of normImageList(body)) parts.unshift({ inline_data: { mime_type: im.mime, data: im.b64 } });
-        const gc = {};
-        if (params.max_tokens) gc.maxOutputTokens = Number(params.max_tokens);
-        if (params.temperature !== undefined && params.temperature !== null && params.temperature !== "") gc.temperature = Number(params.temperature);
-        if (params.thinking_level) gc.thinkingConfig = { thinkingLevel: String(params.thinking_level) };
-        const tools = [];
-        if (params.google_search) tools.push({ google_search: {} });
-        if (params.google_code_execution) tools.push({ code_execution: {} });
-        if (params.google_url_context) tools.push({ url_context: {} });
-        if (params.google_maps) tools.push({ google_maps: {} });
-        const reqBody = { contents: [{ role: "user", parts }] };
-        if (cfg.kind === "tts") {
-          gc.responseModalities = ["AUDIO"];
-          gc.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: String(params.voice || "Kore") } } };
-          delete gc.maxOutputTokens;
-        }
-        if (Object.keys(gc).length) reqBody.generationConfig = gc;
-        if (tools.length) reqBody.tools = tools;
-        const up = await fetch(B + ":generateContent", { method: "POST", headers: H, body: JSON.stringify(reqBody) });
-        const j2 = await up.json().catch(() => null);
-        if (!up.ok) return json({ error: `Google HTTP ${up.status} — ${j2?.error?.message || ""}` }, 502);
-        const cand = j2?.candidates?.[0];
-        const ps = cand?.content?.parts || [];
-        const txt = ps.map(p => p.text || (p.audioTranscription && p.audioTranscription.text) || "").join("").trim();
-        if (cfg.kind === "tts") {
-          const au = ps.find(p => p.inlineData && p.inlineData.data);
-          if (!au) return json({ error: "Google TTS : aucune donnée audio renvoyée" }, 502);
-          return json({ output: txt, audio: au.inlineData.data, mime: au.inlineData.mimeType || "audio/wav" });
-        }
-        const gm = cand?.groundingMetadata;
-        const applied = [...new Set((gm?.groundingChunks || []).map(c => c?.web?.uri).filter(Boolean))].slice(0, 6);
-        return json({ output: txt, applied });
-      } catch (err) { return json({ error: `Google injoignable : ${err.message}` }, 502); }
+    /* Les « gemini-… » de la liste principale passent par Google d'abord ;
+       si Google refuse (quota) ou sature (503 « high demand »), on retombe
+       sur le bloc Google officiel de Roboflow — le MÊME modèle, jamais un
+       autre. Les « gg-… » restent strictement sur l'API Google. */
+    let googleFail = "";
+    if (GOOGLE_MAP[model] || GOOGLE_FIRST[model]) {
+      const cfg = GOOGLE_MAP[model] || { m: GOOGLE_FIRST[model] };
+      const g = await googleChat(env, cfg, prompt, params, body);
+      if (g.ok) {
+        const sortie = { output: g.output ?? "" };
+        if (g.audio) { sortie.audio = g.audio; sortie.mime = g.mime; }
+        if (g.embedding) sortie.embedding = g.embedding;
+        if (g.applied) sortie.applied = g.applied;
+        return json(sortie);
+      }
+      if (!GOOGLE_FIRST[model]) return json({ error: g.error }, 502);
+      googleFail = g.error;
     }
 
     const spec = MODELS[model];
@@ -5093,10 +5122,10 @@ function modelErrors(error) {
       if (msModel && msKey(env) && !MS_FIRST[model]) {
         const ms = await msChat(env, msModel, prompt, params, image);
         if (ms.ok) return json({ output: ms.output, applied: [], via: "modelscope" });
-        return json({ error: res.error + " · " + ms.error }, 502);
+        return json({ error: (googleFail ? googleFail + " · " : "") + res.error + " · " + ms.error }, 502);
       }
-      if (msFirst) return json({ error: msFirst + " · " + res.error }, 502);
-      return json({ error: res.error }, 502);
+      if (msFirst) return json({ error: msFirst + " · " + (googleFail ? googleFail + " · " : "") + res.error }, 502);
+      return json({ error: (googleFail ? googleFail + " · " : "") + res.error }, 502);
     }
 
     let output = pick(res).output ?? "";
