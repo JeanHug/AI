@@ -1312,6 +1312,18 @@ const MS_IMG = {
 };
 function msKey(env) { return String(env.MODELSCOPE_API_KEY || "").trim(); }
 /* Un appel de texte chez ModelScope. Renvoie { ok, output } ou { ok:false, error }. */
+/* L'application joint TOUJOURS une image : un blanc de 64×64 quand la demande
+   est purement textuelle (la passerelle Roboflow exige un champ image). Les
+   modèles textuels de ModelScope refusent alors la pièce jointe — « only
+   supports text modality ». On ne transmet donc une image que si c'en est
+   vraiment une : le blanc est reconnu à son en-tête, jamais par sa longueur. */
+const PLACEHOLDER_HEAD = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCABA";
+function imageReelle(b64) {
+  const v = String(b64 || "");
+  if (v.length < 200) return false;
+  return v.slice(0, PLACEHOLDER_HEAD.length) !== PLACEHOLDER_HEAD;
+}
+
 async function msChat(env, msModel, prompt, params, image) {
   const key = msKey(env);
   if (!key) return { ok: false, error: "secret MODELSCOPE_API_KEY manquant côté Worker" };
@@ -1320,7 +1332,7 @@ async function msChat(env, msModel, prompt, params, image) {
      demande est purement textuelle. ModelScope refuse ce faux format :
      « invalid image format ». On ne lui envoie donc une image que si c'en
      est vraiment une — c'est-à-dire nettement plus qu'un pixel. */
-  const vraieImage = !!image && String(image).length > 200;
+  const vraieImage = imageReelle(image);
   const content = [];
   if (vraieImage) content.push({ type: "image_url", image_url: { url: dataUri({ b64: image, mime: detectMime(image) }) } });
   content.push({ type: "text", text: String(prompt || "") });
