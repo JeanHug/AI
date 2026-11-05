@@ -1350,27 +1350,36 @@ async function msChat(env, msModel, prompt, params, image) {
   /* Un hôte peut refuser le jeton, l'autre l'accepter : on les essaie dans
      l'ordre, et on ne réessaie que si le refus vient de l'authentification. */
   let r = null, t = "", j = null, dernier = "";
-  for (const host of MS_HOSTS) {
-    try {
-      r = await fetch(host + "/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + key, "User-Agent": BROWSER_UA },
-        body: JSON.stringify(body),
-      });
-    } catch (e) {
-      dernier = "ModelScope injoignable : " + (e && e.message ? e.message : e);
-      r = null;
-      continue;
+  /* Saturation passagère : ModelScope répond « Too many requests » ou
+     « 该模型当前访问量过大 » pendant quelques secondes. Trois essais, avec une
+     attente qui double — sinon une simple pointe fait échouer le message. */
+  const sature = (m) => /too many requests|429|访问量过大|the engine is currently overloaded|overloaded/i.test(String(m || ""));
+  boucle:
+  for (let essai = 1; essai <= 3; essai++) {
+    for (const host of MS_HOSTS) {
+      try {
+        r = await fetch(host + "/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + key, "User-Agent": BROWSER_UA },
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        dernier = "ModelScope injoignable : " + (e && e.message ? e.message : e);
+        r = null;
+        continue;
+      }
+      t = await r.text();
+      j = null;
+      try { j = JSON.parse(t); } catch { j = null; }
+      if (r.ok && j) break boucle;
+      const mm = (j && j.error && (j.error.message || j.error.code)) || ("HTTP " + r.status);
+      dernier = String(mm).slice(0, 300);
+      /* « invalid model id » ou « no provider » ne changeront pas d'hôte :
+         seule l'authentification justifie d'essayer le second. */
+      if (!/authenticat|authorization|unauthor/i.test(dernier)) break;
     }
-    t = await r.text();
-    j = null;
-    try { j = JSON.parse(t); } catch { j = null; }
-    if (r.ok && j) break;
-    const mm = (j && j.error && (j.error.message || j.error.code)) || ("HTTP " + r.status);
-    dernier = String(mm).slice(0, 300);
-    /* « invalid model id » ou « no provider » ne changeront pas d'hôte :
-       seule l'authentification justifie d'essayer le second. */
-    if (!/authenticat|authorization|unauthor/i.test(dernier)) break;
+    if (!sature(dernier) || essai === 3) break;
+    await new Promise((res) => setTimeout(res, essai === 1 ? 1200 : 3000));
   }
   if (!r || !r.ok || !j) {
     return { ok: false, error: "ModelScope : " + (dernier || "réponse vide") };
