@@ -4031,7 +4031,10 @@ function modelErrors(error) {
       const cle = /plan|cycle|billing|credit|period|reset|renew|expire|trial|subscript|seat|usage/i;
       const interest = {};
       for (const k of Object.keys(j)) if (cle.test(k)) interest[k] = j[k];
-      return json({ ok: r.ok, statut: r.status, cles: Object.keys(j), interessants: interest });
+      /* `corps` : la réponse brute (utile pour lister les workflows d'un
+         espace, dont les noms ne passent pas le filtre ci-dessus). */
+      return json({ ok: r.ok, statut: r.status, cles: Object.keys(j), interessants: interest,
+        corps: String(txt).slice(0, 1500) });
     }
 
     /* ---- Roboflow : qui est de côté, et pourquoi ---------------------
