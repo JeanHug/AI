@@ -3899,15 +3899,27 @@ function modelErrors(error) {
     /* Un pixel blanc de 1×1 : Roboflow exige un champ image, même pour un
        modèle de texte. Sert quand l'appelant n'en fournit pas. */
     const RF_PX = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-    const rfTryToken = async (tok, model, imageIn, promptTxt) => {
+    const rfTryToken = async (tok, model, imageIn, promptTxt, opts) => {
+      opts = opts || {};
       const image = String(imageIn || "") || RF_PX;
       const spec = MODELS[model] || null;
       if (!spec) return { error: "modèle inconnu : " + model };
-      const step = {
-        type: spec.block, name: "m", prompt: String(promptTxt || "ping"),
-        [spec.vf || "model_version"]: spec.vv || model,
-        api_key: "rf_key:account", task_type: "unconstrained",
-      };
+      /* `opts.apikey` : "" pour OMETTRE carrément le champ, une autre valeur
+         pour l'essayer (« rf_key:user:default »…). `opts.trivial` remplace le
+         bloc par une simple transformation, sans aucune clé de fournisseur :
+         cela sépare « le jeton peut lancer un workflow » de « Roboflow veut
+         bien prêter sa clé ». */
+      const step = opts.trivial
+        ? { type: "roboflow_core/dominant_color@v1", name: "m", images: "$inputs.image" }
+        : {
+          type: spec.block, name: "m", prompt: String(promptTxt || "ping"),
+          [spec.vf || "model_version"]: spec.vv || model,
+          task_type: "unconstrained",
+        };
+      if (!opts.trivial) {
+        const ak = opts.apikey === undefined ? "rf_key:account" : String(opts.apikey);
+        if (ak) step.api_key = ak;
+      }
       if (!spec.noimg && image) step.images = "$inputs.image";
       const payload = {
         api_key: tok,
@@ -3959,10 +3971,12 @@ function modelErrors(error) {
       /* `fin` choisit un jeton précis ; sinon le premier. */
       const fin = String(b.fin || "");
       const tok = fin ? (toks.filter(t => String(t).slice(-4) === fin)[0] || toks[0]) : toks[0];
-      const out = await rfTryToken(tok, String(b.model || "qwen-3-8-27b"), String(b.image || ""), String(b.prompt || "ping"));
+      const out = await rfTryToken(tok, String(b.model || "qwen-3-8-27b"), String(b.image || ""), String(b.prompt || "ping"),
+        { apikey: b.apikey, trivial: b.trivial === true });
       if (out.error) return json({ ok: false, error: out.error }, 502);
       return json({
         ok: out.ok, modele: String(b.model || "qwen-3-8-27b"), bloc: out.bloc, statut: out.statut,
+        essai: b.trivial === true ? "trivial" : ("api_key=" + (b.apikey === undefined ? "rf_key:account" : JSON.stringify(b.apikey))),
         ms: out.ms, entetes: out.entetes, jeton: out.jeton,
         debut: String(out.texte).replace(/\s+/g, " ").slice(0, 900),
         html: /<html|Attention Required|Just a moment/i.test(out.texte),
