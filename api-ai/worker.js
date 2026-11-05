@@ -3510,7 +3510,8 @@ async function fetchHandler(request, env, ctx) {
     /* ---- ModelScope : appel quotidien et catalogue -----------------------
        Ces deux routes vivent chez le worker (aucun relais VM) : le jeton
        reste dans le secret MODELSCOPE_API_KEY et n'est jamais rendu. */
-    if (url.pathname === "/api/ms/daily" || url.pathname === "/api/ms/models" || url.pathname === "/api/ms/state") {
+    if (url.pathname === "/api/ms/daily" || url.pathname === "/api/ms/models" || url.pathname === "/api/ms/state"
+        || url.pathname === "/api/ms/probe") {
       if (env.ACCESS_CODE && request.headers.get("X-Access-Code") !== env.ACCESS_CODE) {
         return json({ error: "code d'accès invalide" }, 401);
       }
