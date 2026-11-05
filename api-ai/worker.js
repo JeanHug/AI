@@ -380,24 +380,24 @@ const MODELS = {
      emprunter une autre route (c'était la source d'un double essai inutile
      et d'un diagnostic faux : le refus de crédits était masqué par le refus
      « plan gratuit » du repli OpenRouter, essayé juste après). */
-  "claude-opus-5-5":   { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-opus-5.5", direct: true },
-  "claude-haiku-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-haiku-5.5", direct: true },
-  "claude-sonnet-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-sonnet-5.5", direct: true },
-  "claude-fable-5-1":  { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-fable-5.1", direct: true },
+  "claude-opus-5-5":   { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
+  "claude-haiku-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
+  "claude-sonnet-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
+  "claude-fable-5-1":  { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
   /* ---- OpenAI ------------------------------------------------------ */
-  "gpt-6-astra": { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6-astra" },
-  "gpt-6.1-sol": { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6.1-sol" },
-  "gpt-6-luna":  { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6-luna" },
+  "gpt-6-astra": { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
+  "gpt-6.1-sol": { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
+  "gpt-6-luna":  { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
   /* ---- Google Gemini (v3 : rf_key:account ; pas de task_type) ------ */
-  "gemini-3-8-flash":      { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-3.8-flash" },
-  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.7-flash", or: "google/gemini-3.7-flash" },
-  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite", or: "google/gemini-3.5-flash-lite" },
-  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview", or: "google/gemini-3.1-pro-preview" },
+  "gemini-3-8-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.8-flash", direct: true },
+  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.7-flash", direct: true },
+  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite", direct: true },
+  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview", direct: true },
   /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie.
      Bloc dédié google_gemini v6 (v3/v4 rejettent le modèle : leur liste de
      model_version s'arrête à gemini-3.7-flash, v5 n'existe pas). */
-  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon", or: "google/gemini-4-argon" },
-  "gemini-2-5-pro":          { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-pro" },
+  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon", direct: true },
+  "gemini-2-5-pro":          { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-2.5-pro", direct: true },
   /* ---- Meta (bloc générique managé Roboflow) ----------------------- */
   "muse-spark-1-3": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-spark-1.3" },
   "muse-wonder": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-wonder" },
@@ -424,9 +424,9 @@ const MODELS = {
   /* ---- DeepSeek (bloc générique managé Roboflow) ------------------- */
   "deepseek-v4-1-flash": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "deepseek/deepseek-v4.1-flash-1017" },
   /* ---- Génération d'image (sortie image via OpenRouter managé) ----- */
-  "gemini-2-5-flash-image": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-flash-image" },
-  "nano-banana-2-1":        { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-nano-banana-2.1" },
-  "gpt-5-image":            { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "openai/gpt-5-image" },
+  "gemini-2-5-flash-image": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-2.5-flash-image", direct: true },
+  "nano-banana-2-1":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-nano-banana-2.1", direct: true },
+  "gpt-5-image":            { block: "roboflow_core/open_ai@v7", family: "openai", vv: "gpt-5-image", direct: true },
   /* ---- Xiaomi / Mimo (bloc générique managé Roboflow) -------------- */
   "mimo-v2-6-pro":   { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "xiaomi/mimo-v2.6-pro" },
   "mimo-v2-6-flash": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "xiaomi/mimo-v2.6-flash" },
@@ -567,15 +567,10 @@ function pollErrorMessage(status, raw) {
 
 /* --- Canal Google (Gemini API gratuite) --- */
 const GOOGLE_MAP = {
-  /* Les identifiants « gemini-… » de la liste principale passent, eux aussi,
-     par l'API officielle Google : plus de bloc Roboflow ni d'OpenRouter pour
-     Gemini. Les « gg-… » restent les mêmes modèles, exposés avec leurs
-     outils Google (recherche, exécution de code, cartes). */
-  "gemini-3-8-flash": { m: "gemini-3.8-flash" },
-  "gemini-3-7-flash": { m: "gemini-3.7-flash" },
-  "gemini-3-5-flash-lite": { m: "gemini-3.5-flash-lite" },
-  "gemini-3-1-pro": { m: "gemini-3.1-pro-preview" },
-  "gemini-4-argon": { m: "gemini-4-argon" },
+  /* Les « gg-… » sont les modèles Google servis par l'API officielle, avec
+     les outils Google. Les identifiants « gemini-… » de la liste principale
+     passent par Roboflow — mais par le bloc Google officiel de Roboflow
+     (`roboflow_core/google_gemini@vN`), jamais par son bloc OpenRouter. */
   "gg-gemini-3-8-flash": { m: "gemini-3.8-flash" },
   "gg-gemini-3-7-flash": { m: "gemini-3.7-flash" },
   "gg-gemini-3-6-flash": { m: "gemini-3.6-flash" },
@@ -599,74 +594,6 @@ const GOOGLE_MAP = {
    envoyées dans l'ordre) sont acceptés ensemble : les images nommées sont
    placées en tête, chacune précédée de son nom pour que le modèle sache
    de laquelle on parle. */
-/* ---- Fournisseurs officiels : Claude et GPT --------------------------
-   Ces deux familles n'empruntent plus la clé prêtée par Roboflow ni le bloc
-   OpenRouter : l'appel va droit à l'API du fournisseur, avec SA clé, lue
-   dans les secrets du Worker. Sans clé, on le dit franchement — et on ne
-   bascule vers personne d'autre (c'était le sens de la consigne : « Claude,
-   Gemini et GPT ne doivent PAS utiliser OpenRouter mais l'API officielle »). */
-const DIRECT = {
-  "claude-opus-5-5":   { p: "anthropic", m: "claude-opus-5-5" },
-  "claude-sonnet-5-5": { p: "anthropic", m: "claude-sonnet-5-5" },
-  "claude-fable-5-1":  { p: "anthropic", m: "claude-fable-5-1" },
-  "claude-haiku-5-5":  { p: "anthropic", m: "claude-haiku-5-5" },
-  "gpt-6-astra":       { p: "openai", m: "gpt-6-astra" },
-  "gpt-6.1-sol":       { p: "openai", m: "gpt-6.1-sol" },
-  "gpt-6-luna":        { p: "openai", m: "gpt-6-luna" },
-};
-const DIRECT_KEY = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY" };
-const DIRECT_NOM = { anthropic: "Anthropic", openai: "OpenAI" };
-
-async function directChat(env, model, prompt, params, body) {
-  const cfg = DIRECT[model];
-  if (!cfg) return { ok: false, error: "modèle inconnu : " + model };
-  const nom = DIRECT_NOM[cfg.p];
-  const cle = String(env[DIRECT_KEY[cfg.p]] || "").trim();
-  if (!cle) {
-    return { ok: false, error: nom + " : aucune clé " + DIRECT_KEY[cfg.p]
-      + " dans les secrets du Worker. La voie officielle est la seule autorisée pour ce modèle"
-      + " (aucun repli OpenRouter) : ajoute la clé, puis relance." };
-  }
-  const imgs = normImageList(body);
-  const maxTok = Number(params.max_tokens) || 8192;
-  const temp = (params.temperature === undefined || params.temperature === null || params.temperature === "") ? null : Number(params.temperature);
-  try {
-    if (cfg.p === "anthropic") {
-      const content = [];
-      for (const im of imgs) content.push({ type: "image", source: { type: "base64", media_type: im.mime, data: im.b64 } });
-      content.push({ type: "text", text: prompt });
-      const rb = { model: cfg.m, max_tokens: maxTok, messages: [{ role: "user", content }] };
-      if (temp !== null) rb.temperature = temp;
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": cle, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify(rb),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok) return { ok: false, error: nom + " HTTP " + r.status + " — " + String(j && j.error && j.error.message || "").slice(0, 300) };
-      const txt = (j && j.content || []).filter((x) => x.type === "text").map((x) => x.text).join("").trim();
-      return { ok: true, output: txt, via: "anthropic" };
-    }
-    /* OpenAI */
-    const content = [{ type: "text", text: prompt }];
-    for (const im of imgs) content.push({ type: "image_url", image_url: { url: "data:" + im.mime + ";base64," + im.b64 } });
-    const rb = { model: cfg.m, messages: [{ role: "user", content: imgs.length ? content : prompt }] };
-    if (/^(gpt-6|o[0-9])/.test(cfg.m)) rb.max_completion_tokens = maxTok; else rb.max_tokens = maxTok;
-    if (temp !== null) rb.temperature = temp;
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + cle },
-      body: JSON.stringify(rb),
-    });
-    const j = await r.json().catch(() => null);
-    if (!r.ok) return { ok: false, error: nom + " HTTP " + r.status + " — " + String(j && j.error && j.error.message || "").slice(0, 300) };
-    const txt = String(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content || "").trim();
-    return { ok: true, output: txt, via: "openai" };
-  } catch (e) {
-    return { ok: false, error: nom + " injoignable : " + String(e && e.message ? e.message : e) };
-  }
-}
-
 const MAX_INLINE_IMAGES = 4;
 function normImageList(body) {
   const out = [];
@@ -3882,6 +3809,7 @@ function modelErrors(error) {
       if (!c || c.orFallback) return "";
       if (c.family === "claude") return String(env.ANTHROPIC_API_KEY || "").trim();
       if (c.family === "openai") return String(env.OPENAI_API_KEY || "").trim();
+      if (c.family === "gemini") return String(env.GOOGLE_API_KEY || "").trim();
       return "";
     };
     /* Un pixel blanc de 1×1 : Roboflow exige un champ image, même pour un
@@ -4859,13 +4787,6 @@ function modelErrors(error) {
         const applied = [...new Set((gm?.groundingChunks || []).map(c => c?.web?.uri).filter(Boolean))].slice(0, 6);
         return json({ output: txt, applied });
       } catch (err) { return json({ error: `Google injoignable : ${err.message}` }, 502); }
-    }
-
-    /* Claude et GPT : API officielle, jamais OpenRouter. */
-    if (DIRECT[model]) {
-      const dc = await directChat(env, model, prompt, params, body);
-      if (!dc.ok) return json({ error: dc.error }, 502);
-      return json({ output: dc.output, applied: [], via: dc.via });
     }
 
     const spec = MODELS[model];
