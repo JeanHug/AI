@@ -380,24 +380,24 @@ const MODELS = {
      emprunter une autre route (c'était la source d'un double essai inutile
      et d'un diagnostic faux : le refus de crédits était masqué par le refus
      « plan gratuit » du repli OpenRouter, essayé juste après). */
-  "claude-opus-5-5":   { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
-  "claude-haiku-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
-  "claude-sonnet-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
-  "claude-fable-5-1":  { block: "roboflow_core/anthropic_claude@v5", family: "claude", direct: true },
+  "claude-opus-5-5":   { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-opus-5.5" },
+  "claude-haiku-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-haiku-5.5" },
+  "claude-sonnet-5-5": { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-sonnet-5.5" },
+  "claude-fable-5-1":  { block: "roboflow_core/anthropic_claude@v5", family: "claude", or: "anthropic/claude-fable-5.1" },
   /* ---- OpenAI ------------------------------------------------------ */
-  "gpt-6-astra": { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
-  "gpt-6.1-sol": { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
-  "gpt-6-luna":  { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
+  "gpt-6-astra": { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6-astra" },
+  "gpt-6.1-sol": { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6.1-sol" },
+  "gpt-6-luna":  { block: "roboflow_core/open_ai@v7", family: "openai", or: "openai/gpt-6-luna" },
   /* ---- Google Gemini (v3 : rf_key:account ; pas de task_type) ------ */
-  "gemini-3-8-flash":      { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.8-flash", direct: true },
-  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.7-flash", direct: true },
-  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.5-flash-lite", direct: true },
-  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.1-pro-preview", direct: true },
+  "gemini-3-8-flash":      { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-3.8-flash" },
+  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.7-flash", or: "google/gemini-3.7-flash" },
+  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite", or: "google/gemini-3.5-flash-lite" },
+  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview", or: "google/gemini-3.1-pro-preview" },
   /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie.
      Bloc dédié google_gemini v6 (v3/v4 rejettent le modèle : leur liste de
      model_version s'arrête à gemini-3.7-flash, v5 n'existe pas). */
-  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon", direct: true },
-  "gemini-2-5-pro":          { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-2.5-pro", direct: true },
+  "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon", or: "google/gemini-4-argon" },
+  "gemini-2-5-pro":          { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-pro" },
   /* ---- Meta (bloc générique managé Roboflow) ----------------------- */
   "muse-spark-1-3": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-spark-1.3" },
   "muse-wonder": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-wonder" },
@@ -424,9 +424,9 @@ const MODELS = {
   /* ---- DeepSeek (bloc générique managé Roboflow) ------------------- */
   "deepseek-v4-1-flash": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "deepseek/deepseek-v4.1-flash-1017" },
   /* ---- Génération d'image (sortie image via OpenRouter managé) ----- */
-  "gemini-2-5-flash-image": { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-2.5-flash-image", direct: true },
-  "nano-banana-2-1":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-nano-banana-2.1", direct: true },
-  "gpt-5-image":            { block: "roboflow_core/open_ai@v7", family: "openai", vv: "gpt-5-image", direct: true },
+  "gemini-2-5-flash-image": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-2.5-flash-image" },
+  "nano-banana-2-1":        { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "google/gemini-nano-banana-2.1" },
+  "gpt-5-image":            { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "openai/gpt-5-image" },
   /* ---- Xiaomi / Mimo (bloc générique managé Roboflow) -------------- */
   "mimo-v2-6-pro":   { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "xiaomi/mimo-v2.6-pro" },
   "mimo-v2-6-flash": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "xiaomi/mimo-v2.6-flash" },
