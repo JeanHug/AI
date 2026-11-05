@@ -389,15 +389,15 @@ const MODELS = {
   "gpt-6.1-sol": { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
   "gpt-6-luna":  { block: "roboflow_core/open_ai@v7", family: "openai", direct: true },
   /* ---- Google Gemini (v3 : rf_key:account ; pas de task_type) ------ */
-  "gemini-3-8-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.8-flash", direct: true },
-  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.7-flash", direct: true },
-  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.5-flash-lite", direct: true },
-  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-3.1-pro-preview", direct: true },
+  "gemini-3-8-flash":      { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.8-flash", direct: true },
+  "gemini-3-7-flash":      { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.7-flash", direct: true },
+  "gemini-3-5-flash-lite": { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.5-flash-lite", direct: true },
+  "gemini-3-1-pro":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-3.1-pro-preview", direct: true },
   /* Gemini 4 Argon (13/10/2026) — frontier 1 M entrée / 1 M sortie.
      Bloc dédié google_gemini v6 (v3/v4 rejettent le modèle : leur liste de
      model_version s'arrête à gemini-3.7-flash, v5 n'existe pas). */
   "gemini-4-argon":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-4-argon", direct: true },
-  "gemini-2-5-pro":          { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-2.5-pro", direct: true },
+  "gemini-2-5-pro":          { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-2.5-pro", direct: true },
   /* ---- Meta (bloc générique managé Roboflow) ----------------------- */
   "muse-spark-1-3": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-spark-1.3" },
   "muse-wonder": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "meta/muse-wonder" },
@@ -424,8 +424,8 @@ const MODELS = {
   /* ---- DeepSeek (bloc générique managé Roboflow) ------------------- */
   "deepseek-v4-1-flash": { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "deepseek/deepseek-v4.1-flash-1017" },
   /* ---- Génération d'image (sortie image via OpenRouter managé) ----- */
-  "gemini-2-5-flash-image": { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-2.5-flash-image", direct: true },
-  "nano-banana-2-1":        { block: "roboflow_core/google_gemini@v3", family: "gemini", task: null, vv: "gemini-nano-banana-2.1", direct: true },
+  "gemini-2-5-flash-image": { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-2.5-flash-image", direct: true },
+  "nano-banana-2-1":        { block: "roboflow_core/google_gemini@v6", family: "gemini", task: null, vv: "gemini-nano-banana-2.1", direct: true },
   "gpt-5-image":            { block: "roboflow_core/open_ai@v7", family: "openai", vv: "gpt-5-image", direct: true },
   /* ---- Xiaomi / Mimo (bloc générique managé Roboflow) -------------- */
   "mimo-v2-6-pro":   { block: "roboflow_core/openrouter@v1", family: "router", vf: "model_id", vv: "xiaomi/mimo-v2.6-pro" },
