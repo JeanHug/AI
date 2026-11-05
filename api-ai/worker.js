@@ -3994,12 +3994,15 @@ function modelErrors(error) {
       const toks = roboflowTokens(env);
       if (!toks.length) return json({ error: "aucun jeton Roboflow dans le Worker" }, 400);
       let r, txt = "";
-      const chemin = String(new URL(request.url).searchParams.get("p") || "").replace(/^\/+/, "");
+      const q = new URL(request.url).searchParams;
+      const fin = String(q.get("fin") || "");
+      const tokInfo = fin ? (toks.filter(t => String(t).slice(-4) === fin)[0] || toks[0]) : toks[0];
+      const chemin = String(q.get("p") || "").replace(/^\/+/, "");
       if (chemin && (!/^[A-Za-z0-9._\/-]+$/.test(chemin) || /^workflows/i.test(chemin))) {
         return json({ error: "chemin refusé" }, 400);
       }
       try {
-        r = await fetch("https://api.roboflow.com/" + chemin + (chemin ? "?" : "") + "api_key=" + encodeURIComponent(toks[0]),
+        r = await fetch("https://api.roboflow.com/" + chemin + (chemin ? "?" : "") + "api_key=" + encodeURIComponent(tokInfo),
           { headers: { "Accept": "application/json", "User-Agent": BROWSER_UA } });
         txt = await r.text();
       } catch (e) {
