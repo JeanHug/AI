@@ -2066,7 +2066,7 @@ function rfWhyPhrase(env) {
   }
   const parts = [];
   if (c.credit) parts.push(c.credit + (c.credit > 1 ? " espaces à sec (crédits du cycle épuisés)" : " espace à sec (crédits du cycle épuisés)"));
-  if (c.plan) parts.push(c.plan + " au plan gratuit (clés OpenRouter fermées)");
+  if (c.plan) parts.push(c.plan + " au plan gratuit (l'accès au fournisseur y est fermé, sauf clé apportée par le Worker)");
   if (c.scopes) parts.push(c.scopes + " sans clé du fournisseur (Roboflow ne prête pas la sienne hors plan payant)");
   if (c.autre) parts.push(c.autre + " refusé" + (c.autre > 1 ? "s" : "") + " autrement");
   if (!parts.length) return "";
